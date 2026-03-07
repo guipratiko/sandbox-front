@@ -80,7 +80,7 @@ const WhatsAppInstances: React.FC = () => {
     try {
       setIsLoading(true);
       const response = await instanceAPI.getAll();
-      setInstances(response.instances);
+      setInstances((response.instances || []).filter((i) => i.integration !== 'WHATSAPP-CLOUD'));
       setError(null);
     } catch (error: unknown) {
       logError('WhatsAppInstances.loadInstances', error);

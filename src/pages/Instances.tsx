@@ -3,28 +3,25 @@ import { AppLayout } from '../components/Layout';
 import { HelpIcon } from '../components/UI';
 import { useLanguage } from '../contexts/LanguageContext';
 import WhatsAppInstances from '../components/WhatsApp/WhatsAppInstances';
+import WhatsAppOfficialInstances from '../components/WhatsApp/WhatsAppOfficialInstances';
 import InstagramInstances from '../components/Instagram/InstagramInstances';
 
 const INSTANCES_TAB_KEY = 'instances_active_tab';
+type TabKey = 'whatsapp' | 'whatsapp-official' | 'instagram';
 
 const Instances: React.FC = () => {
   const { t } = useLanguage();
 
-  // Carregar aba salva do localStorage ou usar 'whatsapp' como padrão
-  // Também verificar se há parâmetro 'tab' na URL (vindo do OAuth callback)
-  const [activeTab, setActiveTab] = useState<'whatsapp' | 'instagram'>(() => {
-    // Verificar parâmetro da URL primeiro (prioridade)
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const urlTab = urlParams.get('tab');
-    if (urlTab === 'instagram' || urlTab === 'whatsapp') {
-      return urlTab;
+    if (urlTab === 'instagram' || urlTab === 'whatsapp' || urlTab === 'whatsapp-official') {
+      return urlTab as TabKey;
     }
-    // Se não houver parâmetro na URL, usar localStorage
     const savedTab = localStorage.getItem(INSTANCES_TAB_KEY);
-    return (savedTab === 'instagram' || savedTab === 'whatsapp') ? savedTab : 'whatsapp';
+    return (savedTab === 'instagram' || savedTab === 'whatsapp' || savedTab === 'whatsapp-official') ? savedTab as TabKey : 'whatsapp';
   });
 
-  // Salvar aba no localStorage quando mudar
   useEffect(() => {
     localStorage.setItem(INSTANCES_TAB_KEY, activeTab);
   }, [activeTab]);
@@ -42,7 +39,6 @@ const Instances: React.FC = () => {
           </p>
         </div>
 
-        {/* Tabs Principais */}
         <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
           <nav className="flex space-x-8" aria-label="Tabs">
             <button
@@ -54,6 +50,16 @@ const Instances: React.FC = () => {
               }`}
             >
               WhatsApp
+            </button>
+            <button
+              onClick={() => setActiveTab('whatsapp-official')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'whatsapp-official'
+                  ? 'border-clerky-backendButton text-clerky-backendButton'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
+            >
+              WhatsApp Oficial
             </button>
             <button
               onClick={() => setActiveTab('instagram')}
@@ -68,7 +74,6 @@ const Instances: React.FC = () => {
           </nav>
         </div>
 
-        {/* Conteúdo das Tabs */}
         <div className="relative min-h-[400px]">
           <div
             className={`transition-all duration-300 ease-in-out ${
@@ -78,6 +83,15 @@ const Instances: React.FC = () => {
             }`}
           >
             <WhatsAppInstances />
+          </div>
+          <div
+            className={`transition-all duration-300 ease-in-out ${
+              activeTab === 'whatsapp-official'
+                ? 'opacity-100 translate-x-0'
+                : 'opacity-0 absolute inset-0 pointer-events-none translate-x-4'
+            }`}
+          >
+            <WhatsAppOfficialInstances />
           </div>
           <div
             className={`transition-all duration-300 ease-in-out ${

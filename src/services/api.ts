@@ -91,8 +91,19 @@ export interface Instance {
     readStatus: boolean;
     syncFullHistory: boolean;
   };
+  phone_number_id?: string | null;
+  display_phone_number?: string | null;
+  connectionLink?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CreateOfficialInstanceData {
+  name: string;
+  code?: string;
+  redirect_uri?: string;
+  waba_id: string;
+  phone_number_id: string;
 }
 
 export interface CreateInstanceData {
@@ -440,6 +451,13 @@ export const subscriptionAPI = {
 export const instanceAPI = {
   create: async (data: CreateInstanceData): Promise<CreateInstanceResponse> => {
     return request<CreateInstanceResponse>('/instances', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  createOfficial: async (data: CreateOfficialInstanceData): Promise<CreateInstanceResponse> => {
+    return request<CreateInstanceResponse>('/instances/official', {
       method: 'POST',
       body: JSON.stringify(data),
     });
