@@ -1,0 +1,175 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Variáveis CSS Globais */
+:root {
+  /* Cores Principais */
+  --clerky-primary: #0040FF;
+  --clerky-secondary: #00C0FF;
+  --clerky-dark: #000000;
+  --clerky-light: #F5F5F5;
+  --clerky-white: #FFFFFF;
+  
+  /* Cores do Backend */
+  --clerky-backend-bg: #EBF2FD;
+  --clerky-backend-text: #111D32;
+  --clerky-backend-button: #5B9DFE;
+
+  /* Transições */
+  --transition-default: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Sombras */
+  --shadow-soft: 0 2px 15px rgba(0, 64, 255, 0.1);
+  --shadow-glow: 0 0 20px rgba(0, 192, 255, 0.3);
+}
+
+/* Reset e Base */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--clerky-backend-bg);
+  color: var(--clerky-backend-text);
+  line-height: 1.6;
+}
+
+/* Classes de Transição Globais */
+.transition-smooth {
+  transition: all var(--transition-default);
+}
+
+.transition-fast {
+  transition: all var(--transition-fast);
+}
+
+.transition-slow {
+  transition: all var(--transition-slow);
+}
+
+/* Efeitos de Hover Globais */
+.hover-glow:hover {
+  box-shadow: var(--shadow-glow);
+  transform: translateY(-2px);
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+}
+
+/* Gradientes */
+.gradient-primary {
+  background: linear-gradient(135deg, var(--clerky-primary) 0%, var(--clerky-secondary) 100%);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--clerky-primary) 0%, var(--clerky-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Scrollbar Customizada */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--clerky-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--clerky-primary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--clerky-secondary);
+}
+
+/* Animações */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(0, 192, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(0, 192, 255, 0.5);
+  }
+}
+
+@keyframes messageAppear {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.animate-slideIn {
+  animation: slideIn 0.5s ease-out;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-message-appear {
+  animation: messageAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Utilitários */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Esconder scrollbar mas manter funcionalidade */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE e Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari e Opera */
+}
+

@@ -1,0 +1,64 @@
+{
+  "name": "onlyflow-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^13.5.0",
+    "@types/jest": "^27.5.2",
+    "@types/node": "^16.18.68",
+    "@types/react": "^18.2.42",
+    "@types/react-dom": "^18.2.17",
+    "@xyflow/react": "^12.10.0",
+    "date-fns": "^4.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.1",
+    "react-scripts": "5.0.1",
+    "recharts": "^3.6.0",
+    "serve": "^14.2.1",
+    "socket.io-client": "^4.8.1",
+    "typescript": "^4.9.5",
+    "web-vitals": "^2.1.4",
+    "xlsx": "^0.18.5",
+    "dompurify": "^3.0.6",
+    "@types/dompurify": "^3.0.5"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.3.6",
+    "yaml": "^2.8.2"
+  },
+  "scripts": {
+    "start": "node scripts/start.js",
+    "start:dev": "react-scripts start",
+    "start:prod": "serve -s build -l ${PORT:-3000}",
+    "build": "GENERATE_SOURCEMAP=false NODE_ENV=production react-scripts build",
+    "serve": "serve -s build -l ${PORT:-3000}",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
