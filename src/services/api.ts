@@ -486,6 +486,14 @@ export const instanceAPI = {
       method: 'DELETE',
     });
   },
+
+  /** Registra o número na API Oficial (sai do status Pendente). PIN = 6 dígitos da verificação em duas etapas. */
+  registerOfficialPhone: async (id: string, pin: string): Promise<{ status: string; message: string }> => {
+    return request<{ status: string; message: string }>(`/instances/${id}/register-phone`, {
+      method: 'POST',
+      body: JSON.stringify({ pin }),
+    });
+  },
 };
 
 // CRM Interfaces

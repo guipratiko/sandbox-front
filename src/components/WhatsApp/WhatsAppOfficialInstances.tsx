@@ -32,6 +32,10 @@ const WhatsAppOfficialInstances: React.FC = () => {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [selectedInstance, setSelectedInstance] = useState<Instance | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [instanceToRegister, setInstanceToRegister] = useState<Instance | null>(null);
+  const [registerPin, setRegisterPin] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
   const pendingSignup = useRef<{ name: string; waba_id?: string; phone_number_id?: string; code?: string; redirect_uri?: string } | null>(null);
 
   const maxWhatsApp = user?.maxWhatsAppInstances ?? 0;
@@ -152,6 +156,29 @@ const WhatsAppOfficialInstances: React.FC = () => {
         extras: { version: 'v3', setup: {} },
       }
     );
+  };
+
+  const handleRegisterPhone = async () => {
+    if (!instanceToRegister || !/^\d{6}$/.test(registerPin.trim())) {
+      setError('Informe o PIN de 6 dígitos da verificação em duas etapas.');
+      return;
+    }
+    try {
+      setIsRegistering(true);
+      setError(null);
+      await instanceAPI.registerOfficialPhone(instanceToRegister.id, registerPin.trim());
+      setSuccessMessage('Número registrado. O status deve sair de Pendente em instantes.');
+      setTimeout(() => setSuccessMessage(null), 5000);
+      setShowRegisterModal(false);
+      setInstanceToRegister(null);
+      setRegisterPin('');
+      await loadInstances();
+    } catch (err: unknown) {
+      logError('WhatsAppOfficialInstances.registerPhone', err);
+      setError(getErrorMessage(err, 'Falha ao registrar número'));
+    } finally {
+      setIsRegistering(false);
+    }
   };
 
   const handleDeleteInstance = async (id: string) => {
@@ -293,7 +320,14 @@ const WhatsAppOfficialInstances: React.FC = () => {
                   </div>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => { setInstanceToRegister(instance); setRegisterPin(''); setError(null); setShowRegisterModal(true); }}
+                >
+                  Registrar número
+                </Button>
                 <Button variant="secondary" size="sm" onClick={() => { setSelectedInstance(instance); setShowSettingsModal(true); }}>
                   Configurações
                 </Button>
@@ -313,6 +347,38 @@ const WhatsAppOfficialInstances: React.FC = () => {
           </p>
           <div className="mt-4 flex justify-end">
             <Button variant="primary" onClick={() => setShowSettingsModal(false)}>Fechar</Button>
+          </div>
+        </Modal>
+      )}
+
+      {showRegisterModal && instanceToRegister && (
+        <Modal
+          isOpen={showRegisterModal}
+          onClose={() => { setShowRegisterModal(false); setInstanceToRegister(null); setRegisterPin(''); }}
+          title="Registrar número (sair de Pendente)"
+        >
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            Para ativar o número na API Oficial, insira o <strong>PIN de 6 dígitos</strong> da verificação em duas etapas da sua conta WhatsApp Business (configurado no app ou no Meta Business Suite).
+          </p>
+          <div className="space-y-2 mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">PIN (6 dígitos)</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={registerPin}
+              onChange={(e) => setRegisterPin(e.target.value.replace(/\D/g, ''))}
+              placeholder="000000"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-lg"
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button variant="secondary" onClick={() => { setShowRegisterModal(false); setInstanceToRegister(null); setRegisterPin(''); }}>
+              Cancelar
+            </Button>
+            <Button variant="primary" onClick={handleRegisterPhone} disabled={isRegistering || registerPin.length !== 6}>
+              {isRegistering ? 'Registrando...' : 'Registrar'}
+            </Button>
           </div>
         </Modal>
       )}
