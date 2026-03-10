@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, Button, Modal, ImageCrop } from '../UI';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { instanceAPI, Instance, CreateOfficialInstanceData, WhatsAppBusinessProfile, WhatsAppPhoneSettings, BusinessHoursConfig } from '../../services/api';
+import { useSocket } from '../../hooks/useSocket';
+import { getErrorMessage, logError } from '../../utils/errorHandler';
 
 /** Converte data URL (base64) em File para upload */
 function dataURLtoFile(dataUrl: string, filename: string): File {
@@ -10,11 +15,6 @@ function dataURLtoFile(dataUrl: string, filename: string): File {
   for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
   return new File([u8arr], filename, { type: mime });
 }
-import { useLanguage } from '../../contexts/LanguageContext';
-import { useAuth } from '../../contexts/AuthContext';
-import { instanceAPI, Instance, CreateOfficialInstanceData, WhatsAppBusinessProfile, WhatsAppPhoneSettings, BusinessHoursConfig } from '../../services/api';
-import { useSocket } from '../../hooks/useSocket';
-import { getErrorMessage, logError } from '../../utils/errorHandler';
 
 declare global {
   interface Window {
