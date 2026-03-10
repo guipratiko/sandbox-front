@@ -196,7 +196,7 @@ const SignUp: React.FC = () => {
                     <span className="text-sm text-gray-600 dark:text-gray-300">
                       {t('signup.terms')}{' '}
                       <a
-                        href="https://clerky.com.br/legal/termos"
+                        href="https://onlyflow.com.br/termos"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-clerky-backendButton hover:opacity-80 underline transition-smooth"
@@ -204,15 +204,35 @@ const SignUp: React.FC = () => {
                       >
                         {t('signup.termsOfUse')}
                       </a>
-                      {' '}{t('signup.and')}{' '}
+                      {', '}
                       <a
-                        href="https://clerky.com.br/legal/politica-privacidade"
+                        href="https://onlyflow.com.br/politica-privacidade"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-clerky-backendButton hover:opacity-80 underline transition-smooth"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {t('signup.privacyPolicy')}
+                      </a>
+                      {', '}
+                      <a
+                        href="https://onlyflow.com.br/politica-anti-spam"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-clerky-backendButton hover:opacity-80 underline transition-smooth"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {t('signup.antiSpamPolicy')}
+                      </a>
+                      {' '}{t('signup.and')}{' '}
+                      <a
+                        href="https://onlyflow.com.br/politica-de-uso-aceitavel"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-clerky-backendButton hover:opacity-80 underline transition-smooth"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {t('signup.acceptableUsePolicy')}
                       </a>
                     </span>
                   </label>
