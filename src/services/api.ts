@@ -169,6 +169,20 @@ export interface WhatsAppBusinessProfile {
   websites?: string[];
 }
 
+/** Um dia na configuração de horário (minutos desde 0h). */
+export interface BusinessHoursDayConfig {
+  day?: string;
+  mode?: string;
+  openTime?: number;
+  closeTime?: number;
+}
+
+/** Horário de funcionamento (timezone + config por dia). */
+export interface BusinessHoursConfig {
+  timezone?: string;
+  config?: BusinessHoursDayConfig[];
+}
+
 /** Configurações do número (tier, quality_rating, etc.). */
 export interface WhatsAppPhoneSettings {
   id?: string;
@@ -177,6 +191,7 @@ export interface WhatsAppPhoneSettings {
   quality_rating?: string;
   messaging_limit_tier?: string;
   throughput?: Record<string, unknown>;
+  business_hours?: BusinessHoursConfig;
 }
 
 // Função auxiliar para fazer requisições

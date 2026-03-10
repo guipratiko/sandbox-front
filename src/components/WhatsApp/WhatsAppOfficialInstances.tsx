@@ -1,8 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Card, Button, Modal } from '../UI';
+import { Card, Button, Modal, ImageCrop } from '../UI';
+
+/** Converte data URL (base64) em File para upload */
+function dataURLtoFile(dataUrl: string, filename: string): File {
+  const arr = dataUrl.split(',');
+  const mime = (arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg') as string;
+  const bstr = atob(arr[1]);
+  const u8arr = new Uint8Array(bstr.length);
+  for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
+  return new File([u8arr], filename, { type: mime });
+}
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { instanceAPI, Instance, CreateOfficialInstanceData, WhatsAppBusinessProfile, WhatsAppPhoneSettings } from '../../services/api';
+import { instanceAPI, Instance, CreateOfficialInstanceData, WhatsAppBusinessProfile, WhatsAppPhoneSettings, BusinessHoursConfig } from '../../services/api';
 import { useSocket } from '../../hooks/useSocket';
 import { getErrorMessage, logError } from '../../utils/errorHandler';
 
@@ -18,6 +28,42 @@ declare global {
 const META_APP_ID = process.env.REACT_APP_META_APP_ID || '';
 const META_CONFIG_ID = process.env.REACT_APP_META_EMBEDDED_SIGNUP_CONFIG_ID || '';
 const OAUTH_CALLBACK_URL = process.env.REACT_APP_OAUTH_WHATSAPP_CALLBACK_URL || window.location.origin + '/oauth/whatsapp/callback';
+
+const DAY_LABELS: Record<string, string> = {
+  sun: 'Dom',
+  mon: 'Seg',
+  tue: 'Ter',
+  wed: 'Qua',
+  thu: 'Qui',
+  fri: 'Sex',
+  sat: 'Sáb',
+};
+
+function minutesToTime(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+const SettingsBusinessHoursDisplay: React.FC<{ data: BusinessHoursConfig }> = ({ data }) => {
+  const config = data.config;
+  if (!config?.length) {
+    return <span className="text-xs text-gray-500 dark:text-gray-400">Não configurado</span>;
+  }
+  return (
+    <div className="text-xs space-y-1">
+      {data.timezone && <p className="text-gray-500 dark:text-gray-400">Fuso: {data.timezone}</p>}
+      <ul className="list-disc list-inside">
+        {config.map((day, i) => (
+          <li key={i}>
+            {DAY_LABELS[(day.day || '').toLowerCase()] || day.day}:{' '}
+            {day.mode === 'open_24h' ? '24h' : day.openTime != null && day.closeTime != null ? `${minutesToTime(day.openTime)} – ${minutesToTime(day.closeTime)}` : '—'}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
 
 interface SettingsProfileFormProps {
   profile: WhatsAppBusinessProfile | null;
@@ -46,6 +92,10 @@ const SettingsProfileForm: React.FC<SettingsProfileFormProps> = ({
   const [vertical, setVertical] = useState('');
   const [website0, setWebsite0] = useState('');
   const [website1, setWebsite1] = useState('');
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  /** Preview local após upload (evita "Sem foto" enquanto a API não devolve profile_picture_url) */
+  const [uploadedPreviewUrl, setUploadedPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -74,13 +124,64 @@ const SettingsProfileForm: React.FC<SettingsProfileFormProps> = ({
     });
   };
 
+  const photoDisplayUrl = profile?.profile_picture_url || uploadedPreviewUrl;
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    setCropImageSrc(url);
+    setShowCropModal(true);
+  };
+
+  const handleCropConfirm = useCallback(
+    async (croppedBase64: string) => {
+      if (!onUploadPicture || !cropImageSrc) return;
+      if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+      setCropImageSrc(null);
+      setShowCropModal(false);
+      const file = dataURLtoFile(croppedBase64, 'profile.jpg');
+      try {
+        await onUploadPicture(file);
+        setUploadedPreviewUrl(croppedBase64);
+      } catch {
+        // Erro já tratado no parent; não reabre o modal
+      }
+    },
+    [onUploadPicture, cropImageSrc]
+  );
+
+  const handleCropCancel = useCallback(() => {
+    if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+    setCropImageSrc(null);
+    setShowCropModal(false);
+  }, [cropImageSrc]);
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {showCropModal && cropImageSrc && (
+        <Modal
+          isOpen={showCropModal}
+          onClose={handleCropCancel}
+          title="Ajustar foto"
+        >
+          <div className="min-h-[400px]">
+            <ImageCrop
+              imageSrc={cropImageSrc}
+              onCrop={handleCropConfirm}
+              onCancel={handleCropCancel}
+              aspectRatio={1}
+              circular={true}
+            />
+          </div>
+        </Modal>
+      )}
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Perfil do negócio</h3>
       <div className="flex items-center gap-4 flex-wrap">
-        {profile?.profile_picture_url ? (
+        {photoDisplayUrl ? (
           <img
-            src={profile.profile_picture_url}
+            src={photoDisplayUrl}
             alt="Foto do perfil"
             className="h-20 w-20 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700"
           />
@@ -91,7 +192,7 @@ const SettingsProfileForm: React.FC<SettingsProfileFormProps> = ({
         )}
         <div className="flex flex-col gap-1">
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            {profile?.profile_picture_url ? 'Foto do perfil WhatsApp' : 'Adicione uma foto (JPEG ou PNG, até 5 MB)'}
+            {photoDisplayUrl ? 'Foto do perfil WhatsApp' : 'Adicione uma foto (JPEG ou PNG, até 5 MB)'}
           </span>
           {instanceId && onUploadPicture && (
             <>
@@ -100,11 +201,7 @@ const SettingsProfileForm: React.FC<SettingsProfileFormProps> = ({
                 type="file"
                 accept="image/jpeg,image/png,image/jpg"
                 className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) onUploadPicture(f);
-                  e.target.value = '';
-                }}
+                onChange={handleFileSelect}
               />
               <Button
                 type="button"
@@ -606,11 +703,61 @@ const WhatsAppOfficialInstances: React.FC = () => {
                       <div><dt className="text-gray-500 dark:text-gray-400">Nome verificado</dt><dd className="font-medium">{settingsPhone.verified_name}</dd></div>
                     )}
                     {settingsPhone.quality_rating && (
-                      <div><dt className="text-gray-500 dark:text-gray-400">Qualidade</dt><dd>{settingsPhone.quality_rating}</dd></div>
+                      <div>
+                        <dt className="text-gray-500 dark:text-gray-400">Qualidade</dt>
+                        <dd className="flex items-center gap-1.5 mt-0.5">
+                          <span
+                            className="inline-block h-3 w-3 rounded-full flex-shrink-0"
+                            style={{
+                              backgroundColor:
+                                settingsPhone.quality_rating === 'GREEN'
+                                  ? '#22c55e'
+                                  : settingsPhone.quality_rating === 'YELLOW'
+                                  ? '#eab308'
+                                  : settingsPhone.quality_rating === 'RED'
+                                  ? '#ef4444'
+                                  : '#9ca3af',
+                            }}
+                            title={settingsPhone.quality_rating}
+                            aria-hidden
+                          />
+                        </dd>
+                      </div>
                     )}
                     {settingsPhone.messaging_limit_tier && (
-                      <div><dt className="text-gray-500 dark:text-gray-400">Tier de mensagens</dt><dd>{settingsPhone.messaging_limit_tier}</dd></div>
+                      <div>
+                        <dt className="text-gray-500 dark:text-gray-400">Limites diários de conversas iniciadas</dt>
+                        <dd>
+                          {(() => {
+                            const tier = settingsPhone.messaging_limit_tier;
+                            const match = /TIER_(\d+)/i.exec(tier);
+                            const num = match ? match[1] : tier;
+                            return <>{num}</>;
+                          })()}
+                        </dd>
+                      </div>
                     )}
+                    <div>
+                      <dt className="text-gray-500 dark:text-gray-400 mb-1">Horário de funcionamento</dt>
+                      <dd className="text-gray-700 dark:text-gray-300">
+                        {settingsPhone.business_hours ? (
+                          <SettingsBusinessHoursDisplay data={settingsPhone.business_hours} />
+                        ) : (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Configure no app WhatsApp Business ou no{' '}
+                            <a
+                              href="https://business.facebook.com"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-clerky-backendButton hover:underline"
+                            >
+                              Meta Business Suite
+                            </a>
+                            .
+                          </p>
+                        )}
+                      </dd>
+                    </div>
                   </dl>
                 </div>
               )}
