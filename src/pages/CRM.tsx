@@ -745,23 +745,23 @@ const ChatModal: React.FC<ChatModalProps> = ({
         modalId={modalId}
         zIndex={zIndex}
       >
-        <div className="flex flex-col h-[582px]">
+        <div className="flex flex-col min-h-[280px] sm:min-h-[360px] max-h-[70vh] sm:max-h-[75vh]">
           {/* Área de mensagens */}
           <div 
             ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-[#091D41] rounded-lg mb-4 min-h-0"
+            className="flex-1 overflow-y-auto p-3 sm:p-4 bg-gray-50/80 dark:bg-[#0d1f3c] rounded-2xl mb-3 sm:mb-4 min-h-0 overscroll-contain"
           >
           {isLoading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-clerky-backendButton mx-auto mb-2"></div>
-              <p className="text-gray-600 dark:text-gray-300">Carregando mensagens...</p>
+            <div className="text-center py-8 sm:py-10">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-clerky-backendButton/30 border-t-clerky-backendButton mx-auto mb-3"></div>
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">Carregando mensagens...</p>
             </div>
           ) : messages.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <div className="text-center py-8 sm:py-10 text-gray-500 dark:text-gray-400 text-sm sm:text-base">
               Nenhuma mensagem ainda. Inicie a conversa!
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {messages.map((msg) => {
                 const isMedia = msg.mediaUrl && msg.content === '[Mídia]';
                 const isImage = isMedia && (msg.messageType === 'imageMessage' || msg.messageType === 'stickerMessage');
@@ -779,10 +779,10 @@ const ChatModal: React.FC<ChatModalProps> = ({
                     }`}
                   >
                     <div
-                      className={`${isImage || isVideo ? 'w-fit' : 'max-w-[70%]'} rounded-lg ${isImage || isVideo ? 'p-1' : 'px-4 py-2'} ${
+                      className={`${isImage || isVideo ? 'w-fit' : 'max-w-[85%] sm:max-w-[75%]'} rounded-2xl ${isImage || isVideo ? 'p-1 overflow-hidden' : 'px-3 sm:px-4 py-2 sm:py-2.5'} shadow-sm ${
                         msg.fromMe
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200'
+                          ? 'bg-blue-500 text-white rounded-br-md'
+                          : 'bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200 rounded-bl-md'
                       }`}
                     >
                         {isMedia ? (
@@ -864,7 +864,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
         {/* Input de mensagem */}
         <div className="space-y-2">
           {showCaptionInput && selectedFile && (
-            <div className="flex items-center gap-2 p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+            <div className="flex items-center gap-2 p-2 sm:p-3 bg-gray-100 dark:bg-gray-700/80 rounded-xl">
               <span className="text-sm text-gray-600 dark:text-gray-400 truncate flex-1">
                 {selectedFile.name}
               </span>
@@ -898,7 +898,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
             </div>
           )}
           {!showCaptionInput && (
-            <div className="flex gap-2 items-center">
+            <div className="flex gap-2 sm:gap-3 items-center">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -909,7 +909,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
               <button
                 onClick={handleAttachClick}
                 disabled={isSending || isRecording}
-                className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="p-2.5 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                 type="button"
                 title="Anexar arquivo"
               >
@@ -933,16 +933,16 @@ const ChatModal: React.FC<ChatModalProps> = ({
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder={isRecording ? `Gravando... ${Math.floor(recordingTime / 60)}:${String(recordingTime % 60).padStart(2, '0')}` : "Digite sua mensagem..."}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-clerky-backendButton focus:border-transparent bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200 disabled:opacity-50"
+                className="flex-1 px-3 sm:px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-clerky-backendButton/50 focus:border-clerky-backendButton bg-white dark:bg-gray-700/90 text-clerky-backendText dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 disabled:opacity-50 transition-colors duration-200"
                 disabled={isSending || isRecording}
               />
               <button
                 onClick={isRecording ? stopRecording : startRecording}
                 disabled={isSending}
-                className={`p-2 rounded-lg border transition-all ${
+                className={`p-2.5 rounded-xl border transition-all duration-200 ${
                   isRecording
-                    ? 'bg-red-500 border-red-500 text-white hover:bg-red-600 animate-pulse'
-                    : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    ? 'bg-red-500 border-red-500 text-white hover:bg-red-600 animate-pulse shadow-sm'
+                    : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
                 type="button"
                 title={isRecording ? 'Parar gravação' : 'Gravar áudio'}
@@ -1010,34 +1010,36 @@ const ChatModal: React.FC<ChatModalProps> = ({
           initialPosition={{ x: 200, y: 150 }}
           zIndex={999}
         >
-          <div className="space-y-4">
+          <div className="space-y-4 sm:space-y-5">
             {isLoadingLabels ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-clerky-backendButton mx-auto mb-2"></div>
-                <p className="text-gray-600 dark:text-gray-300">Carregando etiquetas...</p>
+              <div className="text-center py-8 sm:py-10">
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-clerky-backendButton/30 border-t-clerky-backendButton mx-auto mb-3"></div>
+                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">Carregando etiquetas...</p>
               </div>
             ) : (
               <>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mb-3 sm:mb-4">
                   Selecione as etiquetas para este contato:
                 </p>
-                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                <div className="space-y-2 max-h-[min(400px,60vh)] overflow-y-auto overscroll-contain pr-1 -mr-1">
                   {availableLabels.map((label) => {
                     const isSelected = contactLabels.has(label.id);
                     return (
                       <button
                         key={label.id}
                         onClick={() => handleToggleLabel(label.id)}
-                        className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
+                        className={`w-full flex items-center gap-3 p-3 sm:p-3.5 rounded-xl border-2 transition-all duration-200 active:scale-[0.99] ${
                           isSelected
-                            ? 'border-clerky-backendButton bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                            ? 'border-clerky-backendButton/60 bg-blue-50 dark:bg-blue-900/25 shadow-sm'
+                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50/50 dark:hover:bg-gray-800/30'
                         }`}
                       >
                         <div
-                          className="w-5 h-5 rounded border-2 flex items-center justify-center"
+                          className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 transition-colors duration-200"
                           style={{
                             backgroundColor: isSelected ? label.color : 'transparent',
+                            borderWidth: 2,
+                            borderStyle: 'solid',
                             borderColor: label.color,
                           }}
                         >
@@ -1052,7 +1054,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
                           )}
                         </div>
                         <span
-                          className="px-2 py-1 text-xs font-semibold rounded-md text-white"
+                          className="px-2.5 py-1 text-xs font-semibold rounded-lg text-white shadow-sm"
                           style={{ backgroundColor: label.color }}
                         >
                           {label.name}
@@ -1061,10 +1063,11 @@ const ChatModal: React.FC<ChatModalProps> = ({
                     );
                   })}
                 </div>
-                <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex justify-end gap-2 pt-4 border-t border-gray-200/80 dark:border-gray-700/80">
                   <Button
                     variant="secondary"
                     onClick={() => setShowLabelsModal(false)}
+                    className="rounded-xl"
                   >
                     Fechar
                   </Button>

@@ -15,11 +15,11 @@ interface ModalProps {
 }
 
 const sizeClasses = {
-  sm: 'max-w-md',
-  md: 'max-w-lg',
-  lg: 'max-w-2xl',
-  xl: 'max-w-4xl',
-  full: 'max-w-full mx-4',
+  sm: 'w-[calc(100vw-2rem)] sm:max-w-md',
+  md: 'w-[calc(100vw-2rem)] sm:max-w-lg',
+  lg: 'w-[calc(100vw-2rem)] sm:max-w-2xl min-w-[min(20rem,100vw-2rem)]',
+  xl: 'w-[calc(100vw-2rem)] sm:max-w-4xl min-w-[min(24rem,100vw-2rem)]',
+  full: 'w-[calc(100vw-2rem)] max-w-full',
 };
 
 const Modal: React.FC<ModalProps> = ({
@@ -210,22 +210,22 @@ const Modal: React.FC<ModalProps> = ({
 
   return (
     <div
-      className={`fixed inset-0 ${draggable ? 'pointer-events-none' : 'flex items-center justify-center p-4'} animate-fadeIn`}
+      className={`fixed inset-0 ${draggable ? 'pointer-events-none' : 'flex items-center justify-center p-4'} animate-fadeIn bg-black/30 backdrop-blur-[2px] sm:backdrop-blur-sm`}
       style={{ zIndex }}
       onClick={draggable ? undefined : onClose}
     >
       <div
         ref={modalRef}
-        className={`bg-white dark:bg-[#091D41] rounded-xl shadow-2xl ${draggable ? '' : 'w-full'} ${sizeClasses[size]} max-h-[90vh] overflow-hidden flex flex-col ${draggable ? 'pointer-events-auto' : 'animate-slideIn'}`}
+        className={`bg-white dark:bg-[#091D41] rounded-2xl shadow-2xl ring-1 ring-black/5 dark:ring-white/5 ${draggable ? 'min-h-[12rem] min-w-[18rem] sm:min-w-[20rem]' : 'w-full'} ${sizeClasses[size]} max-h-[90vh] sm:max-h-[85vh] overflow-hidden flex flex-col transition-all duration-200 ${draggable ? 'pointer-events-auto' : 'animate-slideIn'}`}
         style={modalStyle}
         onClick={(e) => e.stopPropagation()}
       >
         {(title || showCloseButton || headerActions) && (
           <div
             ref={headerRef}
-            className={`flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 ${
+            className={`flex items-center justify-between p-4 sm:p-5 border-b border-gray-200/80 dark:border-gray-700/80 ${
               draggable 
-                ? `cursor-move select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} active:cursor-grabbing` 
+                ? `cursor-move select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} active:cursor-grabbing rounded-t-2xl` 
                 : ''
             }`}
             onMouseDown={handleMouseDown}
@@ -237,7 +237,7 @@ const Modal: React.FC<ModalProps> = ({
             <div className="flex-1 min-w-0">
               {title && (
                 typeof title === 'string' ? (
-                  <h2 className="text-xl font-semibold text-clerky-backendText dark:text-gray-200">
+                  <h2 className="text-lg sm:text-xl font-semibold text-clerky-backendText dark:text-gray-200 truncate">
                     {title}
                   </h2>
                 ) : (
@@ -245,12 +245,12 @@ const Modal: React.FC<ModalProps> = ({
                 )
               )}
             </div>
-            <div className="flex items-center gap-2 ml-4">
+            <div className="flex items-center gap-1 sm:gap-2 ml-3 sm:ml-4 shrink-0">
               {headerActions}
               {showCloseButton && (
                 <button
                   onClick={onClose}
-                  className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-smooth"
+                  className="p-2 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors duration-200"
                   aria-label="Fechar"
                 >
                   <svg
@@ -271,7 +271,7 @@ const Modal: React.FC<ModalProps> = ({
             </div>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto p-6">{children}</div>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 overscroll-contain">{children}</div>
       </div>
     </div>
   );
