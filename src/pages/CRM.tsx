@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AppLayout } from '../components/Layout';
 import { Card, Button, Modal, HelpIcon } from '../components/UI';
 import { useAuth } from '../contexts/AuthContext';
@@ -551,7 +552,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
         if (contact && audioFile.size > 0) {
           try {
             setIsSending(true);
-            console.log('[CRM] Gravalção finalizada, enviando áudio', {
+            console.log('[CRM] Gravação finalizada, enviando áudio', {
               contactId: contact.id,
               size: audioFile.size,
               type: normalizedMimeType,
@@ -997,75 +998,83 @@ const ChatModal: React.FC<ChatModalProps> = ({
         </div>
       </div>
     </Modal>
-    <Modal
-      isOpen={showLabelsModal}
-      onClose={() => setShowLabelsModal(false)}
-      title="Gerenciar Etiquetas"
-      size="md"
-    >
-      <div className="space-y-4">
-        {isLoadingLabels ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-clerky-backendButton mx-auto mb-2"></div>
-            <p className="text-gray-600 dark:text-gray-300">Carregando etiquetas...</p>
-          </div>
-        ) : (
-          <>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Selecione as etiquetas para este contato:
-            </p>
-            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {availableLabels.map((label) => {
-                const isSelected = contactLabels.has(label.id);
-                return (
-                  <button
-                    key={label.id}
-                    onClick={() => handleToggleLabel(label.id)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
-                      isSelected
-                        ? 'border-clerky-backendButton bg-blue-50 dark:bg-blue-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                    }`}
+    {showLabelsModal &&
+      createPortal(
+        <Modal
+          isOpen={true}
+          onClose={() => setShowLabelsModal(false)}
+          title="Gerenciar Etiquetas"
+          size="md"
+          draggable={true}
+          modalId="crm_labels_modal"
+          initialPosition={{ x: 200, y: 150 }}
+          zIndex={999}
+        >
+          <div className="space-y-4">
+            {isLoadingLabels ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-clerky-backendButton mx-auto mb-2"></div>
+                <p className="text-gray-600 dark:text-gray-300">Carregando etiquetas...</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Selecione as etiquetas para este contato:
+                </p>
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {availableLabels.map((label) => {
+                    const isSelected = contactLabels.has(label.id);
+                    return (
+                      <button
+                        key={label.id}
+                        onClick={() => handleToggleLabel(label.id)}
+                        className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
+                          isSelected
+                            ? 'border-clerky-backendButton bg-blue-50 dark:bg-blue-900/20'
+                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                        }`}
+                      >
+                        <div
+                          className="w-5 h-5 rounded border-2 flex items-center justify-center"
+                          style={{
+                            backgroundColor: isSelected ? label.color : 'transparent',
+                            borderColor: label.color,
+                          }}
+                        >
+                          {isSelected && (
+                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <span
+                          className="px-2 py-1 text-xs font-semibold rounded-md text-white"
+                          style={{ backgroundColor: label.color }}
+                        >
+                          {label.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <Button
+                    variant="secondary"
+                    onClick={() => setShowLabelsModal(false)}
                   >
-                    <div
-                      className="w-5 h-5 rounded border-2 flex items-center justify-center"
-                      style={{
-                        backgroundColor: isSelected ? label.color : 'transparent',
-                        borderColor: label.color,
-                      }}
-                    >
-                      {isSelected && (
-                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                          <path
-                            fillRule="evenodd"
-                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      )}
-                    </div>
-                    <span
-                      className="px-2 py-1 text-xs font-semibold rounded-md text-white"
-                      style={{ backgroundColor: label.color }}
-                    >
-                      {label.name}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <Button
-                variant="secondary"
-                onClick={() => setShowLabelsModal(false)}
-              >
-                Fechar
-              </Button>
-            </div>
-          </>
-        )}
-      </div>
-    </Modal>
+                    Fechar
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>,
+        document.body
+      )}
     </>
   );
 };
