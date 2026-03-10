@@ -551,8 +551,14 @@ const ChatModal: React.FC<ChatModalProps> = ({
         if (contact && audioFile.size > 0) {
           try {
             setIsSending(true);
+            console.log('[CRM] Gravalção finalizada, enviando áudio', {
+              contactId: contact.id,
+              size: audioFile.size,
+              type: normalizedMimeType,
+              extension,
+            });
             const response = await crmAPI.sendAudio(contact.id, audioFile);
-            
+            console.log('[CRM] Áudio enviado com sucesso', { messageId: response.data?.messageId });
             // Adicionar mensagem otimisticamente
             const optimisticMessage: Message = {
               id: response.data.id,
@@ -571,7 +577,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
               scrollToBottom();
             }, 100);
           } catch (error: any) {
-            console.error('Erro ao enviar áudio:', error);
+            console.error('[CRM] Erro ao enviar áudio:', error?.message || error, error);
             alert('Erro ao enviar áudio. Tente novamente.');
           } finally {
             setIsSending(false);

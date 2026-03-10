@@ -714,6 +714,12 @@ export const crmAPI = {
   },
 
   sendAudio: async (contactId: string, file: File): Promise<{ status: string; message: string; data: Message }> => {
+    console.log('[CRM API] Enviando áudio', {
+      contactId,
+      fileName: file.name,
+      size: file.size,
+      type: file.type,
+    });
     const token = localStorage.getItem('token');
     const formData = new FormData();
     formData.append('file', file);
@@ -729,6 +735,7 @@ export const crmAPI = {
     const data = await response.json();
 
     if (!response.ok) {
+      console.error('[CRM API] Erro ao enviar áudio', { status: response.status, data });
       const error: ApiError = {
         status: data.status || 'error',
         message: data.message || 'Erro ao enviar áudio. Tente novamente.',
@@ -736,6 +743,7 @@ export const crmAPI = {
       throw error;
     }
 
+    console.log('[CRM API] Áudio enviado com sucesso', { messageId: data.data?.messageId });
     return data;
   },
 
