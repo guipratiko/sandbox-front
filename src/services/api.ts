@@ -156,6 +156,26 @@ export interface DeleteInstanceResponse {
   message: string;
 }
 
+/** Perfil WhatsApp Business (about, address, description, email, vertical, websites). */
+export interface WhatsAppBusinessProfile {
+  about?: string;
+  address?: string;
+  description?: string;
+  email?: string;
+  profile_picture_handle?: string;
+  vertical?: string;
+  websites?: string[];
+}
+
+/** Configurações do número (tier, quality_rating, etc.). */
+export interface WhatsAppPhoneSettings {
+  id?: string;
+  display_phone_number?: string;
+  verified_name?: string;
+  quality_rating?: string;
+  messaging_limit_tier?: string;
+  throughput?: Record<string, unknown>;
+}
 
 // Função auxiliar para fazer requisições
 export const request = async <T>(
@@ -493,6 +513,27 @@ export const instanceAPI = {
       method: 'POST',
       body: JSON.stringify({ pin }),
     });
+  },
+
+  /** Perfil WhatsApp Business da instância oficial (about, address, description, email, vertical, websites). */
+  getWhatsAppProfile: async (id: string): Promise<{ status: string; data: WhatsAppBusinessProfile }> => {
+    return request<{ status: string; data: WhatsAppBusinessProfile }>(`/instances/${id}/whatsapp-profile`);
+  },
+
+  /** Atualiza perfil WhatsApp Business da instância oficial. */
+  patchWhatsAppProfile: async (
+    id: string,
+    data: Partial<WhatsAppBusinessProfile>
+  ): Promise<{ status: string; message?: string }> => {
+    return request<{ status: string; message?: string }>(`/instances/${id}/whatsapp-profile`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /** Configurações do número (tier, quality_rating, etc.). */
+  getWhatsAppSettings: async (id: string): Promise<{ status: string; data: WhatsAppPhoneSettings }> => {
+    return request<{ status: string; data: WhatsAppPhoneSettings }>(`/instances/${id}/whatsapp-settings`);
   },
 };
 

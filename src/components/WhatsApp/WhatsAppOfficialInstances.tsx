@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, Button, Modal } from '../UI';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { instanceAPI, Instance, CreateOfficialInstanceData } from '../../services/api';
+import { instanceAPI, Instance, CreateOfficialInstanceData, WhatsAppBusinessProfile, WhatsAppPhoneSettings } from '../../services/api';
 import { useSocket } from '../../hooks/useSocket';
 import { getErrorMessage, logError } from '../../utils/errorHandler';
 
@@ -18,6 +18,130 @@ declare global {
 const META_APP_ID = process.env.REACT_APP_META_APP_ID || '';
 const META_CONFIG_ID = process.env.REACT_APP_META_EMBEDDED_SIGNUP_CONFIG_ID || '';
 const OAUTH_CALLBACK_URL = process.env.REACT_APP_OAUTH_WHATSAPP_CALLBACK_URL || window.location.origin + '/oauth/whatsapp/callback';
+
+interface SettingsProfileFormProps {
+  profile: WhatsAppBusinessProfile | null;
+  verticalOptions: { value: string; label: string }[];
+  onSave: (data: Partial<WhatsAppBusinessProfile>) => Promise<void>;
+  saving: boolean;
+}
+
+const SettingsProfileForm: React.FC<SettingsProfileFormProps> = ({ profile, verticalOptions, onSave, saving }) => {
+  const [about, setAbout] = useState('');
+  const [description, setDescription] = useState('');
+  const [address, setAddress] = useState('');
+  const [email, setEmail] = useState('');
+  const [vertical, setVertical] = useState('');
+  const [website0, setWebsite0] = useState('');
+  const [website1, setWebsite1] = useState('');
+
+  useEffect(() => {
+    if (!profile) return;
+    setAbout(profile.about ?? '');
+    setDescription(profile.description ?? '');
+    setAddress(profile.address ?? '');
+    setEmail(profile.email ?? '');
+    setVertical(profile.vertical ?? '');
+    const sites = profile.websites ?? [];
+    setWebsite0(sites[0] ?? '');
+    setWebsite1(sites[1] ?? '');
+  }, [profile]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const websites: string[] = [];
+    if (website0.trim()) websites.push(website0.trim());
+    if (website1.trim()) websites.push(website1.trim());
+    onSave({
+      about: about.trim() || undefined,
+      description: description.trim() || undefined,
+      address: address.trim() || undefined,
+      email: email.trim() || undefined,
+      vertical: vertical || undefined,
+      websites: websites.length ? websites : undefined,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Perfil do negócio</h3>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sobre (até 139 caracteres)</label>
+        <input
+          type="text"
+          maxLength={139}
+          value={about}
+          onChange={(e) => setAbout(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Descrição (até 512 caracteres)</label>
+        <textarea
+          rows={3}
+          maxLength={512}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Endereço (até 256 caracteres)</label>
+        <input
+          type="text"
+          maxLength={256}
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">E-mail (até 128 caracteres)</label>
+        <input
+          type="email"
+          maxLength={128}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Categoria (vertical)</label>
+        <select
+          value={vertical}
+          onChange={(e) => setVertical(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+        >
+          {verticalOptions.map((opt) => (
+            <option key={opt.value || 'empty'} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sites (até 2, com http:// ou https://)</label>
+        <input
+          type="url"
+          placeholder="https://..."
+          value={website0}
+          onChange={(e) => setWebsite0(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 mb-2"
+        />
+        <input
+          type="url"
+          placeholder="https://..."
+          value={website1}
+          onChange={(e) => setWebsite1(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+        />
+      </div>
+      <div className="flex justify-end">
+        <Button type="submit" variant="primary" disabled={saving}>
+          {saving ? 'Salvando...' : 'Salvar perfil'}
+        </Button>
+      </div>
+    </form>
+  );
+};
 
 const WhatsAppOfficialInstances: React.FC = () => {
   const { t } = useLanguage();
@@ -35,8 +159,41 @@ const WhatsAppOfficialInstances: React.FC = () => {
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [instanceToRegister, setInstanceToRegister] = useState<Instance | null>(null);
   const [registerPin, setRegisterPin] = useState('');
+  const [registerPinConfirm, setRegisterPinConfirm] = useState('');
+  const [registerPinVisible, setRegisterPinVisible] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [settingsProfile, setSettingsProfile] = useState<WhatsAppBusinessProfile | null>(null);
+  const [settingsPhone, setSettingsPhone] = useState<WhatsAppPhoneSettings | null>(null);
+  const [settingsProfileLoading, setSettingsProfileLoading] = useState(false);
+  const [settingsProfileSaving, setSettingsProfileSaving] = useState(false);
+  const [settingsProfileError, setSettingsProfileError] = useState<string | null>(null);
   const pendingSignup = useRef<{ name: string; waba_id?: string; phone_number_id?: string; code?: string; redirect_uri?: string } | null>(null);
+
+  const VERTICAL_OPTIONS: { value: string; label: string }[] = [
+    { value: '', label: '— Selecione —' },
+    { value: 'OTHER', label: 'Outro' },
+    { value: 'AUTO', label: 'Automotivo' },
+    { value: 'BEAUTY', label: 'Beleza, spa e salão' },
+    { value: 'APPAREL', label: 'Vestuário' },
+    { value: 'EDU', label: 'Educação' },
+    { value: 'ENTERTAIN', label: 'Entretenimento' },
+    { value: 'EVENT_PLAN', label: 'Eventos' },
+    { value: 'FINANCE', label: 'Finanças e bancos' },
+    { value: 'GROCERY', label: 'Alimentos e supermercado' },
+    { value: 'GOVT', label: 'Serviço público' },
+    { value: 'HOTEL', label: 'Hotéis e hospedagem' },
+    { value: 'HEALTH', label: 'Saúde' },
+    { value: 'NONPROFIT', label: 'Sem fins lucrativos' },
+    { value: 'PROF_SERVICES', label: 'Serviços profissionais' },
+    { value: 'RETAIL', label: 'Varejo' },
+    { value: 'TRAVEL', label: 'Viagens e transporte' },
+    { value: 'RESTAURANT', label: 'Restaurante' },
+    { value: 'ALCOHOL', label: 'Bebidas alcoólicas' },
+    { value: 'ONLINE_GAMBLING', label: 'Jogos online' },
+    { value: 'PHYSICAL_GAMBLING', label: 'Jogos (físico)' },
+    { value: 'OTC_DRUGS', label: 'Medicamentos sem receita' },
+    { value: 'MATRIMONY_SERVICE', label: 'Serviços matrimoniais' },
+  ];
 
   const maxWhatsApp = user?.maxWhatsAppInstances ?? 0;
   const officialOnly = instances.filter((i) => i.integration === 'WHATSAPP-CLOUD');
@@ -89,10 +246,13 @@ const WhatsAppOfficialInstances: React.FC = () => {
       setInstances((prev) => [...prev, response.instance]);
       setShowCreateModal(false);
       setCreateName('');
-      setSuccessMessage('Instância oficial criada com sucesso.');
-      setTimeout(() => setSuccessMessage(null), 3000);
       pendingSignup.current = null;
       await loadInstances();
+      setRegisterPin('');
+      setRegisterPinConfirm('');
+      setRegisterPinVisible(false);
+      setInstanceToRegister(response.instance);
+      setShowRegisterModal(true);
     } catch (err: unknown) {
       logError('WhatsAppOfficialInstances.createOfficial', err);
       setError(getErrorMessage(err, 'Falha ao criar instância oficial'));
@@ -111,6 +271,32 @@ const WhatsAppOfficialInstances: React.FC = () => {
       version: 'v25.0',
     });
   }, []);
+
+  useEffect(() => {
+    if (!showSettingsModal || !selectedInstance?.id) return;
+    setSettingsProfileError(null);
+    setSettingsProfile(null);
+    setSettingsPhone(null);
+    let cancelled = false;
+    (async () => {
+      setSettingsProfileLoading(true);
+      try {
+        const [profileRes, settingsRes] = await Promise.all([
+          instanceAPI.getWhatsAppProfile(selectedInstance.id),
+          instanceAPI.getWhatsAppSettings(selectedInstance.id),
+        ]);
+        if (!cancelled) {
+          setSettingsProfile(profileRes.data ?? null);
+          setSettingsPhone(settingsRes.data ?? null);
+        }
+      } catch (err: unknown) {
+        if (!cancelled) setSettingsProfileError(getErrorMessage(err, 'Erro ao carregar configurações'));
+      } finally {
+        if (!cancelled) setSettingsProfileLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showSettingsModal, selectedInstance?.id]);
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -159,19 +345,28 @@ const WhatsAppOfficialInstances: React.FC = () => {
   };
 
   const handleRegisterPhone = async () => {
-    if (!instanceToRegister || !/^\d{6}$/.test(registerPin.trim())) {
-      setError('Informe o PIN de 6 dígitos da verificação em duas etapas.');
+    const pin = registerPin.trim();
+    const pinConfirm = registerPinConfirm.trim();
+    if (!instanceToRegister) return;
+    if (!/^\d{6}$/.test(pin)) {
+      setError('Informe o PIN de 6 dígitos.');
+      return;
+    }
+    if (pin !== pinConfirm) {
+      setError('A confirmação não confere. Digite os 6 dígitos iguais nos dois campos.');
       return;
     }
     try {
       setIsRegistering(true);
       setError(null);
-      await instanceAPI.registerOfficialPhone(instanceToRegister.id, registerPin.trim());
+      await instanceAPI.registerOfficialPhone(instanceToRegister.id, pin);
       setSuccessMessage('Número registrado. O status deve sair de Pendente em instantes.');
       setTimeout(() => setSuccessMessage(null), 5000);
       setShowRegisterModal(false);
       setInstanceToRegister(null);
       setRegisterPin('');
+      setRegisterPinConfirm('');
+      setRegisterPinVisible(false);
       await loadInstances();
     } catch (err: unknown) {
       logError('WhatsAppOfficialInstances.registerPhone', err);
@@ -321,13 +516,6 @@ const WhatsAppOfficialInstances: React.FC = () => {
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => { setInstanceToRegister(instance); setRegisterPin(''); setError(null); setShowRegisterModal(true); }}
-                >
-                  Registrar número
-                </Button>
                 <Button variant="secondary" size="sm" onClick={() => { setSelectedInstance(instance); setShowSettingsModal(true); }}>
                   Configurações
                 </Button>
@@ -342,9 +530,55 @@ const WhatsAppOfficialInstances: React.FC = () => {
 
       {showSettingsModal && selectedInstance && (
         <Modal isOpen={showSettingsModal} onClose={() => setShowSettingsModal(false)} title="Configurações">
-          <p className="text-gray-600 dark:text-gray-400">
-            Instância: {selectedInstance.name}. Ajustes avançados podem ser feitos no Backend.
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            Instância: <strong>{selectedInstance.name}</strong>
           </p>
+          {settingsProfileError && (
+            <p className="mb-4 text-sm text-red-600 dark:text-red-400">{settingsProfileError}</p>
+          )}
+          {settingsProfileLoading ? (
+            <p className="text-gray-500 dark:text-gray-400">Carregando...</p>
+          ) : (
+            <>
+              {settingsPhone && (
+                <div className="mb-6 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Configurações do número</h3>
+                  <dl className="grid grid-cols-1 gap-2 text-sm">
+                    {settingsPhone.display_phone_number && (
+                      <div><dt className="text-gray-500 dark:text-gray-400">Número</dt><dd className="font-medium">{settingsPhone.display_phone_number}</dd></div>
+                    )}
+                    {settingsPhone.verified_name && (
+                      <div><dt className="text-gray-500 dark:text-gray-400">Nome verificado</dt><dd className="font-medium">{settingsPhone.verified_name}</dd></div>
+                    )}
+                    {settingsPhone.quality_rating && (
+                      <div><dt className="text-gray-500 dark:text-gray-400">Qualidade</dt><dd>{settingsPhone.quality_rating}</dd></div>
+                    )}
+                    {settingsPhone.messaging_limit_tier && (
+                      <div><dt className="text-gray-500 dark:text-gray-400">Tier de mensagens</dt><dd>{settingsPhone.messaging_limit_tier}</dd></div>
+                    )}
+                  </dl>
+                </div>
+              )}
+              <SettingsProfileForm
+                profile={settingsProfile}
+                verticalOptions={VERTICAL_OPTIONS}
+                onSave={async (data) => {
+                  if (!selectedInstance?.id) return;
+                  setSettingsProfileSaving(true);
+                  setSettingsProfileError(null);
+                  try {
+                    await instanceAPI.patchWhatsAppProfile(selectedInstance.id, data);
+                    setSettingsProfile((prev) => (prev ? { ...prev, ...data } : data));
+                  } catch (err: unknown) {
+                    setSettingsProfileError(getErrorMessage(err, 'Erro ao salvar perfil'));
+                  } finally {
+                    setSettingsProfileSaving(false);
+                  }
+                }}
+                saving={settingsProfileSaving}
+              />
+            </>
+          )}
           <div className="mt-4 flex justify-end">
             <Button variant="primary" onClick={() => setShowSettingsModal(false)}>Fechar</Button>
           </div>
@@ -354,30 +588,80 @@ const WhatsAppOfficialInstances: React.FC = () => {
       {showRegisterModal && instanceToRegister && (
         <Modal
           isOpen={showRegisterModal}
-          onClose={() => { setShowRegisterModal(false); setInstanceToRegister(null); setRegisterPin(''); }}
-          title="Registrar número (sair de Pendente)"
+          onClose={() => {
+            setShowRegisterModal(false);
+            setInstanceToRegister(null);
+            setRegisterPin('');
+            setRegisterPinConfirm('');
+            setRegisterPinVisible(false);
+          }}
+          title="Definir confirmação em 2 etapas"
         >
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Para ativar o número na API Oficial, insira o <strong>PIN de 6 dígitos</strong> da verificação em duas etapas da sua conta WhatsApp Business (configurado no app ou no Meta Business Suite).
+            Para ativar o número na API Oficial, defina o <strong>PIN de 6 dígitos</strong> da verificação em duas etapas da sua conta WhatsApp Business (configurado no app ou no Meta Business Suite).
           </p>
-          <div className="space-y-2 mb-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">PIN (6 dígitos)</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              value={registerPin}
-              onChange={(e) => setRegisterPin(e.target.value.replace(/\D/g, ''))}
-              placeholder="000000"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-lg"
-            />
+          <div className="space-y-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PIN (6 dígitos)</label>
+              <input
+                type={registerPinVisible ? 'text' : 'password'}
+                inputMode="numeric"
+                maxLength={6}
+                value={registerPin}
+                onChange={(e) => setRegisterPin(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000"
+                autoComplete="off"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmar (6 dígitos)</label>
+              <input
+                type={registerPinVisible ? 'text' : 'password'}
+                inputMode="numeric"
+                maxLength={6}
+                value={registerPinConfirm}
+                onChange={(e) => setRegisterPinConfirm(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000"
+                autoComplete="off"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-lg"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setRegisterPinVisible((v) => !v)}
+              >
+                {registerPinVisible ? 'Ocultar' : 'Mostrar'} dígitos
+              </Button>
+            </div>
           </div>
           <div className="flex gap-2 justify-end">
-            <Button variant="secondary" onClick={() => { setShowRegisterModal(false); setInstanceToRegister(null); setRegisterPin(''); }}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowRegisterModal(false);
+                setInstanceToRegister(null);
+                setRegisterPin('');
+                setRegisterPinConfirm('');
+                setRegisterPinVisible(false);
+              }}
+            >
               Cancelar
             </Button>
-            <Button variant="primary" onClick={handleRegisterPhone} disabled={isRegistering || registerPin.length !== 6}>
-              {isRegistering ? 'Registrando...' : 'Registrar'}
+            <Button
+              variant="primary"
+              onClick={handleRegisterPhone}
+              disabled={
+                isRegistering ||
+                registerPin.length !== 6 ||
+                registerPinConfirm.length !== 6 ||
+                registerPin !== registerPinConfirm
+              }
+            >
+              {isRegistering ? 'Registrando...' : 'Confirmar'}
             </Button>
           </div>
         </Modal>
