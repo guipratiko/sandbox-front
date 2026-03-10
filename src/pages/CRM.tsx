@@ -703,6 +703,12 @@ const ChatModal: React.FC<ChatModalProps> = ({
 
   if (!contact) return null;
 
+  // Labels no header: usar dados carregados por loadLabels() quando disponível, senão contact.labels
+  const headerLabels =
+    availableLabels.length > 0 && contactLabels.size > 0
+      ? availableLabels.filter((l) => contactLabels.has(l.id))
+      : contact.labels ?? [];
+
   return (
     <>
       <Modal 
@@ -711,9 +717,9 @@ const ChatModal: React.FC<ChatModalProps> = ({
         title={
           <div className="flex flex-col gap-2">
             {/* Etiquetas acima do nome */}
-            {contact.labels && contact.labels.length > 0 && (
+            {headerLabels.length > 0 && (
               <div className="flex flex-wrap gap-1">
-                {contact.labels.map((label) => (
+                {headerLabels.map((label) => (
                   <span
                     key={label.id}
                     className="px-2 py-0.5 text-xs font-semibold rounded-md text-white"
