@@ -744,12 +744,13 @@ const ChatModal: React.FC<ChatModalProps> = ({
         initialPosition={initialPosition}
         modalId={modalId}
         zIndex={zIndex}
+        contentScroll={false}
       >
-        <div className="flex flex-col max-h-[calc(90vh-10rem)] min-h-[280px] overflow-hidden">
-          {/* Área de mensagens — único scroll */}
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          {/* Área de mensagens — único scroll (barra invisível) */}
           <div 
             ref={messagesContainerRef}
-            className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 bg-gray-50/80 dark:bg-[#0d1f3c] rounded-2xl mb-3 sm:mb-4 overscroll-contain"
+            className="flex-1 min-h-0 overflow-y-auto scrollbar-hide p-3 sm:p-4 bg-gray-50/80 dark:bg-[#0d1f3c] rounded-2xl mb-3 sm:mb-4 overscroll-contain"
           >
           {isLoading ? (
             <div className="text-center py-8 sm:py-10">

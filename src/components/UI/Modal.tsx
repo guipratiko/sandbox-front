@@ -12,6 +12,8 @@ interface ModalProps {
   initialPosition?: { x: number; y: number };
   modalId?: string;
   zIndex?: number;
+  /** Se false, o corpo do modal não rola; use quando o filho tiver seu próprio scroll (ex.: chat) */
+  contentScroll?: boolean;
 }
 
 const sizeClasses = {
@@ -34,6 +36,7 @@ const Modal: React.FC<ModalProps> = ({
   initialPosition,
   modalId,
   zIndex = 50,
+  contentScroll = true,
 }) => {
   const [position, setPosition] = useState<{ x: number; y: number }>(() => {
     if (initialPosition) return initialPosition;
@@ -271,7 +274,7 @@ const Modal: React.FC<ModalProps> = ({
             </div>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 overscroll-contain">{children}</div>
+        <div className={`flex-1 p-4 sm:p-6 min-h-0 ${contentScroll ? 'overflow-y-auto overscroll-contain' : 'overflow-hidden flex flex-col'}`}>{children}</div>
       </div>
     </div>
   );
