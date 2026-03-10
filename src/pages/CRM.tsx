@@ -492,16 +492,16 @@ const ChatModal: React.FC<ChatModalProps> = ({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
-      // Configurar tipo MIME se disponível
+      // Preferir audio/ogg (suportado pela API WhatsApp/Meta); webm não é aceito no upload.
       const options: MediaRecorderOptions = {};
-      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-        options.mimeType = 'audio/webm;codecs=opus';
-      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-        options.mimeType = 'audio/webm';
-      } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+      if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
         options.mimeType = 'audio/ogg;codecs=opus';
       } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
         options.mimeType = 'audio/ogg';
+      } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        options.mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        options.mimeType = 'audio/webm';
       }
 
       const mediaRecorder = new MediaRecorder(stream, options);
@@ -521,20 +521,20 @@ const ChatModal: React.FC<ChatModalProps> = ({
         }
 
         // Obter o tipo MIME real usado pelo MediaRecorder
-        const actualMimeType = mediaRecorder.mimeType || 'audio/webm';
+        const actualMimeType = mediaRecorder.mimeType || 'audio/ogg';
         
         // Normalizar o tipo MIME (remover codecs se necessário para compatibilidade)
         let normalizedMimeType = actualMimeType;
-        let extension = 'webm';
+        let extension = 'ogg';
         
-        if (actualMimeType.includes('webm')) {
-          normalizedMimeType = 'audio/webm';
-          extension = 'webm';
-        } else if (actualMimeType.includes('ogg')) {
+        if (actualMimeType.includes('ogg')) {
           normalizedMimeType = 'audio/ogg';
           extension = 'ogg';
+        } else if (actualMimeType.includes('webm')) {
+          normalizedMimeType = 'audio/webm';
+          extension = 'webm';
         } else if (actualMimeType.includes('mp4') || actualMimeType.includes('m4a')) {
-          normalizedMimeType = 'audio/m4a';
+          normalizedMimeType = 'audio/mp4';
           extension = 'm4a';
         } else if (actualMimeType.includes('wav')) {
           normalizedMimeType = 'audio/wav';
