@@ -156,13 +156,15 @@ export interface DeleteInstanceResponse {
   message: string;
 }
 
-/** Perfil WhatsApp Business (about, address, description, email, vertical, websites). */
+/** Perfil WhatsApp Business (about, address, description, email, vertical, websites, foto). */
 export interface WhatsAppBusinessProfile {
   about?: string;
   address?: string;
   description?: string;
   email?: string;
   profile_picture_handle?: string;
+  /** URL da foto do perfil (retornada no GET). */
+  profile_picture_url?: string;
   vertical?: string;
   websites?: string[];
 }
@@ -534,6 +536,23 @@ export const instanceAPI = {
   /** Configurações do número (tier, quality_rating, etc.). */
   getWhatsAppSettings: async (id: string): Promise<{ status: string; data: WhatsAppPhoneSettings }> => {
     return request<{ status: string; data: WhatsAppPhoneSettings }>(`/instances/${id}/whatsapp-settings`);
+  },
+
+  /** Envia foto do perfil WhatsApp (imagem JPEG ou PNG, até 5 MB). */
+  uploadWhatsAppProfilePicture: async (id: string, file: File): Promise<{ status: string; message?: string }> => {
+    const token = localStorage.getItem('token');
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${API_URL}/instances/${id}/whatsapp-profile-picture`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error((data as { message?: string }).message || 'Erro ao enviar foto');
+    }
+    return data as { status: string; message?: string };
   },
 };
 

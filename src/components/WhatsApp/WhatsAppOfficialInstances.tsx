@@ -24,9 +24,21 @@ interface SettingsProfileFormProps {
   verticalOptions: { value: string; label: string }[];
   onSave: (data: Partial<WhatsAppBusinessProfile>) => Promise<void>;
   saving: boolean;
+  instanceId?: string;
+  onUploadPicture?: (file: File) => Promise<void>;
+  uploadingPicture?: boolean;
 }
 
-const SettingsProfileForm: React.FC<SettingsProfileFormProps> = ({ profile, verticalOptions, onSave, saving }) => {
+const SettingsProfileForm: React.FC<SettingsProfileFormProps> = ({
+  profile,
+  verticalOptions,
+  onSave,
+  saving,
+  instanceId,
+  onUploadPicture,
+  uploadingPicture,
+}) => {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [about, setAbout] = useState('');
   const [description, setDescription] = useState('');
   const [address, setAddress] = useState('');
@@ -65,6 +77,48 @@ const SettingsProfileForm: React.FC<SettingsProfileFormProps> = ({ profile, vert
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Perfil do negócio</h3>
+      <div className="flex items-center gap-4 flex-wrap">
+        {profile?.profile_picture_url ? (
+          <img
+            src={profile.profile_picture_url}
+            alt="Foto do perfil"
+            className="h-20 w-20 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700"
+          />
+        ) : (
+          <div className="h-20 w-20 rounded-full border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-400 dark:text-gray-500 text-xs text-center px-1">
+            Sem foto
+          </div>
+        )}
+        <div className="flex flex-col gap-1">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            {profile?.profile_picture_url ? 'Foto do perfil WhatsApp' : 'Adicione uma foto (JPEG ou PNG, até 5 MB)'}
+          </span>
+          {instanceId && onUploadPicture && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/jpg"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onUploadPicture(f);
+                  e.target.value = '';
+                }}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={uploadingPicture}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploadingPicture ? 'Enviando...' : 'Alterar foto'}
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sobre (até 139 caracteres)</label>
         <input
@@ -167,6 +221,7 @@ const WhatsAppOfficialInstances: React.FC = () => {
   const [settingsProfileLoading, setSettingsProfileLoading] = useState(false);
   const [settingsProfileSaving, setSettingsProfileSaving] = useState(false);
   const [settingsProfileError, setSettingsProfileError] = useState<string | null>(null);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
   const pendingSignup = useRef<{ name: string; waba_id?: string; phone_number_id?: string; code?: string; redirect_uri?: string } | null>(null);
 
   const VERTICAL_OPTIONS: { value: string; label: string }[] = [
@@ -562,6 +617,22 @@ const WhatsAppOfficialInstances: React.FC = () => {
               <SettingsProfileForm
                 profile={settingsProfile}
                 verticalOptions={VERTICAL_OPTIONS}
+                instanceId={selectedInstance?.id}
+                onUploadPicture={async (file) => {
+                  if (!selectedInstance?.id) return;
+                  setUploadingPicture(true);
+                  setSettingsProfileError(null);
+                  try {
+                    await instanceAPI.uploadWhatsAppProfilePicture(selectedInstance.id, file);
+                    const res = await instanceAPI.getWhatsAppProfile(selectedInstance.id);
+                    setSettingsProfile(res.data ?? null);
+                  } catch (err: unknown) {
+                    setSettingsProfileError(getErrorMessage(err, 'Erro ao enviar foto'));
+                  } finally {
+                    setUploadingPicture(false);
+                  }
+                }}
+                uploadingPicture={uploadingPicture}
                 onSave={async (data) => {
                   if (!selectedInstance?.id) return;
                   setSettingsProfileSaving(true);
