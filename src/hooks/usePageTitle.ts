@@ -12,6 +12,7 @@ const routeTitleMap: Record<string, string> = {
   '/inicio': 'dashboard.title',
   '/gerenciador-conexoes': 'menu.connectionManager',
   '/disparos': 'menu.dispatches',
+  '/disparo-api': 'menu.dispatchesOfficial',
   '/crm': 'menu.crm',
   '/mindflow': 'menu.mindFlow',
   '/integracao': 'menu.integration',

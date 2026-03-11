@@ -101,7 +101,11 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
   const loadInstances = async () => {
     try {
       const response = await instanceAPI.getAll();
-      setInstances(response.instances.filter((i) => i.status === 'connected'));
+      setInstances(
+        response.instances.filter(
+          (i) => i.status === 'connected' && i.integration !== 'WHATSAPP-CLOUD'
+        )
+      );
     } catch (error) {
       console.error('Erro ao carregar instâncias:', error);
     }

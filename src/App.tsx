@@ -14,6 +14,7 @@ import ResetPassword from './pages/ResetPassword';
 import Home from './pages/Home';
 import Instances from './pages/Instances';
 import Dispatches from './pages/Dispatches';
+import DispatchesOfficial from './pages/DispatchesOfficial';
 import CRM from './pages/CRM';
 import MindClerky from './pages/MindClerky';
 import Integration from './pages/Integration';
@@ -63,6 +64,16 @@ function AppContent() {
           <ProtectedRoute>
             <PremiumRoute>
             <Dispatches />
+            </PremiumRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/disparo-api"
+        element={
+          <ProtectedRoute>
+            <PremiumRoute>
+              <DispatchesOfficial />
             </PremiumRoute>
           </ProtectedRoute>
         }
