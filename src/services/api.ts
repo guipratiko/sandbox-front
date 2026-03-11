@@ -92,6 +92,7 @@ export interface Instance {
     syncFullHistory: boolean;
   };
   phone_number_id?: string | null;
+  waba_id?: string | null;
   display_phone_number?: string | null;
   connectionLink?: string;
   createdAt: string;
@@ -104,6 +105,55 @@ export interface CreateOfficialInstanceData {
   redirect_uri?: string;
   waba_id: string;
   phone_number_id: string;
+}
+
+/** Componente de template Meta (header, body, button, footer). Botão: um componente por botão com sub_type e index. */
+export interface OfficialTemplateComponent {
+  type: 'header' | 'body' | 'button' | 'footer';
+  format?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+  sub_type?: 'quick_reply' | 'url' | 'copy_code' | 'phone_number';
+  index?: string;
+  text?: string;
+  url?: string;
+  example?: {
+    body_text?: string[][];
+    header_text?: string[];
+    header_handle?: string[];
+    header_image?: string[];
+    header_video?: string[];
+    header_document?: string[];
+    button_url?: string[];
+    button_text?: string[];
+  };
+  buttons?: Array<{
+    type: 'quick_reply' | 'url' | 'copy_code' | 'phone_number';
+    text?: string;
+    url?: string;
+    example?: string[];
+  }>;
+  add_security_recommendation?: boolean;
+  code_expiration_minutes?: number;
+}
+
+export type OfficialTemplateCategory = 'authentication' | 'marketing' | 'utility';
+
+/** Body para criar/editar template oficial */
+export interface CreateOfficialTemplateBody {
+  name: string;
+  language: string;
+  category: OfficialTemplateCategory;
+  components: OfficialTemplateComponent[];
+  parameter_format?: 'positional' | 'named';
+}
+
+/** Template retornado pela Meta (list/get) */
+export interface OfficialTemplate {
+  id?: string;
+  name?: string;
+  status?: string;
+  category?: string;
+  language?: string;
+  components?: OfficialTemplateComponent[];
 }
 
 export interface CreateInstanceData {
@@ -568,6 +618,52 @@ export const instanceAPI = {
       throw new Error((data as { message?: string }).message || 'Erro ao enviar foto');
     }
     return data as { status: string; message?: string };
+  },
+
+  /** Lista templates oficiais (Meta) da instância. */
+  listOfficialTemplates: async (instanceId: string): Promise<{ status: string; data: OfficialTemplate[] }> => {
+    return request<{ status: string; data: OfficialTemplate[] }>(`/instances/${instanceId}/official-templates`);
+  },
+
+  /** Cria template oficial (Meta). */
+  createOfficialTemplate: async (
+    instanceId: string,
+    body: CreateOfficialTemplateBody
+  ): Promise<{ status: string; data: { id: string } }> => {
+    return request<{ status: string; data: { id: string } }>(`/instances/${instanceId}/official-templates`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  /** Obtém um template oficial por ID. */
+  getOfficialTemplate: async (
+    instanceId: string,
+    templateId: string
+  ): Promise<{ status: string; data: OfficialTemplate }> => {
+    return request<{ status: string; data: OfficialTemplate }>(`/instances/${instanceId}/official-templates/${templateId}`);
+  },
+
+  /** Atualiza template oficial. */
+  updateOfficialTemplate: async (
+    instanceId: string,
+    templateId: string,
+    body: CreateOfficialTemplateBody
+  ): Promise<{ status: string; message?: string }> => {
+    return request<{ status: string; message?: string }>(`/instances/${instanceId}/official-templates/${templateId}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  /** Exclui template oficial pelo nome. */
+  deleteOfficialTemplate: async (
+    instanceId: string,
+    name: string
+  ): Promise<{ status: string; message?: string }> => {
+    return request<{ status: string; message?: string }>(`/instances/${instanceId}/official-templates?name=${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+    });
   },
 };
 
