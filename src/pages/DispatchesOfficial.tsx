@@ -77,8 +77,9 @@ const DispatchesOfficial: React.FC = () => {
     try {
       await instanceAPI.deleteOfficialTemplate(selectedInstanceId, name, templateId ?? undefined);
       await loadTemplates();
-    } catch {
-      setError(t('dispatchesOfficial.errorDelete'));
+    } catch (err: unknown) {
+      const msg = (err as { message?: string })?.message;
+      setError(msg && typeof msg === 'string' ? msg : t('dispatchesOfficial.errorDelete'));
     }
   };
 
