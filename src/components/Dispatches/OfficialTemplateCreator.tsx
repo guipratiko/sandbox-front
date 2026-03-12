@@ -44,7 +44,7 @@ interface ButtonForm {
 interface OfficialTemplateCreatorProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (body: CreateOfficialTemplateBody) => Promise<void>;
+  onSubmit: (body: CreateOfficialTemplateBody) => Promise<{ id: string; templateStatus?: string } | void>;
 }
 
 export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = ({
@@ -141,7 +141,7 @@ export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = (
     setSubmitting(true);
     try {
       const components = buildComponents();
-      await onSubmit({
+      const result = await onSubmit({
         name: trimmedName,
         language,
         category,
@@ -155,6 +155,16 @@ export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = (
       setHeaderText('');
       setFooterText('');
       setButtons([]);
+      if (result?.templateStatus?.toUpperCase() === 'REJECTED') {
+        setTimeout(
+          () =>
+            window.alert(
+              t('dispatchesOfficial.createdRejected') ||
+                'Template criado, mas foi rejeitado na revisão da Meta. Verifique o motivo no Meta Business Suite (Message Templates) ou no e-mail da Meta.'
+            ),
+          100
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('dispatchesOfficial.errorCreate'));
     } finally {

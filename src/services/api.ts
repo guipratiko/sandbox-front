@@ -629,8 +629,8 @@ export const instanceAPI = {
   createOfficialTemplate: async (
     instanceId: string,
     body: CreateOfficialTemplateBody
-  ): Promise<{ status: string; data: { id: string } }> => {
-    return request<{ status: string; data: { id: string } }>(`/instances/${instanceId}/official-templates`, {
+  ): Promise<{ status: string; data: { id: string; templateStatus?: string } }> => {
+    return request<{ status: string; data: { id: string; templateStatus?: string } }>(`/instances/${instanceId}/official-templates`, {
       method: 'POST',
       body: JSON.stringify(body),
     });

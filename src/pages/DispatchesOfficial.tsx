@@ -62,10 +62,13 @@ const DispatchesOfficial: React.FC = () => {
     loadTemplates();
   }, [loadTemplates]);
 
-  const handleCreateSubmit = async (body: CreateOfficialTemplateBody) => {
+  const handleCreateSubmit = async (
+    body: CreateOfficialTemplateBody
+  ): Promise<{ id: string; templateStatus?: string } | void> => {
     if (!selectedInstanceId) throw new Error(t('dispatchesOfficial.selectInstance'));
-    await instanceAPI.createOfficialTemplate(selectedInstanceId, body);
+    const res = await instanceAPI.createOfficialTemplate(selectedInstanceId, body);
     await loadTemplates();
+    return res.data;
   };
 
   const handleDelete = async (name: string) => {
