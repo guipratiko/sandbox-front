@@ -71,11 +71,11 @@ const DispatchesOfficial: React.FC = () => {
     return res.data;
   };
 
-  const handleDelete = async (name: string) => {
+  const handleDelete = async (name: string, templateId?: string | null) => {
     if (!selectedInstanceId || !name) return;
     if (!window.confirm(`${t('dispatches.delete')} "${name}"?`)) return;
     try {
-      await instanceAPI.deleteOfficialTemplate(selectedInstanceId, name);
+      await instanceAPI.deleteOfficialTemplate(selectedInstanceId, name, templateId ?? undefined);
       await loadTemplates();
     } catch {
       setError(t('dispatchesOfficial.errorDelete'));
@@ -203,7 +203,7 @@ const DispatchesOfficial: React.FC = () => {
                               <Button
                                 variant="secondary"
                                 size="sm"
-                                onClick={() => tmpl.name && handleDelete(tmpl.name)}
+                                onClick={() => tmpl.name && handleDelete(tmpl.name, tmpl.id)}
                               >
                                 {t('dispatchesOfficial.deleteTemplate')}
                               </Button>

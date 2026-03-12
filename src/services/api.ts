@@ -656,14 +656,15 @@ export const instanceAPI = {
     });
   },
 
-  /** Exclui template oficial pelo nome. */
+  /** Exclui template oficial pelo nome; hsmId opcional (ID do template para excluir só esse). */
   deleteOfficialTemplate: async (
     instanceId: string,
-    name: string
+    name: string,
+    hsmId?: string | null
   ): Promise<{ status: string; message?: string }> => {
-    return request<{ status: string; message?: string }>(`/instances/${instanceId}/official-templates?name=${encodeURIComponent(name)}`, {
-      method: 'DELETE',
-    });
+    let url = `/instances/${instanceId}/official-templates?name=${encodeURIComponent(name)}`;
+    if (hsmId && hsmId.trim()) url += `&hsm_id=${encodeURIComponent(hsmId.trim())}`;
+    return request<{ status: string; message?: string }>(url, { method: 'DELETE' });
   },
 
   /** Cota de disparo (tier - usado hoje). */
