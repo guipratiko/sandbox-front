@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { Modal, Button, Card } from '../UI';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type {
@@ -16,21 +16,50 @@ const LANGUAGES = [
 ];
 const HEADER_FORMATS = ['TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT'] as const;
 const BUTTON_TYPES = ['quick_reply', 'url', 'copy_code', 'phone_number'] as const;
-/** Mínimo de caracteres de texto (excl. variáveis) por variável — mesma regra da Meta / backend */
-const MIN_CHARS_PER_VARIABLE = 20;
 
-/** Retorna mensagem de erro se o body tiver muitas variáveis para o tamanho do texto. */
-function validateBodyVariableRatio(text: string): string | null {
+const LIMITS = {
+  NAME_MAX: 512,
+  NAME_REGEX: /^[a-z0-9_]+$/,
+  BODY_MAX: 1024,
+  HEADER_TEXT_MAX: 60,
+  FOOTER_MAX: 60,
+  BUTTON_TEXT_MAX: 25,
+  MIN_CHARS_PER_VARIABLE: 20,
+} as const;
+
+/** Normaliza nome do template: minúsculas, só a-z 0-9 _ */
+function normalizeTemplateName(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
+}
+
+/** Valida nome: retorna mensagem de erro ou null */
+function validateTemplateName(name: string): string | null {
+  const n = normalizeTemplateName(name);
+  if (!n) return 'Nome do template é obrigatório.';
+  if (n.length > LIMITS.NAME_MAX) return `Nome deve ter no máximo ${LIMITS.NAME_MAX} caracteres.`;
+  if (!LIMITS.NAME_REGEX.test(n)) return 'Use apenas letras minúsculas, números e underscore (ex: meu_template).';
+  return null;
+}
+
+/** Valida corpo: tamanho e proporção variáveis/texto */
+function validateBodyText(text: string): string | null {
   const trimmed = text.trim();
-  const variableMatches = trimmed.match(/\{\{\d+\}\}/g);
-  const numVariables = variableMatches?.length
+  if (!trimmed) return 'Corpo da mensagem é obrigatório.';
+  if (trimmed.length > LIMITS.BODY_MAX) return `Corpo deve ter no máximo ${LIMITS.BODY_MAX} caracteres.`;
+  const variableMatches = trimmed.match(/\{\{\s*\d+\s*\}\}/g);
+  const numVariables = variableMatches
     ? Math.max(...variableMatches.map((m) => parseInt(m.replace(/\D/g, ''), 10)))
     : 0;
-  if (numVariables === 0) return null;
-  const textWithoutPlaceholders = trimmed.replace(/\{\{\d+\}\}/g, '').trim();
-  const minRequired = numVariables * MIN_CHARS_PER_VARIABLE;
-  if (textWithoutPlaceholders.length < minRequired) {
-    return `O corpo da mensagem tem muitas variáveis para o tamanho do texto. Use no mínimo ${minRequired} caracteres de texto (excluindo as variáveis) para ${numVariables} variável(is), ou reduza o número de variáveis (recomendado: pelo menos ${MIN_CHARS_PER_VARIABLE} caracteres por variável).`;
+  if (numVariables > 0) {
+    const textWithoutVars = trimmed.replace(/\{\{\s*\d+\s*\}\}/g, '').trim();
+    const minRequired = numVariables * LIMITS.MIN_CHARS_PER_VARIABLE;
+    if (textWithoutVars.length < minRequired) {
+      return `Para ${numVariables} variável(is), use pelo menos ${minRequired} caracteres de texto (além das variáveis).`;
+    }
   }
   return null;
 }
@@ -65,6 +94,22 @@ export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = (
   const [buttons, setButtons] = useState<ButtonForm[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const bodyTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const insertVariable = useCallback((variable: string) => {
+    const ta = bodyTextareaRef.current;
+    if (!ta) {
+      setBodyText((prev) => prev + variable);
+      return;
+    }
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const before = bodyText.slice(0, start);
+    const after = bodyText.slice(end);
+    setBodyText(before + variable + after);
+    setTimeout(() => ta.focus(), 0);
+    setTimeout(() => ta.setSelectionRange(start + variable.length, start + variable.length), 10);
+  }, [bodyText]);
 
   const buildComponents = (): OfficialTemplateComponent[] => {
     const comps: OfficialTemplateComponent[] = [];
@@ -93,10 +138,12 @@ export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = (
       text: bodyText.trim() || ' ',
     };
     if (bodyExample.trim()) {
-      const rows = bodyExample
-        .split('\n')
-        .map((row) => row.split(',').map((s) => s.trim()).filter(Boolean));
-      if (rows.length) body.example = { body_text: rows };
+      const firstRow = bodyExample
+        .split('\n')[0]
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (firstRow.length) body.example = { body_text: [firstRow] };
     }
     comps.push(body);
 
@@ -124,19 +171,43 @@ export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = (
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const trimmedName = name.trim().toLowerCase().replace(/\s+/g, '_');
-    if (!trimmedName) {
-      setError('Nome é obrigatório');
+    const trimmedName = normalizeTemplateName(name);
+    const nameErr = validateTemplateName(name);
+    if (nameErr) {
+      setError(nameErr);
       return;
     }
-    if (!bodyText.trim()) {
-      setError('Corpo da mensagem é obrigatório');
+    const bodyErr = validateBodyText(bodyText);
+    if (bodyErr) {
+      setError(bodyErr);
       return;
     }
-    const bodyValidationError = validateBodyVariableRatio(bodyText);
-    if (bodyValidationError) {
-      setError(bodyValidationError);
+    const matches = bodyText.match(/\{\{\s*\d+\s*\}\}/g) || [];
+    const numVars = matches.length === 0 ? 0 : Math.max(...matches.map((m) => parseInt(m.replace(/\D/g, ''), 10)));
+    if (numVars > 0) {
+      const exampleRow = bodyExample.trim().split('\n')[0].split(',').map((s) => s.trim()).filter(Boolean);
+      if (exampleRow.length < numVars) {
+        setError(`Informe um valor de exemplo para cada variável ({{1}} a {{${numVars}}}). Ex.: ${Array.from({ length: numVars }, (_, i) => `Exemplo ${i + 1}`).join(', ')}`);
+        return;
+      }
+    }
+    if (headerFormat === 'TEXT' && headerText.trim().length > LIMITS.HEADER_TEXT_MAX) {
+      setError(`Cabeçalho deve ter no máximo ${LIMITS.HEADER_TEXT_MAX} caracteres.`);
       return;
+    }
+    if (footerText.trim().length > LIMITS.FOOTER_MAX) {
+      setError(`Rodapé deve ter no máximo ${LIMITS.FOOTER_MAX} caracteres.`);
+      return;
+    }
+    for (let i = 0; i < buttons.length; i++) {
+      if (!buttons[i].text.trim()) {
+        setError(`Texto do botão ${i + 1} é obrigatório.`);
+        return;
+      }
+      if (buttons[i].text.trim().length > LIMITS.BUTTON_TEXT_MAX) {
+        setError(`Texto do botão ${i + 1}: máximo ${LIMITS.BUTTON_TEXT_MAX} caracteres.`);
+        return;
+      }
     }
     setSubmitting(true);
     try {
@@ -217,10 +288,15 @@ export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = (
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="nome_do_template"
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2"
-              required
-            />
+            placeholder="meu_template_exemplo"
+            maxLength={LIMITS.NAME_MAX + 50}
+            onBlur={() => setName((prev) => normalizeTemplateName(prev) || prev)}
+            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2"
+            required
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            Só letras minúsculas, números e _ (máx. {LIMITS.NAME_MAX})
+          </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -276,14 +352,35 @@ export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = (
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             {t('dispatchesOfficial.templateBody')} *
           </label>
+          <div className="flex flex-wrap gap-1 mb-1">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Button
+                key={n}
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => insertVariable(`{{${n}}}`)}
+              >
+                {`{{${n}}}`}
+              </Button>
+            ))}
+          </div>
           <textarea
+            ref={bodyTextareaRef}
             value={bodyText}
             onChange={(e) => setBodyText(e.target.value)}
-            placeholder={t('dispatchesOfficial.templateBodyPlaceholder')}
-            rows={3}
-            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2"
+            placeholder="Olá! Use os botões acima para inserir variáveis como {{1}}, {{2}}..."
+            rows={4}
+            maxLength={LIMITS.BODY_MAX + 100}
+            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 font-mono text-sm"
             required
           />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            {bodyText.length} / {LIMITS.BODY_MAX} caracteres
+            {bodyText.match(/\{\{\s*\d+\s*\}\}/g) && (
+              <> · Variáveis: {bodyText.match(/\{\{\s*\d+\s*\}\}/g)?.join(', ')}</>
+            )}
+          </p>
           {/\{\{\d+\}\}/.test(bodyText) && (
             <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
               {t('dispatchesOfficial.bodyVariableRatioHint')}
@@ -295,7 +392,7 @@ export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = (
           <textarea
             value={bodyExample}
             onChange={(e) => setBodyExample(e.target.value)}
-            placeholder="João, 12345"
+            placeholder="João (para {{1}}), 12345 (para {{2}})..."
             rows={2}
             className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 mt-1"
           />
@@ -318,13 +415,19 @@ export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = (
             ))}
           </select>
           {headerFormat === 'TEXT' && (
-            <input
-              type="text"
-              value={headerText}
-              onChange={(e) => setHeaderText(e.target.value)}
-              placeholder={t('dispatchesOfficial.templateHeaderText')}
-              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 mt-2"
-            />
+            <>
+              <input
+                type="text"
+                value={headerText}
+                onChange={(e) => setHeaderText(e.target.value)}
+                placeholder={t('dispatchesOfficial.templateHeaderText')}
+                maxLength={LIMITS.HEADER_TEXT_MAX}
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 mt-2"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                {headerText.length} / {LIMITS.HEADER_TEXT_MAX}
+              </p>
+            </>
           )}
         </div>
 
@@ -355,6 +458,7 @@ export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = (
                 value={btn.text}
                 onChange={(e) => updateButton(i, 'text', e.target.value)}
                 placeholder={t('dispatchesOfficial.templateButtonText')}
+                maxLength={LIMITS.BUTTON_TEXT_MAX}
                 className="flex-1 min-w-[120px] rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm"
               />
               {btn.type === 'url' && (
@@ -381,8 +485,13 @@ export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = (
             type="text"
             value={footerText}
             onChange={(e) => setFooterText(e.target.value)}
+            maxLength={LIMITS.FOOTER_MAX}
+            placeholder="Máx. 60 caracteres"
             className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2"
           />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            {footerText.length} / {LIMITS.FOOTER_MAX}
+          </p>
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
