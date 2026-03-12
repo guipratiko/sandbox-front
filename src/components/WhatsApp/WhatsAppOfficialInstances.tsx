@@ -461,7 +461,8 @@ const WhatsAppOfficialInstances: React.FC = () => {
           if (!pendingSignup.current) pendingSignup.current = { name };
           pendingSignup.current.waba_id = data.data.waba_id;
           pendingSignup.current.phone_number_id = data.data.phone_number_id;
-          submitPendingOfficial();
+          // Pequeno atraso para o callback do FB.login (code + redirect_uri) rodar antes de criar a instância; evita salvar sem meta_access_token.
+          setTimeout(() => submitPendingOfficial(), 300);
         } else if (data.event === 'ERROR') {
           setError(data.data?.error_message || 'Erro no cadastro incorporado');
         }
