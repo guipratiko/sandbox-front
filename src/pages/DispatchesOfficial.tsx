@@ -79,6 +79,7 @@ const DispatchesOfficial: React.FC = () => {
       await loadTemplates();
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message;
+      console.error('[DispatchesOfficial] delete template error:', err);
       setError(msg && typeof msg === 'string' ? msg : t('dispatchesOfficial.errorDelete'));
     }
   };
