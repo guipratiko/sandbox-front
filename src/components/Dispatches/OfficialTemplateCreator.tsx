@@ -153,9 +153,22 @@ export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = (
     setButtons((b) => b.filter((_, i) => i !== index));
   };
 
+  /** Gera o texto do body com {{1}}, {{2}} substituídos pelo exemplo (primeira linha) ou placeholders */
+  const getPreviewBodyText = (): string => {
+    const text = bodyText.trim() || '';
+    if (!text) return '';
+    const firstRow = bodyExample.trim().split('\n')[0];
+    const values = firstRow ? firstRow.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    return text.replace(/\{\{(\d+)\}\}/g, (_, num) => {
+      const idx = parseInt(num, 10) - 1;
+      return values[idx] ?? `{{${num}}}`;
+    });
+  };
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={t('dispatchesOfficial.createTemplate')} size="lg">
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <Modal isOpen={isOpen} onClose={onClose} title={t('dispatchesOfficial.createTemplate')} size="xl">
+      <div className="flex flex-col lg:flex-row gap-6">
+        <form onSubmit={handleSubmit} className="flex-1 min-w-0 space-y-4">
         {error && (
           <div className="rounded-lg bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-3 py-2 text-sm">
             {error}
@@ -343,6 +356,53 @@ export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = (
           </Button>
         </div>
       </form>
+
+        {/* Preview à direita */}
+        <div className="w-full lg:w-[320px] flex-shrink-0">
+          <div className="sticky top-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50 p-4">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
+              {t('dispatchesOfficial.previewTitle')}
+            </p>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+              {headerFormat === 'TEXT' && headerText.trim() && (
+                <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {headerText.trim()}
+                </div>
+              )}
+              {headerFormat !== 'none' && headerFormat !== 'TEXT' && (
+                <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 text-xs text-gray-500 dark:text-gray-400">
+                  [{headerFormat}]
+                </div>
+              )}
+              <div className="p-3">
+                <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">
+                  {getPreviewBodyText() || (bodyText ? '…' : '—')}
+                </p>
+              </div>
+              {buttons.length > 0 && (
+                <div className="px-3 pb-3 space-y-1.5">
+                  {buttons.map((btn, i) => (
+                    <div
+                      key={i}
+                      className="text-center py-1.5 rounded-md bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 text-sm border border-green-200 dark:border-green-800"
+                    >
+                      {btn.text || '…'}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {footerText.trim() && (
+                <div className="px-3 py-2 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
+                  {footerText.trim()}
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+              {t('dispatchesOfficial.previewHint')}
+            </p>
+          </div>
+        </div>
+      </div>
     </Modal>
   );
 };
