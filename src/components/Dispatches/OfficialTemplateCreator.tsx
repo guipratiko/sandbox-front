@@ -16,6 +16,24 @@ const LANGUAGES = [
 ];
 const HEADER_FORMATS = ['TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT'] as const;
 const BUTTON_TYPES = ['quick_reply', 'url', 'copy_code', 'phone_number'] as const;
+/** Mínimo de caracteres de texto (excl. variáveis) por variável — mesma regra da Meta / backend */
+const MIN_CHARS_PER_VARIABLE = 20;
+
+/** Retorna mensagem de erro se o body tiver muitas variáveis para o tamanho do texto. */
+function validateBodyVariableRatio(text: string): string | null {
+  const trimmed = text.trim();
+  const variableMatches = trimmed.match(/\{\{\d+\}\}/g);
+  const numVariables = variableMatches?.length
+    ? Math.max(...variableMatches.map((m) => parseInt(m.replace(/\D/g, ''), 10)))
+    : 0;
+  if (numVariables === 0) return null;
+  const textWithoutPlaceholders = trimmed.replace(/\{\{\d+\}\}/g, '').trim();
+  const minRequired = numVariables * MIN_CHARS_PER_VARIABLE;
+  if (textWithoutPlaceholders.length < minRequired) {
+    return `O corpo da mensagem tem muitas variáveis para o tamanho do texto. Use no mínimo ${minRequired} caracteres de texto (excluindo as variáveis) para ${numVariables} variável(is), ou reduza o número de variáveis (recomendado: pelo menos ${MIN_CHARS_PER_VARIABLE} caracteres por variável).`;
+  }
+  return null;
+}
 
 interface ButtonForm {
   type: (typeof BUTTON_TYPES)[number];
@@ -113,6 +131,11 @@ export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = (
     }
     if (!bodyText.trim()) {
       setError('Corpo da mensagem é obrigatório');
+      return;
+    }
+    const bodyValidationError = validateBodyVariableRatio(bodyText);
+    if (bodyValidationError) {
+      setError(bodyValidationError);
       return;
     }
     setSubmitting(true);
@@ -251,6 +274,11 @@ export const OfficialTemplateCreator: React.FC<OfficialTemplateCreatorProps> = (
             className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2"
             required
           />
+          {/\{\{\d+\}\}/.test(bodyText) && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+              {t('dispatchesOfficial.bodyVariableRatioHint')}
+            </p>
+          )}
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {t('dispatchesOfficial.templateBodyExample')}
           </p>
