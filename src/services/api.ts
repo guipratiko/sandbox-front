@@ -665,6 +665,34 @@ export const instanceAPI = {
       method: 'DELETE',
     });
   },
+
+  /** Cota de disparo (tier - usado hoje). */
+  getOfficialDispatchQuota: async (
+    instanceId: string
+  ): Promise<{ status: string; data: { tier: string | null; tierNumber: number; usedToday: number; remaining: number } }> => {
+    return request<{ status: string; data: { tier: string | null; tierNumber: number; usedToday: number; remaining: number } }>(
+      `/instances/${instanceId}/official-dispatch-quota`
+    );
+  },
+
+  /** Envia disparo em massa de template. */
+  sendOfficialDispatches: async (
+    instanceId: string,
+    body: { template_name: string; language_code: string; recipients: Array<{ to: string; body_params: string[] }> }
+  ): Promise<{
+    status: string;
+    data: { total: number; sent: number; failed: number; results: Array<{ to: string; success: boolean; messageId?: string; error?: string }> };
+  }> => {
+    return request<
+      {
+        status: string;
+        data: { total: number; sent: number; failed: number; results: Array<{ to: string; success: boolean; messageId?: string; error?: string }> };
+      }
+    >(`/instances/${instanceId}/official-dispatches`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
 };
 
 // CRM Interfaces

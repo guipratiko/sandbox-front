@@ -5,6 +5,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { instanceAPI } from '../services/api';
 import type { Instance, OfficialTemplate, CreateOfficialTemplateBody } from '../services/api';
 import { OfficialTemplateCreator } from '../components/Dispatches/OfficialTemplateCreator';
+import { OfficialDispatchComposer } from '../components/Dispatches/OfficialDispatchComposer';
 
 const DispatchesOfficial: React.FC = () => {
   const { t } = useLanguage();
@@ -227,9 +228,26 @@ const DispatchesOfficial: React.FC = () => {
         )}
 
         {activeTab === 'dispatches' && (
-          <Card className="p-8 text-center">
-            <p className="text-gray-500 dark:text-gray-400">{t('dispatchesOfficial.comingSoon')}</p>
-          </Card>
+          <>
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {t('dispatchesOfficial.selectInstance')}
+              </label>
+              <select
+                value={selectedInstanceId ?? ''}
+                onChange={(e) => setSelectedInstanceId(e.target.value || null)}
+                className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 min-w-[200px]"
+              >
+                <option value="">—</option>
+                {officialInstances.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.name} {i.display_phone_number ? `(${i.display_phone_number})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <OfficialDispatchComposer instanceId={selectedInstanceId} templates={templates} />
+          </>
         )}
       </div>
     </AppLayout>
