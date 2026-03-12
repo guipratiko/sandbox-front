@@ -176,7 +176,23 @@ const DispatchesOfficial: React.FC = () => {
                         {templates.map((tmpl) => (
                           <tr key={tmpl.id ?? tmpl.name ?? ''} className="border-b border-gray-100 dark:border-gray-700">
                             <td className="py-2 pr-4 font-mono text-sm">{tmpl.name ?? '—'}</td>
-                            <td className="py-2 pr-4 text-sm">{tmpl.status ?? '—'}</td>
+                            <td className="py-2 pr-4">
+                              <span
+                                className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
+                                  tmpl.status === 'APPROVED'
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                                    : tmpl.status === 'PENDING'
+                                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                                      : tmpl.status === 'REJECTED'
+                                        ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                                        : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                }`}
+                              >
+                                {['APPROVED', 'PENDING', 'REJECTED', 'DISABLED'].includes(tmpl.status || '')
+                                  ? t(`dispatchesOfficial.status.${tmpl.status}`)
+                                  : (tmpl.status ?? '—')}
+                              </span>
+                            </td>
                             <td className="py-2 pr-4 text-sm">{tmpl.category ?? '—'}</td>
                             <td className="py-2 pr-4 text-sm">{tmpl.language ?? '—'}</td>
                             <td className="py-2">
@@ -193,6 +209,11 @@ const DispatchesOfficial: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
+                )}
+                {selectedInstanceId && templates.length > 0 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+                    {t('dispatchesOfficial.templatesMetaNote')}
+                  </p>
                 )}
               </Card>
             )}
