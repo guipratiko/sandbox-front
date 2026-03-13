@@ -319,7 +319,7 @@ const WhatsAppOfficialInstances: React.FC = () => {
   const [settingsProfileSaving, setSettingsProfileSaving] = useState(false);
   const [settingsProfileError, setSettingsProfileError] = useState<string | null>(null);
   const [uploadingPicture, setUploadingPicture] = useState(false);
-  const pendingSignup = useRef<{ name: string; waba_id?: string; phone_number_id?: string; code?: string; redirect_uri?: string } | null>(null);
+  const pendingSignup = useRef<{ name: string; waba_id?: string; phone_number_id?: string; code?: string; redirect_uri?: string; isCoex?: boolean } | null>(null);
 
   const VERTICAL_OPTIONS: { value: string; label: string }[] = [
     { value: '', label: '— Selecione —' },
@@ -382,6 +382,7 @@ const WhatsAppOfficialInstances: React.FC = () => {
   const submitPendingOfficial = useCallback(async () => {
     const p = pendingSignup.current;
     if (!p || !p.name || !p.waba_id || !p.phone_number_id) return;
+    const isCoex = !!p.isCoex;
     try {
       setIsCreating(true);
       setError(null);
@@ -389,6 +390,7 @@ const WhatsAppOfficialInstances: React.FC = () => {
         name: p.name.trim(),
         waba_id: p.waba_id,
         phone_number_id: p.phone_number_id,
+        ...(isCoex ? { is_coex: true } : {}),
       };
       if (p.code && p.redirect_uri) {
         data.code = p.code;
@@ -403,8 +405,10 @@ const WhatsAppOfficialInstances: React.FC = () => {
       setRegisterPin('');
       setRegisterPinConfirm('');
       setRegisterPinVisible(false);
-      setInstanceToRegister(response.instance);
-      setShowRegisterModal(true);
+      if (!isCoex) {
+        setInstanceToRegister(response.instance);
+        setShowRegisterModal(true);
+      }
     } catch (err: unknown) {
       logError('WhatsAppOfficialInstances.createOfficial', err);
       setError(getErrorMessage(err, 'Falha ao criar instância oficial'));
@@ -456,11 +460,14 @@ const WhatsAppOfficialInstances: React.FC = () => {
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         if (data?.type !== 'WA_EMBEDDED_SIGNUP') return;
-        if (data.event === 'FINISH' && data.data?.phone_number_id && data.data?.waba_id) {
+        const isCoexFinish = data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING';
+        const isNormalFinish = data.event === 'FINISH' && data.data?.phone_number_id && data.data?.waba_id;
+        if ((isNormalFinish || (isCoexFinish && data.data?.waba_id)) && data.data?.phone_number_id && data.data?.waba_id) {
           const name = pendingSignup.current?.name || 'WhatsApp Oficial';
           if (!pendingSignup.current) pendingSignup.current = { name };
           pendingSignup.current.waba_id = data.data.waba_id;
           pendingSignup.current.phone_number_id = data.data.phone_number_id;
+          if (isCoexFinish) pendingSignup.current.isCoex = true;
           // Pequeno atraso para o callback do FB.login (code + redirect_uri) rodar antes de criar a instância; evita salvar sem meta_access_token.
           setTimeout(() => submitPendingOfficial(), 300);
         } else if (data.event === 'ERROR') {
@@ -492,7 +499,12 @@ const WhatsAppOfficialInstances: React.FC = () => {
         config_id: META_CONFIG_ID,
         response_type: 'code',
         override_default_response_type: true,
-        extras: { version: 'v3', setup: {} },
+        extras: {
+          version: 'v3',
+          setup: {},
+          featureType: 'whatsapp_business_app_onboarding',
+          sessionInfoVersion: '3',
+        },
       }
     );
   };
@@ -632,11 +644,18 @@ const WhatsAppOfficialInstances: React.FC = () => {
                   <h3 className="text-lg font-semibold text-clerky-backendText dark:text-gray-100 truncate">
                     {instance.name}
                   </h3>
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    instance.status === 'connected' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                  }`}>
-                    {getStatusText(instance.status)}
-                  </span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {instance.is_coex && (
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold bg-green-600 text-white" title="Coexistence: número conectado via WhatsApp Business App">
+                        CoEx
+                      </span>
+                    )}
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      instance.status === 'connected' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                    }`}>
+                      {getStatusText(instance.status)}
+                    </span>
+                  </div>
                 </div>
               </div>
               <div className="space-y-3 mb-5">

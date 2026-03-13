@@ -94,6 +94,7 @@ export interface Instance {
   phone_number_id?: string | null;
   waba_id?: string | null;
   display_phone_number?: string | null;
+  is_coex?: boolean;
   connectionLink?: string;
   createdAt: string;
   updatedAt: string;
@@ -105,6 +106,8 @@ export interface CreateOfficialInstanceData {
   redirect_uri?: string;
   waba_id: string;
   phone_number_id: string;
+  /** Coexistence: onboarding via WhatsApp Business App (conectar conta existente) */
+  is_coex?: boolean;
 }
 
 /** Componente de template Meta (header, body, button, footer). Botão: um componente por botão com sub_type e index. */
