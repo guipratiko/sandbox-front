@@ -567,7 +567,7 @@ const AIAgentPage: React.FC = () => {
                     value={agentInstanceId}
                     onChange={(e) => setAgentInstanceId(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-clerky-backendButton focus:border-transparent bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200"
-                    disabled={!!selectedAgent && !!selectedAgent.instanceId && instances.some((i) => i.id === selectedAgent.instanceId)}
+                    disabled={false}
                   >
                     <option value="">{t('aiAgent.selectInstance')}</option>
                     {instances.map((instance) => (
