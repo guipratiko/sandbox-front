@@ -214,8 +214,19 @@ const Modal: React.FC<ModalProps> = ({
 
   const modalContent = (
     <div
+      role="dialog"
+      aria-modal="true"
       className={`fixed inset-0 flex items-center justify-center p-4 animate-fadeIn bg-black/30 backdrop-blur-[2px] sm:backdrop-blur-sm ${draggable ? 'pointer-events-none' : ''}`}
-      style={{ zIndex }}
+      style={{
+        zIndex: Math.max(zIndex, 9999),
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        minHeight: '100vh',
+      }}
       onClick={draggable ? undefined : onClose}
     >
       <div
