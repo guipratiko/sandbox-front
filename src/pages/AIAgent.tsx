@@ -126,7 +126,7 @@ const AIAgentPage: React.FC = () => {
     loadKnowledgeCount(agent.id);
     loadAgentMedia(agent.id);
     loadAgentLocations(agent.id);
-    setAgentInstanceId(agent.instanceId);
+    setAgentInstanceId(agent.instanceId ?? '');
     setAgentPrompt(agent.prompt);
     setAgentWaitTime(agent.waitTime);
     setAgentIsActive(agent.isActive);
@@ -251,6 +251,7 @@ const AIAgentPage: React.FC = () => {
       setIsSaving(true);
       const response = await aiAgentAPI.update(selectedAgent.id, {
         name: agentName.trim(),
+        instanceId: agentInstanceId || null,
         prompt: agentType === 'manual' ? agentPrompt : undefined,
         waitTime: agentWaitTime,
         isActive: agentIsActive,
@@ -430,7 +431,7 @@ const AIAgentPage: React.FC = () => {
 
   // Visualizar leads
   const handleViewLeads = async () => {
-    await loadLeads(selectedAgent?.instanceId);
+    await loadLeads(selectedAgent?.instanceId ?? undefined);
     setShowLeadsModal(true);
   };
 
@@ -527,7 +528,9 @@ const AIAgentPage: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      {instances.find((i) => i.id === agent.instanceId)?.name || agent.instanceId}
+                      {agent.instanceId && instances.some((i) => i.id === agent.instanceId)
+                        ? instances.find((i) => i.id === agent.instanceId)?.name ?? agent.instanceId
+                        : t('aiAgent.noInstance')}
                     </p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                       {t('aiAgent.waitTime', { time: agent.waitTime.toString() })}
@@ -564,7 +567,7 @@ const AIAgentPage: React.FC = () => {
                     value={agentInstanceId}
                     onChange={(e) => setAgentInstanceId(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-clerky-backendButton focus:border-transparent bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200"
-                    disabled={!!selectedAgent}
+                    disabled={!!selectedAgent && !!selectedAgent.instanceId && instances.some((i) => i.id === selectedAgent.instanceId)}
                   >
                     <option value="">{t('aiAgent.selectInstance')}</option>
                     {instances.map((instance) => (

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Modal, Button, Input } from '../UI';
 import { TemplateType, CreateTemplateData, dispatchAPI } from '../../services/api';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -684,6 +684,23 @@ const TemplateBuilder: React.FC<TemplateBuilderProps> = ({
   const mediaRecorderRefMain = useRef<MediaRecorder | null>(null);
   const audioChunksRefMain = useRef<Blob[]>([]);
   const streamRefMain = useRef<MediaStream | null>(null);
+
+  // Sincronizar estado do formulário quando o modal abre (criar vs editar)
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData?.name != null) {
+        setName(initialData.name);
+        setTemplateType(initialData.type ?? null);
+        setContent(initialData.content ?? {});
+        setStep(initialData.type ? 'content' : 'type');
+      } else {
+        setStep('type');
+        setTemplateType(null);
+        setName('');
+        setContent({});
+      }
+    }
+  }, [isOpen, initialData]);
 
   const handleSave = async () => {
     if (!name || !templateType) {

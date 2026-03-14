@@ -1326,7 +1326,7 @@ export type BlockDurationUnit = 'minutes' | 'hours' | 'days' | 'permanent';
 export interface AIAgent {
   id: string;
   userId: string;
-  instanceId: string;
+  instanceId: string | null;
   name: string;
   prompt: string;
   waitTime: number;
@@ -1357,6 +1357,7 @@ export interface CreateAIAgentData {
 
 export interface UpdateAIAgentData {
   name?: string;
+  instanceId?: string | null;
   prompt?: string;
   waitTime?: number;
   isActive?: boolean;
