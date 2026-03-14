@@ -1,4 +1,5 @@
 import React, { ReactNode, useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 interface ModalProps {
   isOpen: boolean;
@@ -211,9 +212,9 @@ const Modal: React.FC<ModalProps> = ({
       }
     : {};
 
-  return (
+  const modalContent = (
     <div
-      className={`fixed inset-0 ${draggable ? 'pointer-events-none' : 'flex items-center justify-center p-4'} animate-fadeIn bg-black/30 backdrop-blur-[2px] sm:backdrop-blur-sm`}
+      className={`fixed inset-0 flex items-center justify-center p-4 animate-fadeIn bg-black/30 backdrop-blur-[2px] sm:backdrop-blur-sm ${draggable ? 'pointer-events-none' : ''}`}
       style={{ zIndex }}
       onClick={draggable ? undefined : onClose}
     >
@@ -278,6 +279,8 @@ const Modal: React.FC<ModalProps> = ({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 export default Modal;
