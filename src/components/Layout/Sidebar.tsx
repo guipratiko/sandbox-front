@@ -86,8 +86,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       )
     },
     { 
-      path: '/mindflow', 
-      key: 'menu.mindFlow',
+      path: '/manyflow', 
+      key: 'menu.manyFlow',
       isMobileRestricted: true,
       isPremiumRestricted: true,
       icon: (

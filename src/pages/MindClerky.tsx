@@ -22,9 +22,12 @@ const AVAILABLE_VARIABLES = [
 
 const MindClerky: React.FC = () => {
   const { t } = useLanguage();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
+  const maxManyFlowWorkflows = user?.maxManyFlowWorkflows ?? 0;
+  const workflowsWithEdgesCount = workflows.filter((w) => w.edges && w.edges.length > 0).length;
+  const atManyFlowLimit = maxManyFlowWorkflows > 0 && workflowsWithEdgesCount >= maxManyFlowWorkflows;
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showNodeSettingsModal, setShowNodeSettingsModal] = useState(false);
@@ -309,7 +312,13 @@ const MindClerky: React.FC = () => {
           {/* Divisor e Botão de Ação */}
           <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mb-6">
             <div className="flex justify-end">
-              <Button variant="primary" size="lg" onClick={() => setShowCreateModal(true)}>
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={() => setShowCreateModal(true)}
+                disabled={atManyFlowLimit}
+                title={atManyFlowLimit ? `Limite de fluxos ManyFlow do plano atingido (${maxManyFlowWorkflows} fluxo(s) com nós conectados). Plano Advance: até 2 fluxos. Plano PRO: até 4 fluxos. Faça upgrade para adicionar mais.` : undefined}
+              >
                 {t('mindFlow.createWorkflow')}
               </Button>
             </div>
@@ -341,7 +350,11 @@ const MindClerky: React.FC = () => {
                 <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
                   {t('mindFlow.noWorkflowsDescription')}
                 </p>
-                <Button onClick={() => setShowCreateModal(true)}>
+                <Button
+                  onClick={() => setShowCreateModal(true)}
+                  disabled={atManyFlowLimit}
+                  title={atManyFlowLimit ? `Limite de fluxos ManyFlow do plano atingido (${maxManyFlowWorkflows} fluxo(s)). Faça upgrade para adicionar mais.` : undefined}
+                >
                   {t('mindFlow.createNewWorkflow')}
                 </Button>
               </div>

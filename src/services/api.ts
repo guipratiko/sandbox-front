@@ -27,6 +27,8 @@ export interface User {
   maxWhatsAppInstances?: number;
   maxOfficialWhatsAppInstances?: number;
   maxInstagramInstances?: number;
+  maxAIAgents?: number;
+  maxManyFlowWorkflows?: number;
   admin?: boolean;
   cpf?: string;
 }
@@ -379,7 +381,7 @@ const requestMindClerky = async <T>(
       // Se o fetch falhar completamente (servidor parado), é um erro de rede
       const networkError: ApiError = {
         status: 'error',
-        message: 'Serviço MindFlow temporariamente indisponível',
+        message: 'Serviço ManyFlow temporariamente indisponível',
       };
       throw networkError;
     }

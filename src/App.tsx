@@ -91,7 +91,7 @@ function AppContent() {
         }
       />
       <Route
-        path="/mindflow"
+        path="/manyflow"
         element={
           <ProtectedRoute>
             <PremiumRoute>

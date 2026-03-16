@@ -11,9 +11,11 @@ import { getErrorMessage, logError } from '../utils/errorHandler';
 
 const AIAgentPage: React.FC = () => {
   const { t } = useLanguage();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [agents, setAgents] = useState<AIAgent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<AIAgent | null>(null);
+  const maxAIAgents = user?.maxAIAgents ?? 0;
+  const atAIAgentLimit = maxAIAgents > 0 && agents.length >= maxAIAgents;
   const [isLoading, setIsLoading] = useState(true);
   const [instances, setInstances] = useState<Instance[]>([]);
   const [leads, setLeads] = useState<AIAgentLead[]>([]);
@@ -488,6 +490,8 @@ const AIAgentPage: React.FC = () => {
                   setKnowledgeContent('');
                   setKnowledgeCount(null);
                 }}
+                disabled={atAIAgentLimit}
+                title={atAIAgentLimit ? `Limite de Agentes de IA do plano atingido (${maxAIAgents} agente(s)). Plano Advance: 1 agente. Plano PRO: até 4 agentes. Faça upgrade para adicionar mais.` : undefined}
               >
                 {t('aiAgent.newAgent')}
               </Button>

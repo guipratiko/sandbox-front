@@ -14,7 +14,7 @@ const routeTitleMap: Record<string, string> = {
   '/disparos': 'menu.dispatches',
   '/disparo-api': 'menu.dispatchesOfficial',
   '/crm': 'menu.crm',
-  '/mindflow': 'menu.mindFlow',
+  '/manyflow': 'menu.manyFlow',
   '/integracao': 'menu.integration',
   '/agente-ia': 'menu.aiAgent',
   '/documentacao': 'menu.documentation',
