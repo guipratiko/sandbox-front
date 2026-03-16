@@ -98,6 +98,8 @@ export interface Instance {
   waba_id?: string | null;
   display_phone_number?: string | null;
   is_coex?: boolean;
+  /** Número do WhatsApp da instância (Evolution/Baileys) */
+  ownerPhone?: string | null;
   connectionLink?: string;
   createdAt: string;
   updatedAt: string;
@@ -281,23 +283,20 @@ export const request = async <T>(
     
     // Se não conseguir fazer a requisição (servidor parado, erro de rede)
     if (!response.ok) {
-      // Se for status 503 (Service Unavailable) ou 502 (Bad Gateway), é serviço indisponível
-      if (response.status === 503 || response.status === 502 || response.status === 504) {
-        const error: ApiError = {
-          status: 'error',
-          message: 'Serviço temporariamente indisponível',
-        };
-        throw error;
-      }
-      
       let data: any;
       try {
         data = await response.json();
       } catch {
-        // Se não conseguir parsear JSON, pode ser erro de conexão
+        data = {};
+      }
+      const serverMessage = data?.message;
+      // Para 502/503/504, usar mensagem do servidor se existir (ex.: Grupo-Flow indisponível)
+      if (response.status === 503 || response.status === 502 || response.status === 504) {
         const error: ApiError = {
           status: 'error',
-          message: 'Serviço temporariamente indisponível',
+          message: typeof serverMessage === 'string' && serverMessage.trim()
+            ? serverMessage
+            : 'Serviço temporariamente indisponível',
         };
         throw error;
       }
@@ -1594,446 +1593,180 @@ export const dashboardAPI = {
   },
 };
 
-// Group API
+// Group API (Grupo-Flow / Evolution API)
+export interface GroupParticipantEvolution {
+  id: string;
+  phoneNumber?: string;
+  admin?: string;
+  name?: string | null;
+  imgUrl?: string | null;
+}
+
 export const groupAPI = {
   getAll: async (instanceId: string): Promise<{ status: string; groups: Group[] }> => {
     return request<{ status: string; groups: Group[] }>(`/groups?instanceId=${instanceId}`);
   },
 
-  leave: async (instanceId: string, groupId: string): Promise<{ status: string; message: string }> => {
-    return request<{ status: string; message: string }>(`/groups/leave`, {
-      method: 'POST',
-      body: JSON.stringify({ instanceId, groupId }),
-    });
-  },
-
-  leaveBulk: async (
-    instanceId: string,
-    groupIds: string[]
-  ): Promise<{
-    status: string;
-    message: string;
-    data?: { results: Array<{ groupId: string; success: boolean; error?: string }>; successCount: number; failCount: number };
-  }> => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 min (operações em lote)
-    try {
-      const result = await request<{
-        status: string;
-        message: string;
-        data?: { results: Array<{ groupId: string; success: boolean; error?: string }>; successCount: number; failCount: number };
-      }>(`/groups/leave-bulk`, {
-        method: 'POST',
-        body: JSON.stringify({ instanceId, groupIds }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      return result;
-    } catch (err) {
-      clearTimeout(timeoutId);
-      throw err;
-    }
-  },
-
-  validateParticipants: async (
-    instanceId: string,
-    participants: string[]
-  ): Promise<{
-    status: string;
-    valid: Array<{ phone: string; name?: string }>;
-    invalid: Array<{ phone: string; reason: string }>;
-    validCount: number;
-    invalidCount: number;
-    totalCount: number;
-  }> => {
-    return request<{
-      status: string;
-      valid: Array<{ phone: string; name?: string }>;
-      invalid: Array<{ phone: string; reason: string }>;
-      validCount: number;
-      invalidCount: number;
-      totalCount: number;
-    }>(`/groups/validate-participants`, {
-      method: 'POST',
-      body: JSON.stringify({ instanceId, participants }),
-    });
-  },
-
-  create: async (
+  /** Cria um grupo. subject: nome; description opcional; participants: números. */
+  createGroup: async (
     instanceId: string,
     subject: string,
-    description: string,
-    participants: string[]
-  ): Promise<{ status: string; message: string; group: Group }> => {
-    return request<{ status: string; message: string; group: Group }>(`/groups/create`, {
+    description?: string,
+    participants?: string[]
+  ): Promise<{ status: string; group: Group }> => {
+    return request<{ status: string; group: Group }>('/groups/create', {
       method: 'POST',
-      body: JSON.stringify({ instanceId, subject, description, participants }),
+      body: JSON.stringify({
+        instanceId,
+        subject,
+        description: description ?? '',
+        participants: participants ?? [],
+      }),
     });
   },
 
-  updatePicture: async (
-    instanceId: string,
-    groupId: string,
-    file: File
-  ): Promise<{ status: string; message: string; imageUrl: string }> => {
-    const token = localStorage.getItem('token');
-    const formData = new FormData();
-    formData.append('image', file);
-    formData.append('instanceId', instanceId);
-    formData.append('groupId', groupId);
-
-    const response = await fetch(`${API_URL}/groups/update-picture`, {
+  /** Cria N grupos em lote e adiciona à campanha (lógica no Grupo-Flow + callback Backend). */
+  createBulk: async (params: {
+    instanceId: string;
+    campaignId: string;
+    count: number;
+    baseName: string;
+    description: string;
+    addNumbering: boolean;
+    participants: string[];
+  }): Promise<{ status: string; created: number; groupIds: string[] }> => {
+    return request<{ status: string; created: number; groupIds: string[] }>('/groups/createBulk', {
       method: 'POST',
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: formData,
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      const error: ApiError = {
-        status: data.status || 'error',
-        message: data.message || 'Erro ao atualizar imagem do grupo',
-      };
-      throw error;
-    }
-
-    return data;
-  },
-
-  updateSubject: async (
-    instanceId: string,
-    groupId: string,
-    subject: string
-  ): Promise<{ status: string; message: string }> => {
-    return request<{ status: string; message: string }>(`/groups/update-subject`, {
-      method: 'POST',
-      body: JSON.stringify({ instanceId, groupId, subject }),
+      body: JSON.stringify(params),
     });
   },
 
-  updateDescription: async (
+  /** Busca grupos por lista de IDs (findGroupInfos) — mais rápido que getAll quando já se tem os IDs. */
+  getGroupsByIds: async (
     instanceId: string,
-    groupId: string,
-    description: string
-  ): Promise<{ status: string; message: string }> => {
-    return request<{ status: string; message: string }>(`/groups/update-description`, {
+    groupJids: string[]
+  ): Promise<{ status: string; groups: Group[] }> => {
+    return request<{ status: string; groups: Group[] }>('/groups/findGroupInfos', {
       method: 'POST',
-      body: JSON.stringify({ instanceId, groupId, description }),
-    });
-  },
-
-  getInviteCode: async (
-    instanceId: string,
-    groupId: string
-  ): Promise<{ status: string; code: string; url: string }> => {
-    return request<{ status: string; code: string; url: string }>(
-      `/groups/invite-code?instanceId=${instanceId}&groupId=${encodeURIComponent(groupId)}`
-    );
-  },
-
-  updateSettings: async (
-    instanceId: string,
-    groupId: string,
-    action: 'announcement' | 'not_announcement' | 'locked' | 'unlocked'
-  ): Promise<{ status: string; message: string }> => {
-    return request<{ status: string; message: string }>(`/groups/update-settings`, {
-      method: 'POST',
-      body: JSON.stringify({ instanceId, groupId, action }),
-    });
-  },
-
-  mentionEveryone: async (
-    instanceId: string,
-    groupId: string,
-    text: string
-  ): Promise<{ status: string; message: string }> => {
-    return request<{ status: string; message: string }>(`/groups/mention-everyone`, {
-      method: 'POST',
-      body: JSON.stringify({ instanceId, groupId, text }),
+      body: JSON.stringify({ instanceId, groupJids }),
     });
   },
 
   getParticipants: async (
     instanceId: string,
-    groupId: string
-  ): Promise<{ status: string; participants: Array<{ id: string; name: string; phone: string; isAdmin: boolean }> }> => {
-    return request<{ status: string; participants: Array<{ id: string; name: string; phone: string; isAdmin: boolean }> }>(
-      `/groups/participants?instanceId=${instanceId}&groupId=${encodeURIComponent(groupId)}`
+    groupJid: string
+  ): Promise<{ status: string; participants: GroupParticipantEvolution[] }> => {
+    return request<{ status: string; participants: GroupParticipantEvolution[] }>(
+      `/groups/participants?instanceId=${encodeURIComponent(instanceId)}&groupJid=${encodeURIComponent(groupJid)}`
     );
   },
 
-  updateParticipants: async (
+  updateSetting: async (
     instanceId: string,
-    groupId: string,
-    action: 'add' | 'remove' | 'promote' | 'demote',
+    groupJid: string,
+    action: 'announcement' | 'not_announcement' | 'locked' | 'unlocked'
+  ): Promise<{ status: string }> => {
+    return request<{ status: string }>('/groups/updateSetting', {
+      method: 'POST',
+      body: JSON.stringify({ instanceId, groupJid, action }),
+    });
+  },
+
+  updateGroupPicture: async (
+    instanceId: string,
+    groupJid: string,
+    image: string
+  ): Promise<{ status: string }> => {
+    return request<{ status: string }>('/groups/updatePicture', {
+      method: 'POST',
+      body: JSON.stringify({ instanceId, groupJid, image }),
+    });
+  },
+
+  updateGroupSubject: async (
+    instanceId: string,
+    groupJid: string,
+    subject: string
+  ): Promise<{ status: string }> => {
+    return request<{ status: string }>('/groups/updateSubject', {
+      method: 'POST',
+      body: JSON.stringify({ instanceId, groupJid, subject }),
+    });
+  },
+
+  updateGroupDescription: async (
+    instanceId: string,
+    groupJid: string,
+    description: string
+  ): Promise<{ status: string }> => {
+    return request<{ status: string }>('/groups/updateDescription', {
+      method: 'POST',
+      body: JSON.stringify({ instanceId, groupJid, description }),
+    });
+  },
+
+  updateParticipant: async (
+    instanceId: string,
+    groupJid: string,
+    action: 'add' | 'remove',
     participants: string[]
-  ): Promise<{ status: string; message: string; action: string; participantsCount: number }> => {
-    return request<{ status: string; message: string; action: string; participantsCount: number }>(
-      `/groups/participants/update`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ instanceId, groupId, action, participants }),
-      }
-    );
+  ): Promise<{ status: string }> => {
+    return request<{ status: string }>('/groups/updateParticipant', {
+      method: 'POST',
+      body: JSON.stringify({ instanceId, groupJid, action, participants }),
+    });
   },
 
-  getGroupInfo: async (
-    instanceId: string,
-    groupId: string
-  ): Promise<{ status: string; restrict: boolean; announce: boolean }> => {
-    return request<{ status: string; restrict: boolean; announce: boolean }>(
-      `/groups/info?instanceId=${instanceId}&groupId=${encodeURIComponent(groupId)}`
-    );
+  /** Sair do grupo no WhatsApp (Evolution leaveGroup). Remove o número da instância do grupo. */
+  leaveGroup: async (instanceId: string, groupJid: string): Promise<{ status: string }> => {
+    return request<{ status: string }>('/groups/leaveGroup', {
+      method: 'POST',
+      body: JSON.stringify({ instanceId, groupJid }),
+    });
+  },
+};
+
+// Campaign API (Group Manager - persistência no backend)
+export interface CampaignResponse {
+  id: string;
+  campaignName: string;
+  contactsPerGroup: number;
+  instanceId: string;
+  importGroups: 'all' | string[] | null;
+  photoUrl?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export const campaignAPI = {
+  getAll: async (): Promise<{ status: string; campaigns: CampaignResponse[] }> => {
+    return request<{ status: string; campaigns: CampaignResponse[] }>('/campaigns');
   },
 
-  // Mensagens Automáticas
-  getAutoMessages: async (
-    instanceId: string
-  ): Promise<{ status: string; data: Array<{
-    id: string;
-    userId: string;
+  create: async (data: {
+    campaignName: string;
+    contactsPerGroup: number;
     instanceId: string;
-    groupId: string | null;
-    isActive: boolean;
-    messageType: 'welcome' | 'goodbye';
-    messageText: string;
-    delaySeconds: number;
-    createdAt: string;
-    updatedAt: string;
-  }> }> => {
-    return request<{ status: string; data: Array<any> }>(
-      `/groups/auto-messages?instanceId=${instanceId}`
-    );
-  },
-
-  upsertAutoMessage: async (data: {
-    instanceId: string;
-    groupId?: string | null;
-    messageType: 'welcome' | 'goodbye';
-    messageText: string;
-    isActive?: boolean;
-    delaySeconds?: number;
-  }): Promise<{ status: string; message: string; data: any }> => {
-    return request<{ status: string; message: string; data: any }>(`/groups/auto-messages`, {
+    importGroups: 'all' | string[] | null;
+  }): Promise<{ status: string; campaign: CampaignResponse }> => {
+    return request<{ status: string; campaign: CampaignResponse }>('/campaigns', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  updateAutoMessage: async (
+  update: async (
     id: string,
-    data: { messageText?: string; isActive?: boolean; delaySeconds?: number }
-  ): Promise<{ status: string; message: string; data: any }> => {
-    return request<{ status: string; message: string; data: any }>(`/groups/auto-messages/${id}`, {
+    data: { campaignName?: string; photoUrl?: string | null; importGroups?: 'all' | string[] | null }
+  ): Promise<{ status: string; campaign: CampaignResponse }> => {
+    return request<{ status: string; campaign: CampaignResponse }>(`/campaigns/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   },
 
-  deleteAutoMessage: async (id: string): Promise<{ status: string; message: string }> => {
-    return request<{ status: string; message: string }>(`/groups/auto-messages/${id}`, {
-      method: 'DELETE',
-    });
-  },
-
-  // Histórico de Movimentações
-  getMovements: async (params: {
-    instanceId?: string;
-    groupId?: string;
-    participantId?: string;
-    movementType?: 'join' | 'leave' | 'promote' | 'demote';
-    startDate?: string;
-    endDate?: string;
-    page?: number;
-    limit?: number;
-  }): Promise<{
-    status: string;
-    data: {
-      movements: Array<{
-        id: string;
-        userId: string;
-        instanceId: string;
-        groupId: string;
-        groupName: string | null;
-        participantId: string;
-        participantPhone: string | null;
-        participantName: string | null;
-        movementType: 'join' | 'leave' | 'promote' | 'demote';
-        isAdmin: boolean;
-        actionBy: string | null;
-        actionByPhone: string | null;
-        actionByName: string | null;
-        createdAt: string;
-      }>;
-      page: number;
-      limit: number;
-      total: number;
-      hasMore: boolean;
-    };
-  }> => {
-    const queryParams = new URLSearchParams();
-    if (params.instanceId) queryParams.append('instanceId', params.instanceId);
-    if (params.groupId) queryParams.append('groupId', params.groupId);
-    if (params.participantId) queryParams.append('participantId', params.participantId);
-    if (params.movementType) queryParams.append('movementType', params.movementType);
-    if (params.startDate) queryParams.append('startDate', params.startDate);
-    if (params.endDate) queryParams.append('endDate', params.endDate);
-    if (params.page) queryParams.append('page', params.page.toString());
-    if (params.limit) queryParams.append('limit', params.limit.toString());
-
-    return request<{ status: string; data: any }>(`/groups/movements?${queryParams.toString()}`);
-  },
-
-  getMovementsStatistics: async (params: {
-    instanceId?: string;
-    groupId?: string;
-    startDate?: string;
-    endDate?: string;
-  }): Promise<{
-    status: string;
-    data: {
-      totalJoins: number;
-      totalLeaves: number;
-      totalPromotes: number;
-      totalDemotes: number;
-      uniqueParticipants: number;
-      uniqueGroups: number;
-    };
-  }> => {
-    const queryParams = new URLSearchParams();
-    if (params.instanceId) queryParams.append('instanceId', params.instanceId);
-    if (params.groupId) queryParams.append('groupId', params.groupId);
-    if (params.startDate) queryParams.append('startDate', params.startDate);
-    if (params.endDate) queryParams.append('endDate', params.endDate);
-
-    return request<{ status: string; data: any }>(`/groups/movements/statistics?${queryParams.toString()}`);
-  },
-
-  replaceGroupAutoMessages: async (instanceId: string): Promise<{ status: string; message: string; data: { replaced: number } }> => {
-    return request<{ status: string; message: string; data: { replaced: number } }>(`/groups/auto-messages/replace-groups`, {
-      method: 'POST',
-      body: JSON.stringify({ instanceId }),
-    });
-  },
-
-  // Templates e envios de mensagens de grupos
-  getMessageTemplates: async (
-    instanceId: string
-  ): Promise<{ status: string; data: any[] }> => {
-    return request<{ status: string; data: any[] }>(
-      `/groups/message-templates?instanceId=${instanceId}`
-    );
-  },
-
-  createMessageTemplate: async (data: {
-    instanceId: string;
-    name: string;
-    description?: string;
-    messageType: 'text' | 'media' | 'poll' | 'contact' | 'location' | 'audio';
-    contentJson: any;
-  }): Promise<{ status: string; message: string; data: any }> => {
-    return request<{ status: string; message: string; data: any }>(
-      `/groups/message-templates`,
-      {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }
-    );
-  },
-
-  updateMessageTemplate: async (
-    id: string,
-    data: {
-      name?: string;
-      description?: string;
-      contentJson?: any;
-    }
-  ): Promise<{ status: string; message: string; data: any }> => {
-    return request<{ status: string; message: string; data: any }>(
-      `/groups/message-templates/${id}`,
-      {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      }
-    );
-  },
-
-  deleteMessageTemplate: async (
-    id: string
-  ): Promise<{ status: string; message: string }> => {
-    return request<{ status: string; message: string }>(
-      `/groups/message-templates/${id}`,
-      {
-        method: 'DELETE',
-      }
-    );
-  },
-
-  sendGroupMessageNow: async (data: {
-    instanceId: string;
-    messageType: 'text' | 'media' | 'poll' | 'contact' | 'location' | 'audio';
-    contentJson: any;
-    targetType: 'all' | 'specific';
-    groupIds: string[];
-    templateId?: string;
-  }): Promise<{
-    status: string;
-    message: string;
-    data: { templateId: string | null; results: any[] };
-  }> => {
-    return request<{
-      status: string;
-      message: string;
-      data: { templateId: string | null; results: any[] };
-    }>(`/groups/messages/send`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
-
-  scheduleGroupMessage: async (data: {
-    instanceId: string;
-    messageType: 'text' | 'media' | 'poll' | 'contact' | 'location' | 'audio';
-    contentJson: any;
-    targetType: 'all' | 'specific';
-    groupIds: string[];
-    templateId?: string;
-    scheduledAt: string;
-  }): Promise<{
-    status: string;
-    message: string;
-    data: any;
-  }> => {
-    return request<{
-      status: string;
-      message: string;
-      data: any;
-    }>(`/groups/messages/schedule`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
-
-  getScheduledGroupMessages: async (
-    instanceId: string
-  ): Promise<{ status: string; data: any[] }> => {
-    return request<{ status: string; data: any[] }>(
-      `/groups/messages/scheduled?instanceId=${instanceId}`
-    );
-  },
-
-  cancelScheduledGroupMessage: async (
-    id: string
-  ): Promise<{ status: string; message: string }> => {
-    return request<{ status: string; message: string }>(
-      `/groups/messages/scheduled/${id}/cancel`,
-      {
-        method: 'POST',
-      }
-    );
+  delete: async (id: string): Promise<{ status: string }> => {
+    return request<{ status: string }>(`/campaigns/${id}`, { method: 'DELETE' });
   },
 };
 
@@ -2529,7 +2262,7 @@ export const scrapingAPI = {
   },
 };
 
-const api = { authAPI, instanceAPI, crmAPI, dispatchAPI, workflowAPI, aiAgentAPI, groupAPI, dashboardAPI, adminAPI, instagramAPI, scrapingAPI };
+const api = { authAPI, instanceAPI, crmAPI, dispatchAPI, workflowAPI, aiAgentAPI, groupAPI, campaignAPI, dashboardAPI, adminAPI, instagramAPI, scrapingAPI };
 
 export default api;
 
