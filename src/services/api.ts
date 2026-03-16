@@ -25,6 +25,7 @@ export interface User {
   timezone?: string;
   premiumPlan?: 'free' | 'start' | 'advance' | 'pro';
   maxWhatsAppInstances?: number;
+  maxOfficialWhatsAppInstances?: number;
   maxInstagramInstances?: number;
   admin?: boolean;
   cpf?: string;

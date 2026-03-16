@@ -347,9 +347,9 @@ const WhatsAppOfficialInstances: React.FC = () => {
     { value: 'MATRIMONY_SERVICE', label: 'Serviços matrimoniais' },
   ];
 
-  const maxWhatsApp = user?.maxWhatsAppInstances ?? 0;
+  const maxOfficialWhatsApp = user?.maxOfficialWhatsAppInstances ?? 0;
   const officialOnly = instances.filter((i) => i.integration === 'WHATSAPP-CLOUD');
-  const atLimit = maxWhatsApp > 0 && instances.length >= maxWhatsApp;
+  const atOfficialLimit = maxOfficialWhatsApp > 0 && officialOnly.length >= maxOfficialWhatsApp;
   const isStartPlan = user?.premiumPlan === 'start';
 
   const handleStatusUpdate = useCallback((data: { instanceId: string; status: string }) => {
@@ -564,11 +564,11 @@ const WhatsAppOfficialInstances: React.FC = () => {
     }
   };
 
-  const officialButtonDisabled = atLimit || isStartPlan;
+  const officialButtonDisabled = atOfficialLimit || isStartPlan;
   const officialButtonTitle = isStartPlan
     ? 'Disponível apenas para os planos Advanced, Pro ou Enterprise'
-    : atLimit
-      ? `Limite do plano atingido (${maxWhatsApp} conexão(ões)). Faça upgrade para adicionar mais.`
+    : atOfficialLimit
+      ? `Limite de números da API Oficial do plano atingido (${maxOfficialWhatsApp} número(s)). Faça upgrade para adicionar mais.`
       : undefined;
 
   return (
