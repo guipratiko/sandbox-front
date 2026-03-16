@@ -564,20 +564,12 @@ const WhatsAppOfficialInstances: React.FC = () => {
     }
   };
 
-  if (isStartPlan) {
-    return (
-      <Card padding="lg" shadow="lg">
-        <div className="text-center py-12">
-          <p className="text-xl font-semibold text-clerky-backendText dark:text-gray-200 mb-2">
-            API Oficial (WhatsApp Cloud)
-          </p>
-          <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-            A conexão com a API Oficial (WhatsApp Cloud / Meta) está disponível apenas nos planos <strong>Advance</strong> e <strong>PRO</strong>. Faça upgrade para conectar números pela API Oficial.
-          </p>
-        </div>
-      </Card>
-    );
-  }
+  const officialButtonDisabled = atLimit || isStartPlan;
+  const officialButtonTitle = isStartPlan
+    ? 'Disponível apenas para os planos Advanced, Pro ou Enterprise'
+    : atLimit
+      ? `Limite do plano atingido (${maxWhatsApp} conexão(ões)). Faça upgrade para adicionar mais.`
+      : undefined;
 
   return (
     <div>
@@ -597,7 +589,8 @@ const WhatsAppOfficialInstances: React.FC = () => {
           variant="primary"
           size="lg"
           onClick={() => { setCreateName(''); setShowCreateModal(true); setError(null); }}
-          disabled={atLimit}
+          disabled={officialButtonDisabled}
+          title={officialButtonTitle}
         >
           Conectar número (API Oficial)
         </Button>

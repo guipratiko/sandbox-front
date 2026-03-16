@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { AppLayout } from '../components/Layout';
 import { HelpIcon } from '../components/UI';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useAuth } from '../contexts/AuthContext';
 import WhatsAppInstances from '../components/WhatsApp/WhatsAppInstances';
 import WhatsAppOfficialInstances from '../components/WhatsApp/WhatsAppOfficialInstances';
 import InstagramInstances from '../components/Instagram/InstagramInstances';
@@ -12,8 +11,6 @@ type TabKey = 'whatsapp' | 'whatsapp-official' | 'instagram';
 
 const Instances: React.FC = () => {
   const { t } = useLanguage();
-  const { user } = useAuth();
-  const canUseOfficial = user?.premiumPlan && user.premiumPlan !== 'start';
 
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -28,13 +25,6 @@ const Instances: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(INSTANCES_TAB_KEY, activeTab);
   }, [activeTab]);
-
-  // Plano Start não tem acesso à aba WhatsApp Oficial; redirecionar se estiver nela
-  useEffect(() => {
-    if (!canUseOfficial && activeTab === 'whatsapp-official') {
-      setActiveTab('whatsapp');
-    }
-  }, [canUseOfficial, activeTab]);
 
   return (
     <AppLayout>
@@ -61,18 +51,16 @@ const Instances: React.FC = () => {
             >
               WhatsApp
             </button>
-            {canUseOfficial && (
-              <button
-                onClick={() => setActiveTab('whatsapp-official')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'whatsapp-official'
-                    ? 'border-clerky-backendButton text-clerky-backendButton'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                }`}
-              >
-                WhatsApp Oficial
-              </button>
-            )}
+            <button
+              onClick={() => setActiveTab('whatsapp-official')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'whatsapp-official'
+                  ? 'border-clerky-backendButton text-clerky-backendButton'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
+            >
+              WhatsApp Oficial
+            </button>
             <button
               onClick={() => setActiveTab('instagram')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
@@ -96,17 +84,15 @@ const Instances: React.FC = () => {
           >
             <WhatsAppInstances />
           </div>
-          {canUseOfficial && (
-            <div
-              className={`transition-all duration-300 ease-in-out ${
-                activeTab === 'whatsapp-official'
-                  ? 'opacity-100 translate-x-0'
-                  : 'opacity-0 absolute inset-0 pointer-events-none translate-x-4'
-              }`}
-            >
-              <WhatsAppOfficialInstances />
-            </div>
-          )}
+          <div
+            className={`transition-all duration-300 ease-in-out ${
+              activeTab === 'whatsapp-official'
+                ? 'opacity-100 translate-x-0'
+                : 'opacity-0 absolute inset-0 pointer-events-none translate-x-4'
+            }`}
+          >
+            <WhatsAppOfficialInstances />
+          </div>
           <div
             className={`transition-all duration-300 ease-in-out ${
               activeTab === 'instagram'
