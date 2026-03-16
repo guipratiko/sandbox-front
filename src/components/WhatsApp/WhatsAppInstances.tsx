@@ -294,14 +294,14 @@ const WhatsAppInstances: React.FC = () => {
                   </div>
                 </div>
 
-                {(instance.ownerPhone || instance.display_phone_number) && (
+                {(instance.ownerJid || instance.display_phone_number) && (
                   <div className="flex items-center gap-3 text-sm">
                     <div className="flex-shrink-0 w-24 text-gray-500 dark:text-gray-400 font-medium">
                       Número:
                     </div>
                     <div className="flex-1 text-clerky-backendText dark:text-gray-200 min-w-0">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium">
-                        {instance.ownerPhone || instance.display_phone_number}
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium truncate max-w-full">
+                        {instance.ownerJid || instance.display_phone_number}
                       </span>
                     </div>
                   </div>

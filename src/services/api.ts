@@ -98,8 +98,8 @@ export interface Instance {
   waba_id?: string | null;
   display_phone_number?: string | null;
   is_coex?: boolean;
-  /** Número do WhatsApp da instância (Evolution/Baileys) */
-  ownerPhone?: string | null;
+  /** Número da instância Baileys (ownerJid normalizado) */
+  ownerJid?: string | null;
   connectionLink?: string;
   createdAt: string;
   updatedAt: string;
