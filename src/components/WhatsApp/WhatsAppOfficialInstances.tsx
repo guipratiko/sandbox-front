@@ -350,6 +350,7 @@ const WhatsAppOfficialInstances: React.FC = () => {
   const maxWhatsApp = user?.maxWhatsAppInstances ?? 0;
   const officialOnly = instances.filter((i) => i.integration === 'WHATSAPP-CLOUD');
   const atLimit = maxWhatsApp > 0 && instances.length >= maxWhatsApp;
+  const isStartPlan = user?.premiumPlan === 'start';
 
   const handleStatusUpdate = useCallback((data: { instanceId: string; status: string }) => {
     setInstances((prev) =>
@@ -562,6 +563,21 @@ const WhatsAppOfficialInstances: React.FC = () => {
       default: return status;
     }
   };
+
+  if (isStartPlan) {
+    return (
+      <Card padding="lg" shadow="lg">
+        <div className="text-center py-12">
+          <p className="text-xl font-semibold text-clerky-backendText dark:text-gray-200 mb-2">
+            API Oficial (WhatsApp Cloud)
+          </p>
+          <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+            A conexão com a API Oficial (WhatsApp Cloud / Meta) está disponível apenas nos planos <strong>Advance</strong> e <strong>PRO</strong>. Faça upgrade para conectar números pela API Oficial.
+          </p>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div>
