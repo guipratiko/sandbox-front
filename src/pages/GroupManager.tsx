@@ -447,8 +447,8 @@ const GroupManager: React.FC = () => {
     return (
       <AppLayout>
         <div className="animate-fadeIn space-y-4 md:space-y-5 max-w-6xl">
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="outline" size="sm" onClick={() => setSelectedCampaignId(null)}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="xs" onClick={() => setSelectedCampaignId(null)} className="shrink-0">
               ← {t('groupManager.campaignDetail.backToCampaigns')}
             </Button>
           </div>
@@ -482,11 +482,11 @@ const GroupManager: React.FC = () => {
                       type="text"
                       readOnly
                       value={`${process.env.REACT_APP_API_URL || 'http://localhost:4331/api'}/public/join/${selectedCampaign.inviteLinkSlug}`}
-                      className="flex-1 min-w-[200px] px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-clerky-backendText dark:text-gray-200"
+                      className="flex-1 min-w-0 px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-clerky-backendText dark:text-gray-200"
                     />
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="xs"
                       onClick={() => {
                         const url = `${process.env.REACT_APP_API_URL || 'http://localhost:4331/api'}/public/join/${selectedCampaign.inviteLinkSlug}`;
                         navigator.clipboard.writeText(url).then(() => {
@@ -500,44 +500,46 @@ const GroupManager: React.FC = () => {
                   </div>
                 </div>
               )}
-              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setShowEditCampaignModal(true)}>
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                  <Button variant="outline" size="xs" onClick={() => setShowEditCampaignModal(true)} className="shrink-0">
                     {t('groupManager.campaignDetail.editCampaign')}
                   </Button>
-                  <Button variant="outline" size="sm" onClick={handleOpenCreateGroupModal}>
+                  <Button variant="outline" size="xs" onClick={handleOpenCreateGroupModal} className="shrink-0">
                     {t('groupManager.campaignDetail.createGroup')}
                   </Button>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="xs"
                     onClick={loadCampaignGroups}
                     disabled={isLoadingCampaignGroups}
+                    className="shrink-0"
                   >
                     {isLoadingCampaignGroups ? t('groupManager.refreshing') : t('groupManager.campaignDetail.updateGroups')}
                   </Button>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="xs"
                     onClick={() => setShowBulkConfigureModal(true)}
                     disabled={campaignGroups.length === 0}
+                    className="shrink-0"
                   >
                     {t('groupManager.campaignDetail.configureGroups')}
                   </Button>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="xs"
                     onClick={handleDeleteAllGroups}
                     disabled={campaignGroups.length === 0}
-                    className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border-red-200 dark:border-red-700"
+                    className="shrink-0 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border-red-200 dark:border-red-700"
                   >
                     {t('groupManager.campaignDetail.deleteAllGroups')}
                   </Button>
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="xs"
                     onClick={handleDeleteCampaign}
-                    className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border-red-200 dark:border-red-700"
+                    className="shrink-0 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border-red-200 dark:border-red-700"
                   >
                     {t('groupManager.campaignDetail.deleteCampaign')}
                   </Button>
@@ -553,21 +555,21 @@ const GroupManager: React.FC = () => {
           )}
 
           <Card padding="md">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-              <h2 className="text-lg font-semibold text-clerky-backendText dark:text-gray-200">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <h2 className="text-base sm:text-lg font-semibold text-clerky-backendText dark:text-gray-200">
                 {t('groupManager.campaignDetail.groupsInCampaign')}
               </h2>
               {campaignGroups.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={selectAllGroups}>
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                  <Button variant="outline" size="xs" onClick={selectAllGroups} className="shrink-0">
                     {isAllSelected ? t('groupManager.campaignDetail.deselectAll') : t('groupManager.campaignDetail.selectAll')}
                   </Button>
                   {selectedGroupIds.length > 0 && (
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="xs"
                       onClick={handleDeleteSelected}
-                      className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border-red-200 dark:border-red-700"
+                      className="shrink-0 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border-red-200 dark:border-red-700"
                     >
                       {t('groupManager.campaignDetail.deleteSelected')} ({selectedGroupIds.length})
                     </Button>
@@ -584,9 +586,9 @@ const GroupManager: React.FC = () => {
                 {campaignGroups.map((group) => (
                   <div
                     key={group.id}
-                    className="flex items-center gap-3 py-3 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30"
+                    className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 py-2.5 px-3 sm:py-3 sm:px-4 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30"
                   >
-                    <label className="flex items-center shrink-0 cursor-pointer">
+                    <label className="flex items-center shrink-0 cursor-pointer order-first sm:order-none">
                       <input
                         type="checkbox"
                         checked={selectedGroupIdsSet.has(group.id)}
@@ -595,30 +597,31 @@ const GroupManager: React.FC = () => {
                         className="rounded border-gray-300 dark:border-gray-600 text-clerky-backendButton focus:ring-clerky-backendButton"
                       />
                     </label>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium text-clerky-backendText dark:text-gray-200 truncate">
+                    <div className="min-w-0 flex-1 order-3 sm:order-none w-full sm:w-auto">
+                      <div className="font-medium text-sm sm:text-base text-clerky-backendText dark:text-gray-200 truncate">
                         {group.name ?? group.id}
                       </div>
                       {group.description && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 truncate mt-0.5">{group.description}</p>
+                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate mt-0.5">{group.description}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0 order-2 sm:order-none ml-auto sm:ml-0">
                       <Button
                         variant="outline"
-                        size="sm"
+                        size="xs"
                         onClick={() => {
                           setConfigureGroup(group);
                           setShowConfigureGroupModal(true);
                         }}
+                        className="shrink-0"
                       >
                         {t('groupManager.campaignDetail.configure')}
                       </Button>
                       <Button
                         variant="outline"
-                        size="sm"
+                        size="xs"
                         onClick={() => handleDeleteGroup(group.id)}
-                        className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border-red-200 dark:border-red-700"
+                        className="shrink-0 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border-red-200 dark:border-red-700"
                       >
                         {t('groupManager.campaignDetail.deleteGroup')}
                       </Button>
@@ -704,14 +707,15 @@ const GroupManager: React.FC = () => {
 
         <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="primary" size="lg" onClick={() => setShowNewCampaignWizard(true)} className="shrink-0">
+            <Button variant="primary" size="sm" onClick={() => setShowNewCampaignWizard(true)} className="shrink-0">
               {t('groupManager.newCampaign')}
             </Button>
             <Button
               variant="outline"
+              size="xs"
               onClick={refreshCampaigns}
               disabled={isRefreshingCampaigns}
-              className="text-sm shrink-0"
+              className="shrink-0"
             >
               {isRefreshingCampaigns ? t('groupManager.refreshing') : t('groupManager.refreshCampaigns')}
             </Button>

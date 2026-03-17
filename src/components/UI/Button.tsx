@@ -3,7 +3,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   isLoading?: boolean;
   children: React.ReactNode;
 }
@@ -29,6 +29,7 @@ const Button: React.FC<ButtonProps> = ({
   };
   
   const sizeClasses = {
+    xs: 'px-2 py-1 text-xs rounded-md',
     sm: 'px-3 py-1.5 text-sm',
     md: 'px-4 py-2.5 text-base',
     lg: 'px-6 py-3 text-lg',
