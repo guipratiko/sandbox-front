@@ -1874,8 +1874,10 @@ export interface CampaignResponse {
 }
 
 export const campaignAPI = {
-  getAll: async (): Promise<{ status: string; campaigns: CampaignResponse[] }> => {
-    return request<{ status: string; campaigns: CampaignResponse[] }>('/campaigns');
+  /** Se instanceId for passado, retorna apenas campanhas dessa instância (por id ou por ownerJid, para reconexão). */
+  getAll: async (instanceId?: string): Promise<{ status: string; campaigns: CampaignResponse[] }> => {
+    const q = instanceId ? `?instanceId=${encodeURIComponent(instanceId)}` : '';
+    return request<{ status: string; campaigns: CampaignResponse[] }>(`/campaigns${q}`);
   },
 
   create: async (data: {
