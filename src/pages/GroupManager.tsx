@@ -14,7 +14,11 @@ import CreateGroupsModal from '../components/Groups/CreateGroupsModal';
 
 const GROUP_MANAGER_INSTANCE_KEY = 'groupManager.selectedInstanceId';
 
-export type Campaign = NewCampaignData & { id: string; photoUrl?: string | null };
+export type Campaign = NewCampaignData & {
+  id: string;
+  photoUrl?: string | null;
+  inviteLinkSlug?: string | null;
+};
 
 const GroupManager: React.FC = () => {
   const { t } = useLanguage();
@@ -41,6 +45,7 @@ const GroupManager: React.FC = () => {
   const [showBulkConfigureModal, setShowBulkConfigureModal] = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
   const initialGroupIdsRef = useRef<string[]>([]);
 
   const selectedCampaign = selectedCampaignId ? campaigns.find((c) => c.id === selectedCampaignId) ?? null : null;
@@ -286,10 +291,10 @@ const GroupManager: React.FC = () => {
   };
 
   const handleCreateGroupsDone = useCallback(() => {
-    loadCampaignGroups();
+    loadCampaigns();
     setSuccessMessage(t('groupManager.createGroup.success'));
     setTimeout(() => setSuccessMessage(null), 4000);
-  }, [loadCampaignGroups, t]);
+  }, [loadCampaigns, t]);
 
   const handleCreateGroups = useCallback(
     async (params: {
@@ -449,6 +454,37 @@ const GroupManager: React.FC = () => {
                   </p>
                 </div>
               </div>
+              {selectedCampaign.inviteLinkSlug && (
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                  <p className="text-sm font-medium text-clerky-backendText dark:text-gray-200 mb-2">
+                    {t('groupManager.campaignDetail.inviteLinkTitle')}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                    {t('groupManager.campaignDetail.inviteLinkHint')}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${process.env.REACT_APP_API_URL || 'http://localhost:4331/api'}/public/join/${selectedCampaign.inviteLinkSlug}`}
+                      className="flex-1 min-w-[200px] px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-clerky-backendText dark:text-gray-200"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const url = `${process.env.REACT_APP_API_URL || 'http://localhost:4331/api'}/public/join/${selectedCampaign.inviteLinkSlug}`;
+                        navigator.clipboard.writeText(url).then(() => {
+                          setInviteLinkCopied(true);
+                          setTimeout(() => setInviteLinkCopied(false), 2000);
+                        });
+                      }}
+                    >
+                      {inviteLinkCopied ? t('groupManager.campaignDetail.inviteLinkCopied') : t('groupManager.campaignDetail.inviteLinkCopy')}
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" onClick={() => setShowEditCampaignModal(true)}>

@@ -1751,6 +1751,8 @@ export interface CampaignResponse {
   instanceId: string;
   importGroups: 'all' | string[] | null;
   photoUrl?: string | null;
+  /** Slug para link único de convite: /api/public/join/:inviteLinkSlug redireciona para o primeiro grupo com vaga */
+  inviteLinkSlug?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
