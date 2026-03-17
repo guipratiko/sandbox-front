@@ -326,6 +326,22 @@ const GroupManager: React.FC = () => {
     setShowCreateGroupModal(true);
   }, [selectedCampaign]);
 
+  const handleDeleteCampaign = useCallback(async () => {
+    if (!selectedCampaignId) return;
+    if (!window.confirm(t('groupManager.campaignDetail.confirmDeleteCampaign'))) return;
+    try {
+      setError(null);
+      await campaignAPI.delete(selectedCampaignId);
+      setSelectedCampaignId(null);
+      await loadCampaigns();
+      setSuccessMessage(t('groupManager.campaignDetail.deleteCampaignSuccess'));
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err: unknown) {
+      logError('Erro ao excluir campanha', err);
+      setError(getErrorMessage(err, t('groupManager.error.loadGroups')));
+    }
+  }, [selectedCampaignId, loadCampaigns, t]);
+
   const removeGroupsFromCampaign = useCallback(
     async (idsToRemove: string[]) => {
       if (!selectedCampaignId || !selectedCampaign || idsToRemove.length === 0) return;
@@ -455,6 +471,13 @@ const GroupManager: React.FC = () => {
                   className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border-red-200 dark:border-red-700"
                 >
                   {t('groupManager.campaignDetail.deleteAllGroups')}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleDeleteCampaign}
+                  className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border-red-200 dark:border-red-700"
+                >
+                  {t('groupManager.campaignDetail.deleteCampaign')}
                 </Button>
               </div>
             </div>
