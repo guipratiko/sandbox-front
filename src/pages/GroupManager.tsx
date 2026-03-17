@@ -790,6 +790,7 @@ const GroupManager: React.FC = () => {
               id: c.id,
               campaignName: c.campaignName,
               instanceId: c.instanceId,
+              importGroups: c.importGroups ?? null,
             }))}
           />
         ) : (

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button } from '../UI';
+import { DateTimePicker } from '../UI/DateTimePicker';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
   Group,
@@ -15,6 +16,7 @@ export interface CampaignForMessage {
   id: string;
   campaignName: string;
   instanceId: string;
+  importGroups: 'all' | string[] | null;
 }
 
 const MESSAGE_TYPES: GroupMessageType[] = ['text', 'media', 'poll', 'contact', 'location', 'audio'];
@@ -49,12 +51,15 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
 }) => {
   const { t } = useLanguage();
   const [templates, setTemplates] = useState<GroupMessageTemplate[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loadingGroups, setLoadingGroups] = useState(false);
+  const [allGroups, setAllGroups] = useState<Group[]>([]);
+  const [campaignGroups, setCampaignGroups] = useState<Group[]>([]);
+  const [loadingCampaignGroups, setLoadingCampaignGroups] = useState(false);
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<GroupMessageType>('text');
   const [contentJson, setContentJson] = useState<Record<string, unknown>>({ text: '' });
+  const [mentionsEveryone, setMentionsEveryone] = useState(false);
   const [targetType, setTargetType] = useState<GroupMessageTargetType>('specific');
+  const [selectedCampaignIdForGroups, setSelectedCampaignIdForGroups] = useState<string>('');
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>([]);
   const [scheduledAt, setScheduledAt] = useState('');
@@ -70,27 +75,43 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
 
   useEffect(() => {
     if (!isOpen || !instanceId) return;
-    setLoadingGroups(true);
-    groupAPI
-      .getAll(instanceId)
-      .then((r) => setGroups(r.groups ?? []))
-      .finally(() => setLoadingGroups(false));
+    groupAPI.getAll(instanceId).then((r) => setAllGroups(r.groups ?? []));
   }, [isOpen, instanceId]);
+
+  useEffect(() => {
+    if (!isOpen || !instanceId || !selectedCampaignIdForGroups) {
+      setCampaignGroups([]);
+      setSelectedGroupIds([]);
+      return;
+    }
+    const campaign = campaigns.find((c) => c.id === selectedCampaignIdForGroups && c.instanceId === instanceId);
+    if (!campaign) {
+      setCampaignGroups([]);
+      setSelectedGroupIds([]);
+      return;
+    }
+    setLoadingCampaignGroups(true);
+    setSelectedGroupIds([]);
+    if (campaign.importGroups === 'all') {
+      groupAPI.getAll(instanceId).then((r) => setCampaignGroups(r.groups ?? [])).finally(() => setLoadingCampaignGroups(false));
+    } else if (Array.isArray(campaign.importGroups) && campaign.importGroups.length > 0) {
+      groupAPI.getGroupsByIds(instanceId, campaign.importGroups).then((r) => setCampaignGroups(r.groups ?? [])).finally(() => setLoadingCampaignGroups(false));
+    } else {
+      setCampaignGroups([]);
+      setLoadingCampaignGroups(false);
+    }
+  }, [isOpen, instanceId, selectedCampaignIdForGroups, campaigns]);
 
   useEffect(() => {
     if (!templateId) return;
     const tpl = templates.find((x) => x.id === templateId);
     if (tpl) {
       setMessageType(tpl.messageType);
-      setContentJson((tpl.contentJson && typeof tpl.contentJson === 'object' ? tpl.contentJson : {}) as Record<string, unknown>);
+      const json = (tpl.contentJson && typeof tpl.contentJson === 'object' ? tpl.contentJson : {}) as Record<string, unknown>;
+      setContentJson(json);
+      setMentionsEveryone(json.mentionsEveryone === true || json.mentionsEveryOne === true);
     }
   }, [templateId, templates]);
-
-  const minDatetime = () => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    return d.toISOString().slice(0, 16);
-  };
 
   const toggleGroup = (id: string) => {
     setSelectedGroupIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -100,9 +121,15 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
   };
 
   const getTargetGroupIds = (): string[] => {
-    if (targetType === 'all') return groups.map((g) => g.id);
+    if (targetType === 'all') return allGroups.map((g) => g.id);
     if (targetType === 'specific') return selectedGroupIds;
     return [];
+  };
+
+  const effectiveContentJson = (): Record<string, unknown> => {
+    const base = { ...contentJson };
+    if (messageType === 'text' && mentionsEveryone) base.mentionsEveryone = true;
+    return base;
   };
 
   const handleSendNow = async () => {
@@ -121,7 +148,7 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
       await groupMessagesAPI.sendNow({
         instanceId,
         messageType,
-        contentJson,
+        contentJson: effectiveContentJson(),
         targetType,
         groupIds: targetType !== 'campaign' ? groupIds : undefined,
         campaignIds: targetType === 'campaign' ? selectedCampaignIds : undefined,
@@ -162,7 +189,7 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
       await groupMessagesAPI.schedule({
         instanceId,
         messageType,
-        contentJson,
+        contentJson: effectiveContentJson(),
         targetType,
         groupIds: targetType !== 'campaign' ? groupIds : undefined,
         campaignIds: targetType === 'campaign' ? selectedCampaignIds : undefined,
@@ -201,29 +228,53 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
         </div>
 
         {!templateId && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('groupManager.sendMessages.messageType')}</label>
-            <select
-              value={messageType}
-              onChange={(e) => setMessageType(e.target.value as GroupMessageType)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-clerky-backendText"
-            >
-              {MESSAGE_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {t(`groupManager.templates.types.${type}`)}
-                </option>
-              ))}
-            </select>
+          <div className="space-y-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('groupManager.sendMessages.messageType')}</label>
+              <select
+                value={messageType}
+                onChange={(e) => setMessageType(e.target.value as GroupMessageType)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-clerky-backendText"
+              >
+                {MESSAGE_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {t(`groupManager.templates.types.${type}`)}
+                  </option>
+                ))}
+              </select>
+            </div>
             {messageType === 'text' && (
-              <textarea
-                value={(contentJson.text as string) ?? ''}
-                onChange={(e) => setContentJson((p) => ({ ...p, text: e.target.value }))}
-                className="mt-2 w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-clerky-backendText"
-                rows={3}
-                placeholder={t('groupManager.sendMessages.contentPlaceholder')}
-              />
+              <>
+                <textarea
+                  value={(contentJson.text as string) ?? ''}
+                  onChange={(e) => setContentJson((p) => ({ ...p, text: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-clerky-backendText"
+                  rows={3}
+                  placeholder={t('groupManager.sendMessages.contentPlaceholder')}
+                />
+                <label className="inline-flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={mentionsEveryone}
+                    onChange={(e) => setMentionsEveryone(e.target.checked)}
+                    className="rounded border-gray-300 text-clerky-backendButton focus:ring-clerky-backendButton"
+                  />
+                  <span className="text-sm text-clerky-backendText dark:text-gray-200">{t('groupManager.sendMessages.mentionsEveryone')}</span>
+                </label>
+              </>
             )}
           </div>
+        )}
+        {templateId && messageType === 'text' && (
+          <label className="inline-flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={mentionsEveryone}
+              onChange={(e) => setMentionsEveryone(e.target.checked)}
+              className="rounded border-gray-300 text-clerky-backendButton focus:ring-clerky-backendButton"
+            />
+            <span className="text-sm text-clerky-backendText dark:text-gray-200">{t('groupManager.sendMessages.mentionsEveryone')}</span>
+          </label>
         )}
 
         <div>
@@ -245,22 +296,62 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
         </div>
 
         {targetType === 'specific' && (
-          <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2">
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('groupManager.sendMessages.selectGroups')}</p>
-            {loadingGroups ? (
-              <p className="text-gray-500 text-sm">{t('groupManager.loading')}</p>
-            ) : (
-              groups.map((g) => (
-                <label key={g.id} className="flex items-center gap-2 py-1 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedGroupIds.includes(g.id)}
-                    onChange={() => toggleGroup(g.id)}
-                    className="rounded border-gray-300 text-clerky-backendButton focus:ring-clerky-backendButton"
-                  />
-                  <span className="text-sm text-clerky-backendText dark:text-gray-200 truncate">{g.name ?? g.id}</span>
-                </label>
-              ))
+          <div className="space-y-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('groupManager.sendMessages.selectCampaignForGroups')}</label>
+              <select
+                value={selectedCampaignIdForGroups}
+                onChange={(e) => setSelectedCampaignIdForGroups(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-clerky-backendText"
+              >
+                <option value="">—</option>
+                {campaigns
+                  .filter((c) => c.instanceId === instanceId)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.campaignName}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            {selectedCampaignIdForGroups && (
+              <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('groupManager.sendMessages.selectGroups')}</p>
+                {loadingCampaignGroups ? (
+                  <p className="text-gray-500 text-sm">{t('groupManager.loading')}</p>
+                ) : campaignGroups.length === 0 ? (
+                  <p className="text-gray-500 text-sm">{t('groupManager.noGroups')}</p>
+                ) : (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      className="mb-2"
+                      onClick={() =>
+                        setSelectedGroupIds((prev) =>
+                          prev.length === campaignGroups.length ? [] : campaignGroups.map((g) => g.id)
+                        )
+                      }
+                    >
+                      {selectedGroupIds.length === campaignGroups.length
+                        ? t('groupManager.sendMessages.deselectAll')
+                        : t('groupManager.sendMessages.selectAll')}
+                    </Button>
+                    {campaignGroups.map((g) => (
+                      <label key={g.id} className="flex items-center gap-2 py-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedGroupIds.includes(g.id)}
+                          onChange={() => toggleGroup(g.id)}
+                          className="rounded border-gray-300 text-clerky-backendButton focus:ring-clerky-backendButton"
+                        />
+                        <span className="text-sm text-clerky-backendText dark:text-gray-200 truncate">{g.name ?? g.id}</span>
+                      </label>
+                    ))}
+                  </>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -286,7 +377,7 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
 
         {targetType === 'all' && (
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {t('groupManager.sendMessages.allGroups')}: {groups.length} {t('groupManager.loading').toLowerCase().replace('...', '')}
+            {t('groupManager.sendMessages.allGroups')}: {allGroups.length} grupos
           </p>
         )}
 
@@ -294,13 +385,12 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('groupManager.sendMessages.scheduledAt')}</label>
-            <input
-              type="datetime-local"
+            <DateTimePicker
+              label={t('groupManager.sendMessages.scheduledAt')}
               value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              min={minDatetime()}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-clerky-backendText"
+              onChange={setScheduledAt}
+              minDatetime={new Date()}
+              placeholder={t('groupManager.sendMessages.scheduledAt')}
             />
           </div>
           <div>
@@ -320,13 +410,12 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
         </div>
         {repeatRule !== 'none' && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('groupManager.sendMessages.repeatUntil')}</label>
-            <input
-              type="datetime-local"
+            <DateTimePicker
+              label={t('groupManager.sendMessages.repeatUntil')}
               value={repeatUntil}
-              onChange={(e) => setRepeatUntil(e.target.value)}
-              min={minDatetime()}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-clerky-backendText"
+              onChange={setRepeatUntil}
+              minDatetime={new Date()}
+              placeholder={t('groupManager.sendMessages.repeatUntil')}
             />
           </div>
         )}
