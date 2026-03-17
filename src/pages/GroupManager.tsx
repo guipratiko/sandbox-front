@@ -300,8 +300,10 @@ const GroupManager: React.FC = () => {
       description: string;
       addNumbering: boolean;
       participants: string[];
+      groupImageUrl?: string | null;
+      groupSettings?: { announcement?: boolean; locked?: boolean };
     }) => {
-      const { instanceId, campaignId, count, baseName, description, addNumbering, participants } = params;
+      const { instanceId, campaignId, count, baseName, description, addNumbering, participants, groupImageUrl, groupSettings } = params;
       if (!campaignId) {
         setError(t('groupManager.error.loadGroups'));
         return;
@@ -315,6 +317,8 @@ const GroupManager: React.FC = () => {
         description,
         addNumbering,
         participants,
+        ...(groupImageUrl ? { groupImageUrl } : {}),
+        ...(groupSettings ? { groupSettings } : {}),
       });
       handleCreateGroupsDone();
     },
@@ -429,56 +433,64 @@ const GroupManager: React.FC = () => {
             </Button>
           </div>
           <Card padding="md" className="rounded-xl border border-gray-200 dark:border-gray-700">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-              {selectedCampaign.photoUrl && (
-                <div className="w-20 h-20 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shrink-0">
-                  <img src={selectedCampaign.photoUrl} alt="" className="w-full h-full object-cover" />
+            <div className="flex flex-col gap-5">
+              <div className="flex flex-shrink-0 items-start gap-4 min-w-0">
+                {selectedCampaign.photoUrl && (
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shrink-0">
+                    <img src={selectedCampaign.photoUrl} alt="" className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <h1 className="text-xl sm:text-2xl font-bold text-clerky-backendText dark:text-gray-200 break-words">
+                    {selectedCampaign.campaignName}
+                  </h1>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 break-words">
+                    {getInstanceName(selectedCampaign.instanceId)} · {selectedCampaign.contactsPerGroup} {t('groupManager.contactsPerGroupShort')}
+                  </p>
                 </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <h1 className="text-2xl font-bold text-clerky-backendText dark:text-gray-200 truncate">
-                  {selectedCampaign.campaignName}
-                </h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  {getInstanceName(selectedCampaign.instanceId)} · {selectedCampaign.contactsPerGroup} {t('groupManager.contactsPerGroupShort')}
-                </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => setShowEditCampaignModal(true)}>
-                  {t('groupManager.campaignDetail.editCampaign')}
-                </Button>
-                <Button variant="outline" onClick={handleOpenCreateGroupModal}>
-                  {t('groupManager.campaignDetail.createGroup')}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={loadCampaignGroups}
-                  disabled={isLoadingCampaignGroups}
-                >
-                  {isLoadingCampaignGroups ? t('groupManager.refreshing') : t('groupManager.campaignDetail.updateGroups')}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowBulkConfigureModal(true)}
-                  disabled={campaignGroups.length === 0}
-                >
-                  {t('groupManager.campaignDetail.configureGroups')}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleDeleteAllGroups}
-                  disabled={campaignGroups.length === 0}
-                  className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border-red-200 dark:border-red-700"
-                >
-                  {t('groupManager.campaignDetail.deleteAllGroups')}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleDeleteCampaign}
-                  className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border-red-200 dark:border-red-700"
-                >
-                  {t('groupManager.campaignDetail.deleteCampaign')}
-                </Button>
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setShowEditCampaignModal(true)}>
+                    {t('groupManager.campaignDetail.editCampaign')}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleOpenCreateGroupModal}>
+                    {t('groupManager.campaignDetail.createGroup')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadCampaignGroups}
+                    disabled={isLoadingCampaignGroups}
+                  >
+                    {isLoadingCampaignGroups ? t('groupManager.refreshing') : t('groupManager.campaignDetail.updateGroups')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowBulkConfigureModal(true)}
+                    disabled={campaignGroups.length === 0}
+                  >
+                    {t('groupManager.campaignDetail.configureGroups')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDeleteAllGroups}
+                    disabled={campaignGroups.length === 0}
+                    className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border-red-200 dark:border-red-700"
+                  >
+                    {t('groupManager.campaignDetail.deleteAllGroups')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDeleteCampaign}
+                    className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border-red-200 dark:border-red-700"
+                  >
+                    {t('groupManager.campaignDetail.deleteCampaign')}
+                  </Button>
+                </div>
               </div>
             </div>
           </Card>

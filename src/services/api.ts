@@ -1625,7 +1625,22 @@ export const groupAPI = {
     });
   },
 
-  /** Cria N grupos em lote e adiciona à campanha (lógica no Grupo-Flow + callback Backend). */
+  /** Upload de imagem para usar como foto do grupo (retorna URL pública). */
+  uploadImage: async (file: File): Promise<{ status: string; fullUrl: string; url: string; fileName: string }> => {
+    const token = localStorage.getItem('token');
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${API_URL}/groups/upload`, {
+      method: 'POST',
+      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) throw { status: data.status || 'error', message: data.message || 'Erro no upload' };
+    return data;
+  },
+
+  /** Cria N grupos em lote e adiciona à campanha. Se participants.length > 1023, cria automaticamente mais grupos. */
   createBulk: async (params: {
     instanceId: string;
     campaignId: string;
@@ -1634,6 +1649,8 @@ export const groupAPI = {
     description: string;
     addNumbering: boolean;
     participants: string[];
+    groupImageUrl?: string | null;
+    groupSettings?: { announcement?: boolean; locked?: boolean } | null;
   }): Promise<{ status: string; created: number; groupIds: string[] }> => {
     return request<{ status: string; created: number; groupIds: string[] }>('/groups/createBulk', {
       method: 'POST',
