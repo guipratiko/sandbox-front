@@ -1787,6 +1787,13 @@ export const campaignAPI = {
   delete: async (id: string): Promise<{ status: string }> => {
     return request<{ status: string }>(`/campaigns/${id}`, { method: 'DELETE' });
   },
+
+  /** Garante que a campanha tenha link de convite (gera slug se tiver grupos e ainda não tiver). */
+  ensureInviteLink: async (id: string): Promise<{ status: string; campaign: CampaignResponse }> => {
+    return request<{ status: string; campaign: CampaignResponse }>(`/campaigns/${id}/ensure-invite-link`, {
+      method: 'POST',
+    });
+  },
 };
 
 // Admin API

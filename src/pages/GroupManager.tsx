@@ -141,6 +141,7 @@ const GroupManager: React.FC = () => {
         instanceId: c.instanceId,
         importGroups: c.importGroups,
         photoUrl: c.photoUrl ?? null,
+        inviteLinkSlug: c.inviteLinkSlug ?? null,
       }));
       setCampaigns(list);
     } catch (err: unknown) {
@@ -150,6 +151,20 @@ const GroupManager: React.FC = () => {
       setIsLoadingCampaigns(false);
     }
   }, [t]);
+
+  // Se a campanha tem grupos mas não tem link de convite, garante o slug no Backend e atualiza a lista
+  useEffect(() => {
+    if (!selectedCampaignId || !selectedCampaign) return;
+    const groups = selectedCampaign.importGroups;
+    const hasGroups = Array.isArray(groups) && groups.length > 0;
+    const noSlug = !selectedCampaign.inviteLinkSlug || String(selectedCampaign.inviteLinkSlug).trim() === '';
+    if (hasGroups && noSlug) {
+      campaignAPI
+        .ensureInviteLink(selectedCampaignId)
+        .then(() => loadCampaigns())
+        .catch(() => {});
+    }
+  }, [selectedCampaignId, selectedCampaign, loadCampaigns]);
 
   const refreshCampaigns = useCallback(async () => {
     setError(null);
@@ -290,8 +305,8 @@ const GroupManager: React.FC = () => {
     }
   };
 
-  const handleCreateGroupsDone = useCallback(() => {
-    loadCampaigns();
+  const handleCreateGroupsDone = useCallback(async () => {
+    await loadCampaigns();
     setSuccessMessage(t('groupManager.createGroup.success'));
     setTimeout(() => setSuccessMessage(null), 4000);
   }, [loadCampaigns, t]);

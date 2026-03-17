@@ -122,7 +122,7 @@ const CreateGroupsModal: React.FC<CreateGroupsModalProps> = ({
             ? { announcement: onlyAdminsSend, locked: onlyAdminsEdit }
             : undefined,
       });
-      onCreated();
+      await (typeof onCreated === 'function' ? onCreated() : Promise.resolve());
       onClose();
     } catch (err: unknown) {
       const msg =
