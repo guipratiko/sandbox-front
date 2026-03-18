@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, Button } from '../UI';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { useAuth } from '../../contexts/AuthContext';
 import {
   GroupMessageTemplate,
   GroupScheduledMessage,
@@ -36,8 +35,6 @@ const STATUS_KEYS: Record<string, string> = {
 
 export const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({ instanceId, campaigns }) => {
   const { t } = useLanguage();
-  const { user } = useAuth();
-  const profileTz = (user?.timezone && String(user.timezone).trim()) || 'America/Sao_Paulo';
   const [templates, setTemplates] = useState<GroupMessageTemplate[]>([]);
   const [scheduled, setScheduled] = useState<GroupScheduledMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,20 +164,10 @@ export const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({ inst
                       className="flex flex-wrap items-center justify-between gap-2 py-2 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30"
                     >
                       <div className="text-sm text-clerky-backendText dark:text-gray-200">
-                        {t('groupManager.sendMessages.scheduledFor')}:{' '}
-                        {new Date(s.scheduledAt).toLocaleString(undefined, {
-                          timeZone: profileTz,
-                          dateStyle: 'short',
-                          timeStyle: 'short',
-                        })}
+                        {t('groupManager.sendMessages.scheduledFor')}: {new Date(s.scheduledAt).toLocaleString()}
                         <span className="ml-2 text-xs text-gray-500">
                           ({t(STATUS_KEYS[s.status] ?? s.status)})
                         </span>
-                        {s.status === 'failed' && s.lastError && (
-                          <span className="block text-xs text-red-600 dark:text-red-400 mt-1 break-words">
-                            {s.lastError}
-                          </span>
-                        )}
                       </div>
                       {s.status === 'scheduled' && (
                         <Button variant="outline" size="xs" onClick={() => handleCancelScheduled(s.id)}>

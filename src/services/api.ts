@@ -1775,7 +1775,6 @@ export interface GroupScheduledMessage {
   lastError: string | null;
   repeatRule: RepeatRule;
   repeatUntil: string | null;
-  mentionsEveryone?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -1824,7 +1823,6 @@ export const groupMessagesAPI = {
     groupIds?: string[];
     campaignIds?: string[];
     templateId?: string | null;
-    mentionsEveryone?: boolean;
   }): Promise<{ status: string; message: string; data: { templateId: string | null; results: Array<{ groupId: string; success: boolean; error?: string }> } }> => {
     return request('/groups/messages/send', {
       method: 'POST',
@@ -1843,7 +1841,6 @@ export const groupMessagesAPI = {
     scheduledAt: string; // ISO
     repeatRule?: RepeatRule;
     repeatUntil?: string | null; // ISO
-    mentionsEveryone?: boolean;
   }): Promise<{ status: string; message: string; data: GroupScheduledMessage }> => {
     return request('/groups/messages/schedule', {
       method: 'POST',
