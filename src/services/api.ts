@@ -1775,6 +1775,7 @@ export interface GroupScheduledMessage {
   lastError: string | null;
   repeatRule: RepeatRule;
   repeatUntil: string | null;
+  mentionsEveryone?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -1823,6 +1824,7 @@ export const groupMessagesAPI = {
     groupIds?: string[];
     campaignIds?: string[];
     templateId?: string | null;
+    mentionsEveryone?: boolean;
   }): Promise<{ status: string; message: string; data: { templateId: string | null; results: Array<{ groupId: string; success: boolean; error?: string }> } }> => {
     return request('/groups/messages/send', {
       method: 'POST',
@@ -1841,6 +1843,7 @@ export const groupMessagesAPI = {
     scheduledAt: string; // ISO
     repeatRule?: RepeatRule;
     repeatUntil?: string | null; // ISO
+    mentionsEveryone?: boolean;
   }): Promise<{ status: string; message: string; data: GroupScheduledMessage }> => {
     return request('/groups/messages/schedule', {
       method: 'POST',
@@ -1874,10 +1877,8 @@ export interface CampaignResponse {
 }
 
 export const campaignAPI = {
-  /** Se instanceId for passado, retorna apenas campanhas dessa instância (por id ou por ownerJid, para reconexão). */
-  getAll: async (instanceId?: string): Promise<{ status: string; campaigns: CampaignResponse[] }> => {
-    const q = instanceId ? `?instanceId=${encodeURIComponent(instanceId)}` : '';
-    return request<{ status: string; campaigns: CampaignResponse[] }>(`/campaigns${q}`);
+  getAll: async (): Promise<{ status: string; campaigns: CampaignResponse[] }> => {
+    return request<{ status: string; campaigns: CampaignResponse[] }>('/campaigns');
   },
 
   create: async (data: {

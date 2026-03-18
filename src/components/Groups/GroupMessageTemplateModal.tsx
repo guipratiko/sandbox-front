@@ -46,12 +46,7 @@ export const GroupMessageTemplateModal: React.FC<GroupMessageTemplateModalProps>
   const buildContentFromForm = (): Record<string, unknown> => {
     switch (messageType) {
       case 'text':
-        return {
-          text: (contentJson.text as string) ?? '',
-          ...(contentJson.mentionsEveryone === true || contentJson.mentionsEveryOne === true
-            ? { mentionsEveryone: true, mentionsEveryOne: true }
-            : {}),
-        };
+        return { text: (contentJson.text as string) ?? '' };
       case 'media':
         return {
           media: contentJson.media ?? '',
@@ -139,32 +134,15 @@ export const GroupMessageTemplateModal: React.FC<GroupMessageTemplateModalProps>
     switch (messageType) {
       case 'text':
         return (
-          <div className="space-y-2">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('groupManager.templates.fields.text')}</label>
-              <textarea
-                value={(contentJson.text as string) ?? ''}
-                onChange={(e) => setContentJson((p) => ({ ...p, text: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200"
-                rows={4}
-                placeholder={t('groupManager.templates.fields.textPlaceholder')}
-              />
-            </div>
-            <label className="inline-flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={contentJson.mentionsEveryone === true || contentJson.mentionsEveryOne === true}
-                onChange={(e) =>
-                  setContentJson((p) => ({
-                    ...p,
-                    mentionsEveryone: e.target.checked,
-                    mentionsEveryOne: e.target.checked,
-                  }))
-                }
-                className="rounded border-gray-300 text-clerky-backendButton focus:ring-clerky-backendButton"
-              />
-              <span className="text-sm text-clerky-backendText dark:text-gray-200">{t('groupManager.templates.fields.mentionsEveryone')}</span>
-            </label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('groupManager.templates.fields.text')}</label>
+            <textarea
+              value={(contentJson.text as string) ?? ''}
+              onChange={(e) => setContentJson((p) => ({ ...p, text: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200"
+              rows={4}
+              placeholder={t('groupManager.templates.fields.textPlaceholder')}
+            />
           </div>
         );
       case 'media':

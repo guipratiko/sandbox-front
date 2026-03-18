@@ -134,7 +134,7 @@ const GroupManager: React.FC = () => {
   const loadCampaigns = useCallback(async () => {
     try {
       setIsLoadingCampaigns(true);
-      const res = await campaignAPI.getAll(selectedInstance || undefined);
+      const res = await campaignAPI.getAll();
       const list = (res.campaigns ?? []).map((c) => ({
         id: c.id,
         campaignName: c.campaignName,
@@ -151,7 +151,7 @@ const GroupManager: React.FC = () => {
     } finally {
       setIsLoadingCampaigns(false);
     }
-  }, [selectedInstance, t]);
+  }, [t]);
 
   // Se a campanha tem grupos mas não tem link de convite, garante o slug no Backend e atualiza a lista
   useEffect(() => {
@@ -790,7 +790,7 @@ const GroupManager: React.FC = () => {
               id: c.id,
               campaignName: c.campaignName,
               instanceId: c.instanceId,
-              importGroups: c.importGroups ?? null,
+              importGroups: c.importGroups,
             }))}
           />
         ) : (
