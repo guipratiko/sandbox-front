@@ -1447,6 +1447,7 @@ const translations = {
     'groupManager.sendMessages.timeLabel': 'Hora',
     'groupManager.sendMessages.mentionEveryone': 'Mencionar todos no grupo',
     'groupManager.sendMessages.mentionEveryoneHint': 'Envia o texto com @todos (Evolution/Baileys). Não disponível na API Oficial.',
+    'groupManager.sendMessages.scheduleTimezoneHint': 'Data e hora no fuso do seu perfil (Configurações): {tz}',
 
     // Documentation
     'documentation.title': 'Documentação da API Externa',
@@ -2960,6 +2961,7 @@ const translations = {
     'groupManager.sendMessages.timeLabel': 'Time',
     'groupManager.sendMessages.mentionEveryone': 'Mention everyone in the group',
     'groupManager.sendMessages.mentionEveryoneHint': 'Sends text with @all (Evolution/Baileys). Not available on Official API.',
+    'groupManager.sendMessages.scheduleTimezoneHint': 'Date and time use your profile timezone (Settings): {tz}',
     'groupManager.addParticipants': 'Add Participants',
     'groupManager.adding': 'Adding...',
     'groupManager.participants.added': '{count} participants added successfully',

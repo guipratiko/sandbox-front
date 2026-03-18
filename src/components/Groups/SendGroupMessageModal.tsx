@@ -11,6 +11,8 @@ import {
   groupMessagesAPI,
   groupMessageTemplatesAPI,
 } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { wallTimeInTimezoneToUtcIso } from '../../utils/wallTimeToUtc';
 
 export interface CampaignForMessage {
   id: string;
@@ -36,10 +38,6 @@ function pad2(n: number) {
   return String(n).padStart(2, '0');
 }
 
-function toYMD(d: Date): string {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
 function parseYMD(s: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
   if (!m) return null;
@@ -51,16 +49,7 @@ function parseYMD(s: string): Date | null {
   return d;
 }
 
-function combineLocalDateTime(dateStr: string, timeStr: string): Date | null {
-  const d = parseYMD(dateStr);
-  if (!d || !timeStr) return null;
-  const [hh, mm] = timeStr.split(':').map((x) => parseInt(x, 10));
-  if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
-  d.setHours(hh, mm, 0, 0);
-  return d;
-}
-
-/** Mini calendário mensal (seleção de dia) */
+/** Mini calendário mensal (seleção de dia); minDateStr = YYYY-MM-DD (ex.: hoje no fuso do perfil) */
 function DatePickerCalendar({
   value,
   onChange,
@@ -72,9 +61,9 @@ function DatePickerCalendar({
   minDateStr: string;
   labelsWeek: string[];
 }) {
-  const minD = parseYMD(minDateStr);
   const selected = parseYMD(value);
-  const base = selected ?? minD ?? new Date();
+  const minParts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(minDateStr);
+  const base = selected ?? (minParts ? new Date(parseInt(minParts[1], 10), parseInt(minParts[2], 10) - 1, parseInt(minParts[3], 10)) : new Date());
   const [year, setYear] = useState(base.getFullYear());
   const [month, setMonth] = useState(base.getMonth());
 
@@ -92,10 +81,9 @@ function DatePickerCalendar({
   for (let i = 0; i < startPad; i++) days.push(null);
   for (let d = 1; d <= last.getDate(); d++) days.push(d);
 
-  const isDisabled = (day: number) => {
-    const cell = new Date(year, month, day);
-    if (minD && cell < new Date(minD.getFullYear(), minD.getMonth(), minD.getDate())) return true;
-    return false;
+  const isDisabled = (day: number): boolean => {
+    const cellStr = `${year}-${pad2(month + 1)}-${pad2(day)}`;
+    return Boolean(minDateStr) && cellStr < minDateStr;
   };
 
   const monthNames = useMemo(() => {
@@ -189,6 +177,12 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
   onScheduled,
 }) => {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const profileTz = (user?.timezone && String(user.timezone).trim()) || 'America/Sao_Paulo';
+  const todayInProfileTz = useCallback(
+    () => new Date().toLocaleDateString('en-CA', { timeZone: profileTz }),
+    [profileTz]
+  );
   const weekLabels = useMemo(() => {
     const sun = new Date(2024, 0, 7);
     return Array.from({ length: 7 }, (_, i) =>
@@ -211,8 +205,7 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
   const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>([]);
   const [mentionsEveryone, setMentionsEveryone] = useState(false);
 
-  const todayStr = useCallback(() => toYMD(new Date()), []);
-  const [scheduleDate, setScheduleDate] = useState(() => toYMD(new Date()));
+  const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   const [repeatRule, setRepeatRule] = useState<RepeatRule>('none');
   const [repeatUntilDate, setRepeatUntilDate] = useState('');
@@ -241,7 +234,7 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    const t0 = todayStr();
+    const t0 = new Date().toLocaleDateString('en-CA', { timeZone: profileTz });
     setScheduleDate(t0);
     const d = new Date();
     d.setMinutes(d.getMinutes() + 15);
@@ -258,7 +251,7 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
     setTargetType('specific');
     setMentionsEveryone(false);
     setRepeatRule('none');
-  }, [isOpen, todayStr]);
+  }, [isOpen, profileTz]);
 
   useEffect(() => {
     if (!templateId) return;
@@ -391,16 +384,26 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
       alert(t('groupManager.sendMessages.selectGroups'));
       return;
     }
-    const at = combineLocalDateTime(scheduleDate, scheduleTime);
-    if (!at || at.getTime() < Date.now()) {
+    let at: Date;
+    try {
+      at = new Date(wallTimeInTimezoneToUtcIso(scheduleDate, scheduleTime, profileTz));
+    } catch {
+      alert(t('groupManager.sendMessages.scheduledAt'));
+      return;
+    }
+    if (Number.isNaN(at.getTime()) || at.getTime() < Date.now()) {
       alert(t('groupManager.sendMessages.scheduledAt'));
       return;
     }
     let repeatUntilIso: string | undefined;
     if (repeatRule !== 'none' && repeatUntilDate && repeatUntilTime) {
-      const ru = combineLocalDateTime(repeatUntilDate, repeatUntilTime);
-      if (ru && ru.getTime() >= at.getTime()) {
-        repeatUntilIso = ru.toISOString();
+      try {
+        const ru = new Date(wallTimeInTimezoneToUtcIso(repeatUntilDate, repeatUntilTime, profileTz));
+        if (!Number.isNaN(ru.getTime()) && ru.getTime() >= at.getTime()) {
+          repeatUntilIso = ru.toISOString();
+        }
+      } catch {
+        /* ignore */
       }
     }
     try {
@@ -589,13 +592,16 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
 
         <div>
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('groupManager.sendMessages.scheduledAt')}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+            {t('groupManager.sendMessages.scheduleTimezoneHint', { tz: profileTz })}
+          </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('groupManager.sendMessages.dateLabel')}</label>
               <DatePickerCalendar
                 value={scheduleDate}
                 onChange={setScheduleDate}
-                minDateStr={todayStr()}
+                minDateStr={todayInProfileTz()}
                 labelsWeek={weekLabels}
               />
             </div>
@@ -634,7 +640,7 @@ export const SendGroupMessageModal: React.FC<SendGroupMessageModalProps> = ({
               <DatePickerCalendar
                 value={repeatUntilDate}
                 onChange={setRepeatUntilDate}
-                minDateStr={scheduleDate || todayStr()}
+                minDateStr={scheduleDate || todayInProfileTz()}
                 labelsWeek={weekLabels}
               />
             </div>
