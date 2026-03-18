@@ -1803,7 +1803,7 @@ export const groupMessageAPI = {
     instanceId: string;
     messageType: GroupMessageType;
     contentJson: Record<string, unknown>;
-    targetType: 'groups' | 'campaign';
+    targetType: 'groups' | 'campaign' | 'campaign_groups';
     groupIds?: string[];
     campaignId?: string;
     templateId?: string;
@@ -1817,7 +1817,7 @@ export const groupMessageAPI = {
     instanceId: string;
     messageType: GroupMessageType;
     contentJson: Record<string, unknown>;
-    targetType: 'groups' | 'campaign';
+    targetType: 'groups' | 'campaign' | 'campaign_groups';
     groupIds?: string[];
     campaignId?: string;
     templateId?: string;

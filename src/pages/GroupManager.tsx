@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AppLayout } from '../components/Layout';
 import { Card, Button, HelpIcon } from '../components/UI';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -45,11 +45,23 @@ const GroupManager: React.FC = () => {
   const [configureGroup, setConfigureGroup] = useState<Group | null>(null);
   const [showBulkConfigureModal, setShowBulkConfigureModal] = useState(false);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [showMessagesPage, setShowMessagesPage] = useState(false);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
   const initialGroupIdsRef = useRef<string[]>([]);
 
   const selectedCampaign = selectedCampaignId ? campaigns.find((c) => c.id === selectedCampaignId) ?? null : null;
+
+  const campaignsForGroupMessages = useMemo(
+    () =>
+      campaigns.map((c) => ({
+        id: c.id,
+        campaignName: c.campaignName,
+        instanceId: c.instanceId,
+        importGroups: c.importGroups,
+      })),
+    [campaigns]
+  );
 
   const selectedGroupIdsSet = new Set(selectedGroupIds);
   const toggleGroupSelection = useCallback((groupId: string) => {
@@ -443,6 +455,24 @@ const GroupManager: React.FC = () => {
     );
   }
 
+  if (showMessagesPage) {
+    return (
+      <AppLayout>
+        <div className="animate-fadeIn space-y-4 md:space-y-5 max-w-6xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="xs" onClick={() => setShowMessagesPage(false)} className="shrink-0">
+              ← {t('groupManager.messages.backToManager')}
+            </Button>
+          </div>
+          <GroupMessagesSection
+            instances={instances.map((i) => ({ id: i.id, name: i.name }))}
+            campaigns={campaignsForGroupMessages}
+          />
+        </div>
+      </AppLayout>
+    );
+  }
+
   // Vista de detalhe da campanha
   if (selectedCampaign) {
     return (
@@ -783,23 +813,30 @@ const GroupManager: React.FC = () => {
           )}
         </Card>
 
-        {selectedInstance ? (
-          <GroupMessagesSection
-            instanceId={selectedInstance}
-            campaigns={campaigns.map((c) => ({
-              id: c.id,
-              campaignName: c.campaignName,
-              instanceId: c.instanceId,
-              importGroups: c.importGroups,
-            }))}
-          />
-        ) : (
-          <Card padding="md" className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600">
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-              {t('groupManager.messages.selectInstanceFirst')}
-            </p>
+        <div className="pt-2">
+          <h2 className="text-lg font-semibold text-clerky-backendText dark:text-gray-200 mb-3">
+            {t('groupManager.messages.sectionTitle')}
+          </h2>
+          <Card
+            padding="sm"
+            className="rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer hover:border-clerky-backendButton transition-colors max-w-md"
+            onClick={() => setShowMessagesPage(true)}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-12 h-12 rounded-lg bg-clerky-backendButton/15 dark:bg-clerky-backendButton/25 flex items-center justify-center text-xl shrink-0">
+                💬
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-medium text-clerky-backendText dark:text-gray-200">
+                  {t('groupManager.messages.openMessagesPage')}
+                </div>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {t('groupManager.messages.cardHint')}
+                </p>
+              </div>
+            </div>
           </Card>
-        )}
+        </div>
 
         <NewCampaignWizard
           isOpen={showNewCampaignWizard}
