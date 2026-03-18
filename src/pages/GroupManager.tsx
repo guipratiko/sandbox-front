@@ -11,6 +11,7 @@ import EditCampaignModal, { CampaignEditData } from '../components/Groups/EditCa
 import ConfigureGroupModal from '../components/Groups/ConfigureGroupModal';
 import BulkConfigureGroupsModal from '../components/Groups/BulkConfigureGroupsModal';
 import CreateGroupsModal from '../components/Groups/CreateGroupsModal';
+import GroupMessagesSection from '../components/Groups/GroupMessagesSection';
 
 const GROUP_MANAGER_INSTANCE_KEY = 'groupManager.selectedInstanceId';
 
@@ -781,6 +782,24 @@ const GroupManager: React.FC = () => {
             </div>
           )}
         </Card>
+
+        {selectedInstance ? (
+          <GroupMessagesSection
+            instanceId={selectedInstance}
+            campaigns={campaigns.map((c) => ({
+              id: c.id,
+              campaignName: c.campaignName,
+              instanceId: c.instanceId,
+              importGroups: c.importGroups,
+            }))}
+          />
+        ) : (
+          <Card padding="md" className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600">
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+              {t('groupManager.messages.selectInstanceFirst')}
+            </p>
+          </Card>
+        )}
 
         <NewCampaignWizard
           isOpen={showNewCampaignWizard}

@@ -1743,6 +1743,97 @@ export const groupAPI = {
   },
 };
 
+export type GroupMessageType = 'text' | 'media' | 'poll' | 'contact' | 'location' | 'audio';
+
+export interface GroupMessageTemplate {
+  id: string;
+  name: string;
+  description?: string | null;
+  messageType: GroupMessageType;
+  contentJson: Record<string, unknown>;
+  instanceId: string;
+  userId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface GroupScheduledMessage {
+  id: string;
+  userId: string;
+  instanceName: string;
+  instanceId: string;
+  groupJids: string[];
+  messageType: string;
+  contentJson: Record<string, unknown>;
+  nextRunAt: string;
+  repeat: { type: 'none' | 'daily' | 'weekly' | 'monthly' };
+  status: string;
+  createdAt: string;
+  lastSentAt?: string;
+  label?: string;
+}
+
+/** Templates, envio e agendamento de mensagens para grupos (Backend → Grupo-Flow). */
+export const groupMessageAPI = {
+  getTemplates: async (instanceId: string): Promise<{ status: string; data: GroupMessageTemplate[] }> => {
+    return request(`/groups/message-templates?instanceId=${encodeURIComponent(instanceId)}`);
+  },
+  createTemplate: async (body: {
+    instanceId: string;
+    name: string;
+    description?: string | null;
+    messageType: GroupMessageType;
+    contentJson: Record<string, unknown>;
+  }): Promise<{ status: string; data: GroupMessageTemplate }> => {
+    return request('/groups/message-templates', { method: 'POST', body: JSON.stringify(body) });
+  },
+  updateTemplate: async (
+    id: string,
+    body: { name?: string; description?: string | null; contentJson?: Record<string, unknown> }
+  ): Promise<{ status: string; data: GroupMessageTemplate }> => {
+    return request(`/groups/message-templates/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+  },
+  deleteTemplate: async (id: string): Promise<{ status: string }> => {
+    return request(`/groups/message-templates/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+  sendNow: async (body: {
+    instanceId: string;
+    messageType: GroupMessageType;
+    contentJson: Record<string, unknown>;
+    targetType: 'groups' | 'campaign';
+    groupIds?: string[];
+    campaignId?: string;
+    templateId?: string;
+  }): Promise<{
+    status: string;
+    data: { templateId?: string | null; results: Array<{ groupId: string; success: boolean; error?: string }> };
+  }> => {
+    return request('/groups/messages/send', { method: 'POST', body: JSON.stringify(body) });
+  },
+  schedule: async (body: {
+    instanceId: string;
+    messageType: GroupMessageType;
+    contentJson: Record<string, unknown>;
+    targetType: 'groups' | 'campaign';
+    groupIds?: string[];
+    campaignId?: string;
+    templateId?: string;
+    scheduledAt: string;
+    repeat?: { type: 'none' | 'daily' | 'weekly' | 'monthly' };
+  }): Promise<{ status: string; data: GroupScheduledMessage }> => {
+    return request('/groups/messages/schedule', { method: 'POST', body: JSON.stringify(body) });
+  },
+  getScheduled: async (instanceId: string): Promise<{ status: string; data: GroupScheduledMessage[] }> => {
+    return request(`/groups/messages/scheduled?instanceId=${encodeURIComponent(instanceId)}`);
+  },
+  cancelScheduled: async (id: string): Promise<{ status: string }> => {
+    return request(`/groups/messages/scheduled/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
+  },
+};
+
 // Campaign API (Group Manager - persistência no backend)
 export interface CampaignResponse {
   id: string;
@@ -2288,7 +2379,21 @@ export const scrapingAPI = {
   },
 };
 
-const api = { authAPI, instanceAPI, crmAPI, dispatchAPI, workflowAPI, aiAgentAPI, groupAPI, campaignAPI, dashboardAPI, adminAPI, instagramAPI, scrapingAPI };
+const api = {
+  authAPI,
+  instanceAPI,
+  crmAPI,
+  dispatchAPI,
+  workflowAPI,
+  aiAgentAPI,
+  groupAPI,
+  groupMessageAPI,
+  campaignAPI,
+  dashboardAPI,
+  adminAPI,
+  instagramAPI,
+  scrapingAPI,
+};
 
 export default api;
 
