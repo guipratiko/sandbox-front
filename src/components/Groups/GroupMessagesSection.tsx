@@ -176,6 +176,11 @@ export const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({ inst
                         <span className="ml-2 text-xs text-gray-500">
                           ({t(STATUS_KEYS[s.status] ?? s.status)})
                         </span>
+                        {s.status === 'failed' && s.lastError && (
+                          <span className="block text-xs text-red-600 dark:text-red-400 mt-1 break-words">
+                            {s.lastError}
+                          </span>
+                        )}
                       </div>
                       {s.status === 'scheduled' && (
                         <Button variant="outline" size="xs" onClick={() => handleCancelScheduled(s.id)}>
