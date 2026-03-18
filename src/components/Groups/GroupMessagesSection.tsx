@@ -70,7 +70,10 @@ export interface GroupMessagesSectionProps {
   campaigns: CampaignLite[];
 }
 
-const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({ instances, campaigns }) => {
+const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
+  instances = [],
+  campaigns = [],
+}) => {
   const { t } = useLanguage();
   const [messagesInstanceId, setMessagesInstanceId] = useState('');
   const [tab, setTab] = useState<Tab>('send');
@@ -142,7 +145,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({ instances, 
     setError(null);
     try {
       const res = await groupMessageAPI.getTemplates(messagesInstanceId);
-      setTemplates(res.data ?? []);
+      setTemplates(Array.isArray(res.data) ? res.data : []);
     } catch (e: unknown) {
       logError('GroupMessagesSection.loadTemplates', e);
       setError(getErrorMessage(e, 'Erro ao carregar templates'));
@@ -170,7 +173,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({ instances, 
     setLoadingScheduled(true);
     try {
       const res = await groupMessageAPI.getScheduled(messagesInstanceId);
-      setScheduled(res.data ?? []);
+      setScheduled(Array.isArray(res.data) ? res.data : []);
     } catch (e: unknown) {
       logError('GroupMessagesSection.loadScheduled', e);
       setScheduled([]);
@@ -755,7 +758,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({ instances, 
                 <p className="text-gray-500 text-sm py-6 text-center">{t('groupManager.templates.noTemplates')}</p>
               ) : (
                 <ul className="space-y-2 max-h-72 overflow-y-auto">
-                  {templates.map((tpl) => (
+                  {(templates ?? []).map((tpl) => (
                     <li
                       key={tpl.id}
                       className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700"
@@ -806,7 +809,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({ instances, 
               }}
             >
               <option value="">{t('groupManager.sendMessages.noTemplate')}</option>
-              {templates.map((tpl) => (
+              {(templates ?? []).map((tpl) => (
                 <option key={tpl.id} value={tpl.id}>
                   {tpl.name} ({tpl.messageType})
                 </option>
@@ -884,7 +887,11 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({ instances, 
           {targetMode === 'instance_groups' && (
             <div>
               <div className="flex gap-2 mb-2">
-                <Button size="xs" variant="outline" onClick={() => setSelectedGroupIds(groups.map((g) => g.id))}>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => setSelectedGroupIds((groups ?? []).map((g) => g.id))}
+                >
                   {t('groupManager.sendMessages.selectAll')}
                 </Button>
                 <Button size="xs" variant="outline" onClick={() => setSelectedGroupIds([])}>
@@ -894,10 +901,10 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({ instances, 
               <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2 space-y-1">
                 {loadingGroups ? (
                   <p className="text-sm text-gray-500">…</p>
-                ) : groups.length === 0 ? (
+                ) : (groups ?? []).length === 0 ? (
                   <p className="text-sm text-gray-500">{t('groupManager.noGroups')}</p>
                 ) : (
-                  groups.map((g) => (
+                  (groups ?? []).map((g) => (
                     <label key={g.id} className="flex items-center gap-2 text-sm cursor-pointer">
                       <input
                         type="checkbox"
@@ -923,7 +930,8 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({ instances, 
                 <option value="">{t('groupManager.sendMessages.chooseCampaign')}</option>
                 {eligibleCampaignsAll.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.campaignName} ({(c.importGroups as string[]).length} grupos)
+                    {c.campaignName} (
+                    {Array.isArray(c.importGroups) ? c.importGroups.length : 0} grupos)
                   </option>
                 ))}
               </select>
@@ -950,7 +958,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({ instances, 
                       {c.campaignName}
                       {c.importGroups === 'all'
                         ? ` (${t('groupManager.campaign.importAll')})`
-                        : ` (${(c.importGroups as string[]).length} grupos)`}
+                        : ` (${Array.isArray(c.importGroups) ? c.importGroups.length : 0} grupos)`}
                     </option>
                   ))}
                 </select>
@@ -1061,9 +1069,9 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({ instances, 
             <p className="text-sm text-gray-500 py-6 text-center">{t('groupManager.sendMessages.noScheduled')}</p>
           ) : (
             <ul className="space-y-2">
-              {scheduled.map((s) => (
+              {scheduled.map((s, idx) => (
                 <li
-                  key={s.id}
+                  key={s.id ?? `sched-${idx}`}
                   className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 text-sm flex flex-wrap justify-between gap-2"
                 >
                   <div>
@@ -1073,7 +1081,8 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({ instances, 
                       {new Date(s.nextRunAt).toLocaleString()}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {s.groupJids.length} grupos · {s.repeat.type}
+                      {(Array.isArray(s.groupJids) ? s.groupJids.length : 0)} grupos ·{' '}
+                      {s.repeat?.type ?? '—'}
                     </div>
                   </div>
                   <Button size="xs" variant="outline" onClick={() => handleCancelSchedule(s.id)} disabled={busy}>
