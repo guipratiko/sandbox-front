@@ -1400,9 +1400,9 @@ const translations = {
     'groupManager.templates.types.audio': 'Áudio',
     'groupManager.sendMessages.title': 'Enviar Mensagens',
     'groupManager.sendMessages.description': 'Envie mensagens para todos os grupos ou grupos específicos, imediatamente ou agendadas',
-    'groupManager.sendMessages.sendNow': 'Enviar Agora',
+    'groupManager.sendMessages.sendNow': 'Enviar Mensagem',
     'groupManager.sendMessages.schedule': 'Agendar',
-    'groupManager.sendMessages.sendNowTitle': 'Enviar Mensagem Agora',
+    'groupManager.sendMessages.sendNowTitle': 'Enviar Mensagem',
     'groupManager.sendMessages.scheduleTitle': 'Agendar Mensagem',
     'groupManager.sendMessages.selectTemplate': 'Selecionar Template',
     'groupManager.sendMessages.noTemplate': 'Nenhum template (criar manualmente)',
@@ -1479,6 +1479,14 @@ const translations = {
     'groupManager.sendMessages.pickCampaignGroupsHint':
       'Selecione quais grupos desta campanha receberão a mensagem (ex.: só o grupo 1 e 3).',
     'groupManager.sendMessages.noCampaignForPartial': 'Nenhuma campanha nesta instância com grupos.',
+    'groupManager.messages.noEvolutionInstances':
+      'Nenhuma instância Evolution disponível. Mensagens em grupo usam apenas instâncias não oficiais.',
+    'groupManager.groupMessages.uploadFile': 'Enviar arquivo',
+    'groupManager.groupMessages.uploading': 'Enviando…',
+    'groupManager.groupMessages.useCurrentLocation': 'Usar localização atual',
+    'groupManager.groupMessages.locationDenied': 'Permissão de localização negada ou indisponível.',
+    'groupManager.groupMessages.locationError': 'Não foi possível obter a localização.',
+    'groupManager.groupMessages.stopRecording': 'Parar gravação',
 
     // Documentation
     'documentation.title': 'Documentação da API Externa',
@@ -2945,9 +2953,9 @@ const translations = {
     'groupManager.templates.types.audio': 'Audio',
     'groupManager.sendMessages.title': 'Send Messages',
     'groupManager.sendMessages.description': 'Send messages to all groups or specific groups, immediately or scheduled',
-    'groupManager.sendMessages.sendNow': 'Send Now',
+    'groupManager.sendMessages.sendNow': 'Send message',
     'groupManager.sendMessages.schedule': 'Schedule',
-    'groupManager.sendMessages.sendNowTitle': 'Send Message Now',
+    'groupManager.sendMessages.sendNowTitle': 'Send message',
     'groupManager.sendMessages.scheduleTitle': 'Schedule Message',
     'groupManager.sendMessages.selectTemplate': 'Select Template',
     'groupManager.sendMessages.noTemplate': 'No template (create manually)',
@@ -3024,6 +3032,14 @@ const translations = {
     'groupManager.sendMessages.pickCampaignGroupsHint':
       'Choose which groups in this campaign will receive the message.',
     'groupManager.sendMessages.noCampaignForPartial': 'No campaign on this instance with groups.',
+    'groupManager.messages.noEvolutionInstances':
+      'No Evolution instances available. Group messages work only with non-official instances.',
+    'groupManager.groupMessages.uploadFile': 'Upload file',
+    'groupManager.groupMessages.uploading': 'Uploading…',
+    'groupManager.groupMessages.useCurrentLocation': 'Use current location',
+    'groupManager.groupMessages.locationDenied': 'Location permission denied or unavailable.',
+    'groupManager.groupMessages.locationError': 'Could not get location.',
+    'groupManager.groupMessages.stopRecording': 'Stop recording',
     'groupManager.addParticipants': 'Add Participants',
     'groupManager.adding': 'Adding...',
     'groupManager.participants.added': '{count} participants added successfully',

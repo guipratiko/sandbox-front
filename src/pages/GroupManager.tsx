@@ -465,7 +465,11 @@ const GroupManager: React.FC = () => {
             </Button>
           </div>
           <GroupMessagesSection
-            instances={instances.map((i) => ({ id: i.id, name: i.name }))}
+            instances={instances.map((i) => ({
+              id: i.id,
+              name: i.name,
+              integration: i.integration,
+            }))}
             campaigns={campaignsForGroupMessages}
           />
         </div>

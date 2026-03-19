@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card, Button } from '../UI';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
+  dispatchAPI,
   groupAPI,
   groupMessageAPI,
   Group,
@@ -35,7 +36,7 @@ function emptyContent(type: GroupMessageType): Record<string, unknown> {
         ],
       };
     case 'location':
-      return { name: '', address: '', latitude: 0, longitude: 0 };
+      return { name: '', address: '', latitude: '', longitude: '' };
     case 'audio':
       return { audio: '' };
     default:
@@ -66,7 +67,7 @@ function normalizeContent(type: GroupMessageType, raw: Record<string, unknown>):
 const MESSAGE_TYPES: GroupMessageType[] = ['text', 'media', 'poll', 'contact', 'location', 'audio'];
 
 export interface GroupMessagesSectionProps {
-  instances: Array<{ id: string; name: string }>;
+  instances: Array<{ id: string; name: string; integration?: string }>;
   campaigns: CampaignLite[];
 }
 
@@ -86,6 +87,13 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [fileUploading, setFileUploading] = useState(false);
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const applyContentPatchRef = useRef<(p: Record<string, unknown>) => void>(() => {});
 
   const [templateModal, setTemplateModal] = useState<'create' | 'edit' | null>(null);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
@@ -110,6 +118,11 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   const [repeatType, setRepeatType] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
   const [sendContactJson, setSendContactJson] = useState('[{"fullName":"","phoneNumber":""}]');
   const [tplContactJson, setTplContactJson] = useState('[{"fullName":"","phoneNumber":""}]');
+
+  const evolutionInstances = useMemo(
+    () => instances.filter((i) => i.integration !== 'WHATSAPP-CLOUD'),
+    [instances]
+  );
 
   const eligibleCampaignsAll = useMemo(
     () =>
@@ -303,6 +316,21 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
         return;
       }
     }
+    if (tplType === 'location') {
+      const lat = parseFloat(String(tplContent.latitude).replace(',', '.'));
+      const lng = parseFloat(String(tplContent.longitude).replace(',', '.'));
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        setError(t('groupManager.templates.fields.latLngRequired'));
+        return;
+      }
+      content = {
+        ...tplContent,
+        latitude: lat,
+        longitude: lng,
+        name: String(tplContent.name ?? ''),
+        address: String(tplContent.address ?? ''),
+      };
+    }
     if (!messagesInstanceId) {
       setError(t('groupManager.messages.selectInstanceFirst'));
       return;
@@ -364,6 +392,21 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
         return null;
       }
     }
+    if (sendType === 'location') {
+      const lat = parseFloat(String(sendContent.latitude).replace(',', '.'));
+      const lng = parseFloat(String(sendContent.longitude).replace(',', '.'));
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        setError(t('groupManager.templates.fields.latLngRequired'));
+        return null;
+      }
+      return {
+        ...sendContent,
+        latitude: lat,
+        longitude: lng,
+        name: String(sendContent.name ?? ''),
+        address: String(sendContent.address ?? ''),
+      };
+    }
     return sendContent;
   };
 
@@ -413,8 +456,10 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
       setError(t('groupManager.templates.fields.audioRequired'));
       return false;
     }
-    if (sendType === 'location') {
-      if (payload.latitude == null || payload.longitude == null) {
+    if (sendType === 'location' && payload) {
+      const lat = Number((payload as { latitude?: number }).latitude);
+      const lng = Number((payload as { longitude?: number }).longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         setError(t('groupManager.templates.fields.latLngRequired'));
         return false;
       }
@@ -536,11 +581,102 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     setSelectedGroupIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
+  const stopMicStream = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  }, []);
+
+  const startAudioRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      audioChunksRef.current = [];
+      const options: MediaRecorderOptions = {};
+      if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+        options.mimeType = 'audio/ogg;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+        options.mimeType = 'audio/ogg';
+      } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        options.mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        options.mimeType = 'audio/webm';
+      }
+      const mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      mediaRecorder.onstop = async () => {
+        stopMicStream();
+        setIsRecordingAudio(false);
+        if (audioChunksRef.current.length === 0) return;
+        const mime = mediaRecorder.mimeType || 'audio/ogg';
+        const ext = mime.includes('ogg') ? 'ogg' : 'webm';
+        const blob = new Blob(audioChunksRef.current, { type: mime });
+        const file = new File([blob], `recording-${Date.now()}.${ext}`, { type: mime });
+        setFileUploading(true);
+        try {
+          const result = await dispatchAPI.uploadTemplateFile(file);
+          applyContentPatchRef.current({ audio: result.fullUrl });
+        } catch (e: unknown) {
+          setError(getErrorMessage(e, 'Erro ao enviar áudio'));
+        } finally {
+          setFileUploading(false);
+        }
+      };
+      mediaRecorder.start();
+      setIsRecordingAudio(true);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Erro ao acessar microfone'));
+    }
+  }, [stopMicStream]);
+
+  const stopAudioRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopMicStream();
+      try {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+          mediaRecorderRef.current.stop();
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [stopMicStream]);
+
+  useEffect(() => {
+    if (
+      messagesInstanceId &&
+      evolutionInstances.length > 0 &&
+      !evolutionInstances.some((i) => i.id === messagesInstanceId)
+    ) {
+      handleInstanceChange('');
+    }
+  }, [messagesInstanceId, evolutionInstances]);
+
+  const filterCoordInput = (raw: string) => {
+    let v = raw.replace(/[^\d.\-]/g, '').replace(/,/g, '.');
+    const minus = v.startsWith('-') ? '-' : '';
+    v = v.replace(/-/g, '');
+    const parts = v.split('.');
+    const intPart = parts[0] ?? '';
+    const dec = parts.length > 1 ? '.' + parts.slice(1).join('').replace(/\./g, '') : '';
+    return minus + intPart + dec;
+  };
+
   const renderContentFields = (
     type: GroupMessageType,
     content: Record<string, unknown>,
     setContent: React.Dispatch<React.SetStateAction<Record<string, unknown>>>,
-    disabled: boolean
+    disabled: boolean,
+    formKey: string
   ) => {
     const patch = (p: Record<string, unknown>) => setContent((c) => ({ ...c, ...p }));
     switch (type) {
@@ -568,9 +704,40 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
                 className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
                 value={String(content.media ?? '')}
                 onChange={(e) => patch({ media: e.target.value })}
-                disabled={disabled}
+                disabled={disabled || fileUploading}
               />
             </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="file"
+                id={`grp-msg-media-${formKey}`}
+                className="hidden"
+                accept="image/*,video/*,.pdf,.doc,.docx,application/pdf,application/msword"
+                disabled={disabled || fileUploading}
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  setFileUploading(true);
+                  setError(null);
+                  try {
+                    const result = await dispatchAPI.uploadTemplateFile(f);
+                    patch({ media: result.fullUrl, fileName: f.name });
+                  } catch (err: unknown) {
+                    setError(getErrorMessage(err, 'Erro no upload'));
+                  } finally {
+                    setFileUploading(false);
+                    e.target.value = '';
+                  }
+                }}
+              />
+              <label htmlFor={`grp-msg-media-${formKey}`}>
+                <span className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
+                  {fileUploading
+                    ? t('groupManager.groupMessages.uploading')
+                    : t('groupManager.groupMessages.uploadFile')}
+                </span>
+              </label>
+            </div>
             <select
               className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
               value={String(content.mediatype ?? 'image')}
@@ -641,41 +808,133 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
         return null;
       case 'location':
         return (
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              placeholder={t('groupManager.templates.fields.latitude')}
-              className="rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
-              type="number"
-              value={content.latitude != null ? Number(content.latitude) : ''}
-              onChange={(e) => patch({ latitude: parseFloat(e.target.value) || 0 })}
+          <div className="space-y-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               disabled={disabled}
-            />
-            <input
-              placeholder={t('groupManager.templates.fields.longitude')}
-              type="number"
-              className="rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
-              value={content.longitude != null ? Number(content.longitude) : ''}
-              onChange={(e) => patch({ longitude: parseFloat(e.target.value) || 0 })}
-              disabled={disabled}
-            />
-            <input
-              className="col-span-2 rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
-              placeholder={t('groupManager.templates.fields.locationNamePlaceholder')}
-              value={String(content.name ?? '')}
-              onChange={(e) => patch({ name: e.target.value })}
-              disabled={disabled}
-            />
+              onClick={() => {
+                if (!navigator.geolocation) {
+                  setError(t('groupManager.groupMessages.locationError'));
+                  return;
+                }
+                navigator.geolocation.getCurrentPosition(
+                  (pos) => {
+                    patch({
+                      latitude: String(pos.coords.latitude),
+                      longitude: String(pos.coords.longitude),
+                    });
+                    setError(null);
+                  },
+                  () => setError(t('groupManager.groupMessages.locationDenied')),
+                  { enableHighAccuracy: true, timeout: 20000, maximumAge: 60_000 }
+                );
+              }}
+            >
+              {t('groupManager.groupMessages.useCurrentLocation')}
+            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-xs text-gray-500">{t('groupManager.templates.fields.latitude')}</span>
+                <input
+                  className="mt-0.5 w-full rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600 font-mono"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="-23.55"
+                  value={String(content.latitude ?? '')}
+                  onChange={(e) => patch({ latitude: filterCoordInput(e.target.value) })}
+                  disabled={disabled}
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs text-gray-500">{t('groupManager.templates.fields.longitude')}</span>
+                <input
+                  className="mt-0.5 w-full rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600 font-mono"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="-46.63"
+                  value={String(content.longitude ?? '')}
+                  onChange={(e) => patch({ longitude: filterCoordInput(e.target.value) })}
+                  disabled={disabled}
+                />
+              </label>
+              <input
+                className="col-span-2 rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
+                placeholder={t('groupManager.templates.fields.locationNamePlaceholder')}
+                value={String(content.name ?? '')}
+                onChange={(e) => patch({ name: e.target.value })}
+                disabled={disabled}
+              />
+            </div>
           </div>
         );
       case 'audio':
         return (
-          <input
-            placeholder={t('groupManager.templates.fields.audioUrlPlaceholder')}
-            className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
-            value={String(content.audio ?? '')}
-            onChange={(e) => patch({ audio: e.target.value })}
-            disabled={disabled}
-          />
+          <div className="space-y-2">
+            <input
+              placeholder={t('groupManager.templates.fields.audioUrlPlaceholder')}
+              className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
+              value={String(content.audio ?? '')}
+              onChange={(e) => patch({ audio: e.target.value })}
+              disabled={disabled || fileUploading || isRecordingAudio}
+            />
+            <div className="flex flex-wrap gap-2 items-center">
+              <input
+                type="file"
+                id={`grp-msg-audio-${formKey}`}
+                className="hidden"
+                accept="audio/*,.ogg,.mp3,.m4a,.wav,.webm"
+                disabled={disabled || fileUploading || isRecordingAudio}
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  setFileUploading(true);
+                  setError(null);
+                  try {
+                    const result = await dispatchAPI.uploadTemplateFile(f);
+                    patch({ audio: result.fullUrl });
+                  } catch (err: unknown) {
+                    setError(getErrorMessage(err, 'Erro no upload'));
+                  } finally {
+                    setFileUploading(false);
+                    e.target.value = '';
+                  }
+                }}
+              />
+              <label htmlFor={`grp-msg-audio-${formKey}`}>
+                <span className="inline-flex items-center px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
+                  {fileUploading
+                    ? t('groupManager.groupMessages.uploading')
+                    : t('groupManager.groupMessages.uploadFile')}
+                </span>
+              </label>
+              {isRecordingAudio ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={stopAudioRecording}
+                >
+                  {t('groupManager.groupMessages.stopRecording')}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={disabled || fileUploading}
+                  onClick={() => {
+                    applyContentPatchRef.current = (p) =>
+                      setContent((prev) => ({ ...prev, ...p }));
+                    void startAudioRecording();
+                  }}
+                >
+                  {t('templateBuilder.recordAudio')}
+                </Button>
+              )}
+            </div>
+          </div>
         );
       default:
         return null;
@@ -695,18 +954,24 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
         <label className="text-sm font-semibold text-clerky-backendText dark:text-gray-200 block mb-2">
           {t('groupManager.messages.instanceStep')}
         </label>
-        <select
-          className="w-full max-w-md rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-          value={messagesInstanceId}
-          onChange={(e) => handleInstanceChange(e.target.value)}
-        >
-          <option value="">{t('groupManager.messages.chooseInstance')}</option>
-          {instances.map((inst) => (
-            <option key={inst.id} value={inst.id}>
-              {inst.name}
-            </option>
-          ))}
-        </select>
+        {evolutionInstances.length === 0 ? (
+          <p className="text-sm text-amber-800 dark:text-amber-200">
+            {t('groupManager.messages.noEvolutionInstances')}
+          </p>
+        ) : (
+          <select
+            className="w-full max-w-md rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+            value={messagesInstanceId}
+            onChange={(e) => handleInstanceChange(e.target.value)}
+          >
+            <option value="">{t('groupManager.messages.chooseInstance')}</option>
+            {evolutionInstances.map((inst) => (
+              <option key={inst.id} value={inst.id}>
+                {inst.name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">
@@ -850,7 +1115,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
                 />
               </label>
             ) : (
-              renderContentFields(sendType, sendContent, setSendContent, false)
+              renderContentFields(sendType, sendContent, setSendContent, false, 'send')
             )}
           </div>
 
@@ -1143,7 +1408,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
                   onChange={(e) => setTplContactJson(e.target.value)}
                 />
               ) : (
-                renderContentFields(tplType, tplContent, setTplContent, false)
+                renderContentFields(tplType, tplContent, setTplContent, false, 'template')
               )}
             </div>
             <div className="flex justify-end gap-2 mt-4">
