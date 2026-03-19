@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Card, Button } from '../UI';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
-  dispatchAPI,
   groupAPI,
   groupMessageAPI,
   Group,
@@ -106,7 +105,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   const [sendContent, setSendContent] = useState<Record<string, unknown>>(emptyContent('text'));
   const [templatePick, setTemplatePick] = useState<string>('');
   const [targetMode, setTargetMode] = useState<'instance_groups' | 'campaign_all' | 'campaign_partial'>(
-    'instance_groups'
+    'campaign_partial'
   );
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [campaignId, setCampaignId] = useState<string>('');
@@ -616,7 +615,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
         const file = new File([blob], `recording-${Date.now()}.${ext}`, { type: mime });
         setFileUploading(true);
         try {
-          const result = await dispatchAPI.uploadTemplateFile(file);
+          const result = await groupAPI.uploadImage(file);
           applyContentPatchRef.current({ audio: result.fullUrl });
         } catch (e: unknown) {
           setError(getErrorMessage(e, 'Erro ao enviar áudio'));
@@ -720,7 +719,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
                   setFileUploading(true);
                   setError(null);
                   try {
-                    const result = await dispatchAPI.uploadTemplateFile(f);
+                    const result = await groupAPI.uploadImage(f);
                     patch({ media: result.fullUrl, fileName: f.name });
                   } catch (err: unknown) {
                     setError(getErrorMessage(err, 'Erro no upload'));
@@ -892,7 +891,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
                   setFileUploading(true);
                   setError(null);
                   try {
-                    const result = await dispatchAPI.uploadTemplateFile(f);
+                    const result = await groupAPI.uploadImage(f);
                     patch({ audio: result.fullUrl });
                   } catch (err: unknown) {
                     setError(getErrorMessage(err, 'Erro no upload'));
@@ -1125,10 +1124,10 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input
                   type="radio"
-                  checked={targetMode === 'instance_groups'}
-                  onChange={() => setTargetMode('instance_groups')}
+                  checked={targetMode === 'campaign_partial'}
+                  onChange={() => setTargetMode('campaign_partial')}
                 />
-                {t('groupManager.sendMessages.destInstanceGroups')}
+                {t('groupManager.sendMessages.destCampaignPick')}
               </label>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input
@@ -1141,10 +1140,10 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input
                   type="radio"
-                  checked={targetMode === 'campaign_partial'}
-                  onChange={() => setTargetMode('campaign_partial')}
+                  checked={targetMode === 'instance_groups'}
+                  onChange={() => setTargetMode('instance_groups')}
                 />
-                {t('groupManager.sendMessages.destCampaignPick')}
+                {t('groupManager.sendMessages.destInstanceGroups')}
               </label>
             </div>
           </div>
