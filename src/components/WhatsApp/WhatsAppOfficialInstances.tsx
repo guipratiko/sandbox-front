@@ -20,7 +20,16 @@ declare global {
   interface Window {
     FB?: {
       init: (params: { appId: string; autoLogAppEvents?: boolean; xfbml?: boolean; version: string }) => void;
-      login: (callback: (r: { authResponse?: { code?: string } }) => void, opts: { config_id: string; response_type: string; override_default_response_type: boolean; extras: object }) => void;
+      login: (
+        callback: (r: { authResponse?: { code?: string } }) => void,
+        opts: {
+          config_id: string;
+          response_type: string;
+          override_default_response_type: boolean;
+          display?: 'popup' | 'page' | 'touch';
+          extras: object;
+        }
+      ) => void;
     };
   }
 }
@@ -500,6 +509,7 @@ const WhatsAppOfficialInstances: React.FC = () => {
         config_id: META_CONFIG_ID,
         response_type: 'code',
         override_default_response_type: true,
+        display: 'popup',
         extras: {
           version: 'v3',
           setup: {},
