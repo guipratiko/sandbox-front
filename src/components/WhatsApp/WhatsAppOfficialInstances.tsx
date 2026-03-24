@@ -498,6 +498,18 @@ const WhatsAppOfficialInstances: React.FC = () => {
       setError('SDK do Facebook não carregado. Recarregue a página.');
       return;
     }
+    // Garante que o navegador permita popup no gesto do clique
+    const probe = window.open(
+      '',
+      'onlyflow_meta_popup_probe',
+      'popup,width=640,height=760,left=120,top=80'
+    );
+    if (!probe) {
+      setError('Seu navegador bloqueou o popup. Permita popups para este site e tente novamente.');
+      return;
+    }
+    probe.close();
+
     window.FB.login(
       (response) => {
         if (response.authResponse?.code && pendingSignup.current) {
@@ -628,7 +640,7 @@ const WhatsAppOfficialInstances: React.FC = () => {
             </p>
             <div className="flex gap-2 justify-end">
               <Button variant="secondary" onClick={() => setShowCreateModal(false)}>Cancelar</Button>
-              <Button variant="primary" onClick={launchEmbeddedSignup} disabled={isCreating}>
+              <Button type="button" variant="primary" onClick={launchEmbeddedSignup} disabled={isCreating}>
                 {isCreating ? 'Conectando...' : 'Conectar'}
               </Button>
             </div>
