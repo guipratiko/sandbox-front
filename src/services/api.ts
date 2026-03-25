@@ -721,6 +721,7 @@ export interface Label {
 export interface Contact {
   id: string;
   instanceId: string;
+  channel: 'whatsapp' | 'instagram';
   remoteJid: string;
   phone: string;
   name: string;
@@ -737,6 +738,7 @@ export interface Contact {
 export interface Message {
   id: string;
   messageId: string;
+  channel?: 'whatsapp' | 'instagram';
   fromMe: boolean;
   messageType: string;
   content: string;

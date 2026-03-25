@@ -44,6 +44,7 @@ export interface NewMessageData {
   messages: Array<{
     id: string;
     messageId: string;
+    channel?: 'whatsapp' | 'instagram';
     fromMe: boolean;
     messageType: string;
     content: string;

@@ -4,7 +4,7 @@ import { AppLayout } from '../components/Layout';
 import { Card, Button, Modal, HelpIcon } from '../components/UI';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { crmAPI, Contact, CRMColumn, Message, instanceAPI, Instance, Label } from '../services/api';
+import { crmAPI, Contact, CRMColumn, Message, instanceAPI, instagramAPI, Instance, InstagramInstance, Label } from '../services/api';
 import { useSocket, NewMessageData } from '../hooks/useSocket';
 import { sortMessagesByTimestamp, formatLastMessageContent } from '../utils/messageUtils';
 import { getInitials } from '../utils/formatters';
@@ -37,6 +37,13 @@ interface ContactCardProps {
   contact: Contact;
   onClick: () => void;
 }
+
+type CRMInstanceOption = {
+  id: string;
+  name: string;
+  status: string;
+  channel: 'whatsapp' | 'instagram';
+};
 
 const ContactCard: React.FC<ContactCardProps> = ({ contact, onClick }) => {
   const {
@@ -109,6 +116,13 @@ const ContactCard: React.FC<ContactCardProps> = ({ contact, onClick }) => {
             <h4 className="font-semibold text-clerky-backendText dark:text-gray-200 mb-1 truncate max-w-full">
               {contact.name}
             </h4>
+            {contact.channel === 'instagram' && (
+              <div className="mb-1">
+                <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300">
+                  Instagram
+                </span>
+              </div>
+            )}
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 truncate max-w-full">
               {contact.phone}
             </p>
@@ -271,6 +285,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
       const allMessages = [...prev, ...newMessages.map((m) => ({
         id: m.id,
         messageId: m.messageId,
+        channel: m.channel,
         fromMe: m.fromMe,
         messageType: m.messageType,
         content: m.content,
@@ -1094,8 +1109,9 @@ const CRM: React.FC = () => {
   const { t } = useLanguage();
   const [columns, setColumns] = useState<CRMColumn[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [instances, setInstances] = useState<Instance[]>([]);
+  const [instances, setInstances] = useState<CRMInstanceOption[]>([]);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
+  const [selectedChannel, setSelectedChannel] = useState<'whatsapp' | 'instagram' | null>(null);
   // Map de contatos abertos: contactId -> Contact
   const [openChats, setOpenChats] = useState<Map<string, Contact>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -1130,18 +1146,33 @@ const CRM: React.FC = () => {
   const loadInstances = async () => {
     try {
       setIsLoadingInstances(true);
-      const response = await instanceAPI.getAll();
-      setInstances(response.instances);
-      
-      // Selecionar a primeira instância conectada automaticamente
-      const connectedInstance = response.instances.find(
-        (inst) => inst.status === 'connected'
-      );
+      const [waResponse, igResponse] = await Promise.all([
+        instanceAPI.getAll(),
+        instagramAPI.getInstances(),
+      ]);
+
+      const whatsappInstances: CRMInstanceOption[] = (waResponse.instances || []).map((inst: Instance) => ({
+        id: inst.id,
+        name: inst.name,
+        status: inst.status,
+        channel: 'whatsapp',
+      }));
+      const instagramInstances: CRMInstanceOption[] = (igResponse.data || []).map((inst: InstagramInstance) => ({
+        id: inst.id,
+        name: inst.name || inst.username || inst.instanceName,
+        status: inst.status,
+        channel: 'instagram',
+      }));
+      const merged = [...whatsappInstances, ...instagramInstances];
+      setInstances(merged);
+
+      const connectedInstance = merged.find((inst) => inst.status === 'connected');
       if (connectedInstance) {
         setSelectedInstanceId(connectedInstance.id);
-      } else if (response.instances.length > 0) {
-        // Se não houver conectada, selecionar a primeira
-        setSelectedInstanceId(response.instances[0].id);
+        setSelectedChannel(connectedInstance.channel);
+      } else if (merged.length > 0) {
+        setSelectedInstanceId(merged[0].id);
+        setSelectedChannel(merged[0].channel);
       }
     } catch (error: any) {
       console.error('Erro ao carregar instâncias:', error);
@@ -1176,7 +1207,9 @@ const CRM: React.FC = () => {
       }
       // Filtrar contatos pela instância selecionada
       const filteredContacts = response.contacts.filter(
-        (contact) => contact.instanceId === selectedInstanceId
+        (contact) =>
+          contact.instanceId === selectedInstanceId &&
+          (selectedChannel ? contact.channel === selectedChannel : true)
       );
       setContacts(filteredContacts);
     } catch (error: any) {
@@ -1184,7 +1217,7 @@ const CRM: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedInstanceId, searchQuery]);
+  }, [selectedInstanceId, selectedChannel, searchQuery]);
 
   // Handler para novas mensagens - atualiza o card do contato específico
   // Funciona igual ao chat: verifica apenas se o contato existe na lista atual
@@ -1448,14 +1481,24 @@ const CRM: React.FC = () => {
               </div>
             ) : instances.length > 0 ? (
               <select
-                value={selectedInstanceId || ''}
-                onChange={(e) => setSelectedInstanceId(e.target.value)}
+                value={selectedInstanceId && selectedChannel ? `${selectedChannel}:${selectedInstanceId}` : ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (!value) {
+                    setSelectedInstanceId(null);
+                    setSelectedChannel(null);
+                    return;
+                  }
+                  const [channel, id] = value.split(':');
+                  setSelectedInstanceId(id || null);
+                  setSelectedChannel((channel as 'whatsapp' | 'instagram') || null);
+                }}
                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-clerky-backendButton focus:border-transparent bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200 min-w-[200px]"
               >
                 <option value="">Selecione uma instância</option>
                 {instances.map((instance) => (
-                  <option key={instance.id} value={instance.id}>
-                    {instance.name}
+                  <option key={`${instance.channel}:${instance.id}`} value={`${instance.channel}:${instance.id}`}>
+                    {instance.name} ({instance.channel === 'instagram' ? 'Instagram' : 'WhatsApp'})
                   </option>
                 ))}
               </select>
