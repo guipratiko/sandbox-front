@@ -6,23 +6,25 @@ import { Card } from '../UI';
 
 interface PremiumRouteProps {
   children: React.ReactElement;
+  disallowStart?: boolean;
 }
 
-const PremiumRoute: React.FC<PremiumRouteProps> = ({ children }) => {
+const PremiumRoute: React.FC<PremiumRouteProps> = ({ children, disallowStart = false }) => {
   const { user, isLoading } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const isStartBlocked = disallowStart && user?.premiumPlan === 'start';
 
   useEffect(() => {
     // Se não for premium e não estiver carregando, redirecionar após um pequeno delay
-    if (!isLoading && user && (!user.premiumPlan || user.premiumPlan === 'free')) {
+    if (!isLoading && user && (!user.premiumPlan || user.premiumPlan === 'free' || (disallowStart && user.premiumPlan === 'start'))) {
       const timer = setTimeout(() => {
         window.location.href = 'https://clerky.com.br/#precos';
       }, 2000); // Redirecionar após 2 segundos
 
       return () => clearTimeout(timer);
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading, navigate, disallowStart]);
 
   if (isLoading) {
     return (
@@ -35,7 +37,7 @@ const PremiumRoute: React.FC<PremiumRouteProps> = ({ children }) => {
     );
   }
 
-  if (!user || !user.premiumPlan || user.premiumPlan === 'free') {
+  if (!user || !user.premiumPlan || user.premiumPlan === 'free' || isStartBlocked) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-80px)] p-4">
         <Card className="text-center p-8 max-w-md w-full">

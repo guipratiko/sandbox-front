@@ -30,6 +30,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
     icon: React.ReactNode;
     isMobileRestricted?: boolean;
     isPremiumRestricted?: boolean;
+    isStartRestricted?: boolean;
   }
 
   const isAdmin = user?.admin === true;
@@ -110,6 +111,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       path: '/agente-ia', 
       key: 'menu.aiAgent',
       isPremiumRestricted: true,
+      isStartRestricted: true,
       icon: (
         <svg className="w-5 h-5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -207,7 +209,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
           {menuItems.map((item) => {
             const isMobileRestricted = isMobile && item.isMobileRestricted;
             const isPremiumRestricted = item.isPremiumRestricted && (!user || !user.premiumPlan || user.premiumPlan === 'free');
-            const isRestricted = isMobileRestricted || isPremiumRestricted;
+            const isStartRestricted = item.isStartRestricted && user?.premiumPlan === 'start';
+            const isRestricted = isMobileRestricted || isPremiumRestricted || isStartRestricted;
             
             const itemContent = (
               <div
@@ -228,6 +231,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                     : isMobileRestricted 
                     ? t('mobileRestriction.tooltip')
                     : isPremiumRestricted
+                    ? t('premium.tooltip')
+                    : isStartRestricted
                     ? t('premium.tooltip')
                     : ''
                 }
@@ -255,7 +260,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                         </svg>
                       </span>
                     )}
-                    {isPremiumRestricted && !isMobileRestricted && (
+                    {(isPremiumRestricted || isStartRestricted) && !isMobileRestricted && (
                       <span className="flex-shrink-0" title={t('premium.tooltip')}>
                         <svg
                           className="w-4 h-4 text-gray-400 dark:text-gray-600"
@@ -283,7 +288,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                   key={item.path} 
                   onClick={(e) => {
                     e.preventDefault();
-                    if (isPremiumRestricted && !isMobileRestricted) {
+                    if ((isPremiumRestricted || isStartRestricted) && !isMobileRestricted) {
                       window.location.href = 'https://clerky.com.br/#precos';
                     }
                   }}

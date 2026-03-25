@@ -116,7 +116,7 @@ function AppContent() {
         path="/agente-ia"
         element={
           <ProtectedRoute>
-            <PremiumRoute>
+            <PremiumRoute disallowStart>
             <AIAgentPage />
             </PremiumRoute>
           </ProtectedRoute>
