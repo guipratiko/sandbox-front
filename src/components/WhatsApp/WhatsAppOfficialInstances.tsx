@@ -360,6 +360,7 @@ const WhatsAppOfficialInstances: React.FC = () => {
   const officialOnly = instances.filter((i) => i.integration === 'WHATSAPP-CLOUD');
   const atOfficialLimit = maxOfficialWhatsApp > 0 && officialOnly.length >= maxOfficialWhatsApp;
   const isStartPlan = user?.premiumPlan === 'start';
+  const isNonAdmin = user?.admin !== true;
 
   const handleStatusUpdate = useCallback((data: { instanceId: string; status: string }) => {
     setInstances((prev) =>
@@ -586,8 +587,10 @@ const WhatsAppOfficialInstances: React.FC = () => {
     }
   };
 
-  const officialButtonDisabled = atOfficialLimit || isStartPlan;
-  const officialButtonTitle = isStartPlan
+  const officialButtonDisabled = isNonAdmin || atOfficialLimit || isStartPlan;
+  const officialButtonTitle = isNonAdmin
+    ? 'Em breve'
+    : isStartPlan
     ? 'Disponível apenas para os planos Advanced, Pro ou Enterprise'
     : atOfficialLimit
       ? `Limite de números da API Oficial do plano atingido (${maxOfficialWhatsApp} número(s)). Faça upgrade para adicionar mais.`
