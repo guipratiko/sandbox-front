@@ -777,8 +777,35 @@ export interface SendMessageData {
   text: string;
 }
 
+export interface CrmPreferences {
+  allowDeleteConversationCard: boolean;
+}
+
 // API de CRM
 export const crmAPI = {
+  getPreferences: async (): Promise<{ status: string; preferences: CrmPreferences }> => {
+    return request<{ status: string; preferences: CrmPreferences }>('/crm/preferences');
+  },
+
+  updateAllowDeleteCard: async (body: {
+    enabled: boolean;
+    password?: string;
+  }): Promise<{ status: string; message: string; preferences: CrmPreferences }> => {
+    return request<{ status: string; message: string; preferences: CrmPreferences }>(
+      '/crm/preferences/allow-delete-card',
+      {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }
+    );
+  },
+
+  deleteContact: async (contactId: string): Promise<{ status: string; message: string }> => {
+    return request<{ status: string; message: string }>(`/crm/contacts/${contactId}`, {
+      method: 'DELETE',
+    });
+  },
+
   getColumns: async (): Promise<GetColumnsResponse> => {
     return request<GetColumnsResponse>('/crm/columns');
   },
@@ -1336,6 +1363,8 @@ export interface AIAgent {
   waitTime: number;
   isActive: boolean;
   transcribeAudio: boolean;
+  /** Se true, divide a resposta em várias mensagens no WhatsApp */
+  splitMessages: boolean;
   agentType: 'manual' | 'assisted';
   assistedConfig?: AssistedConfig;
   blockWhenUserReplies?: boolean;
@@ -1352,6 +1381,7 @@ export interface CreateAIAgentData {
   waitTime?: number;
   isActive?: boolean;
   transcribeAudio?: boolean;
+  splitMessages?: boolean;
   agentType?: 'manual' | 'assisted';
   assistedConfig?: AssistedConfig;
   blockWhenUserReplies?: boolean;
@@ -1366,6 +1396,7 @@ export interface UpdateAIAgentData {
   waitTime?: number;
   isActive?: boolean;
   transcribeAudio?: boolean;
+  splitMessages?: boolean;
   agentType?: 'manual' | 'assisted';
   assistedConfig?: AssistedConfig;
   blockWhenUserReplies?: boolean;

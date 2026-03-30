@@ -29,6 +29,7 @@ const AIAgentPage: React.FC = () => {
   const [agentWaitTime, setAgentWaitTime] = useState(13);
   const [agentIsActive, setAgentIsActive] = useState(true);
   const [agentTranscribeAudio, setAgentTranscribeAudio] = useState(true);
+  const [agentSplitMessages, setAgentSplitMessages] = useState(true);
   const [agentType, setAgentType] = useState<'manual' | 'assisted'>('manual');
   const [assistedConfig, setAssistedConfig] = useState<AssistedConfig>({});
   const [blockWhenUserReplies, setBlockWhenUserReplies] = useState(false);
@@ -133,6 +134,7 @@ const AIAgentPage: React.FC = () => {
     setAgentWaitTime(agent.waitTime);
     setAgentIsActive(agent.isActive);
     setAgentTranscribeAudio(agent.transcribeAudio !== undefined ? agent.transcribeAudio : true);
+    setAgentSplitMessages(agent.splitMessages !== false);
     setAgentType(agent.agentType || 'manual');
     setAssistedConfig(agent.assistedConfig || {});
     setBlockWhenUserReplies(agent.blockWhenUserReplies ?? false);
@@ -155,6 +157,7 @@ const AIAgentPage: React.FC = () => {
         waitTime: agentWaitTime,
         isActive: agentIsActive,
         transcribeAudio: agentTranscribeAudio,
+        splitMessages: agentSplitMessages,
         agentType: 'assisted',
         assistedConfig,
         blockWhenUserReplies,
@@ -178,7 +181,7 @@ const AIAgentPage: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [agentName, agentInstanceId, agentWaitTime, agentIsActive, agentTranscribeAudio, assistedConfig, blockWhenUserReplies, blockDuration, blockDurationUnit, t]);
+  }, [agentName, agentInstanceId, agentWaitTime, agentIsActive, agentTranscribeAudio, agentSplitMessages, assistedConfig, blockWhenUserReplies, blockDuration, blockDurationUnit, t]);
 
   // Criar novo agente
   const handleCreateAgent = async () => {
@@ -206,6 +209,7 @@ const AIAgentPage: React.FC = () => {
         waitTime: agentWaitTime,
         isActive: agentIsActive,
         transcribeAudio: agentTranscribeAudio,
+        splitMessages: agentSplitMessages,
         agentType,
         assistedConfig: agentType === 'assisted' ? assistedConfig : undefined,
         blockWhenUserReplies,
@@ -258,6 +262,7 @@ const AIAgentPage: React.FC = () => {
         waitTime: agentWaitTime,
         isActive: agentIsActive,
         transcribeAudio: agentTranscribeAudio,
+        splitMessages: agentSplitMessages,
         agentType,
         assistedConfig: agentType === 'assisted' ? assistedConfig : undefined,
         blockWhenUserReplies,
@@ -485,6 +490,7 @@ const AIAgentPage: React.FC = () => {
                   setAgentWaitTime(13);
                   setAgentIsActive(true);
                   setAgentTranscribeAudio(true);
+                  setAgentSplitMessages(true);
                   setAgentType('manual');
                   setAssistedConfig({});
                   setKnowledgeContent('');
@@ -724,6 +730,22 @@ const AIAgentPage: React.FC = () => {
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 ml-6">
                   {t('aiAgent.transcribeAudioHelper')}
+                </p>
+
+                <div className="flex items-center gap-2 mt-3">
+                  <input
+                    type="checkbox"
+                    id="splitMessages"
+                    checked={agentSplitMessages}
+                    onChange={(e) => setAgentSplitMessages(e.target.checked)}
+                    className="w-4 h-4 text-clerky-backendButton border-gray-300 rounded focus:ring-clerky-backendButton"
+                  />
+                  <label htmlFor="splitMessages" className="text-sm text-gray-700 dark:text-gray-300">
+                    {t('aiAgent.splitMessages')}
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 ml-6">
+                  {t('aiAgent.splitMessagesHelper')}
                 </p>
 
                 <div className="flex gap-2">

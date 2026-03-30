@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AppLayout } from '../components/Layout';
 import { Card, HelpIcon, Button, Modal } from '../components/UI';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import { instanceAPI } from '../services/api';
 import type { Instance, OfficialTemplate, CreateOfficialTemplateBody } from '../services/api';
 import { OfficialTemplateCreator } from '../components/Dispatches/OfficialTemplateCreator';
@@ -9,6 +10,9 @@ import { OfficialDispatchComposer } from '../components/Dispatches/OfficialDispa
 
 const DispatchesOfficial: React.FC = () => {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const isAdmin = user?.admin === true;
+
   const [activeTab, setActiveTab] = useState<'templates' | 'dispatches'>('templates');
   const [instances, setInstances] = useState<Instance[]>([]);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
@@ -55,12 +59,14 @@ const DispatchesOfficial: React.FC = () => {
   }, [selectedInstanceId, t]);
 
   useEffect(() => {
+    if (!isAdmin) return;
     loadInstances();
-  }, [loadInstances]);
+  }, [isAdmin, loadInstances]);
 
   useEffect(() => {
+    if (!isAdmin) return;
     loadTemplates();
-  }, [loadTemplates]);
+  }, [isAdmin, loadTemplates]);
 
   const handleCreateSubmit = async (
     body: CreateOfficialTemplateBody
@@ -83,6 +89,33 @@ const DispatchesOfficial: React.FC = () => {
       setError(msg && typeof msg === 'string' ? msg : t('dispatchesOfficial.errorDelete'));
     }
   };
+
+  if (!isAdmin) {
+    return (
+      <AppLayout>
+        <div className="animate-fadeIn max-w-2xl mx-auto">
+          <div className="mb-6 opacity-60">
+            <h1 className="text-3xl font-bold text-clerky-backendText dark:text-gray-200 mb-2">
+              {t('dispatchesOfficial.title')}
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">{t('dispatchesOfficial.subtitle')}</p>
+          </div>
+          <Card
+            padding="none"
+            shadow="none"
+            className="p-10 text-center border-dashed border-2 border-gray-300 dark:border-gray-600 bg-gray-50/90 dark:bg-gray-800/40 shadow-sm"
+          >
+            <p className="text-lg font-semibold text-clerky-backendText dark:text-gray-200">
+              {t('menu.featureComingSoon')}
+            </p>
+            <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+              {t('dispatchesOfficial.comingSoon')}
+            </p>
+          </Card>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>

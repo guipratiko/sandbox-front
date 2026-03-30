@@ -41,9 +41,11 @@ const SOCKET_URL = getSocketUrl();
 export interface NewMessageData {
   instanceId: string;
   contactId: string;
+  channel?: 'whatsapp' | 'instagram';
   messages: Array<{
     id: string;
     messageId: string;
+    contactId?: string;
     channel?: 'whatsapp' | 'instagram';
     fromMe: boolean;
     messageType: string;
@@ -54,12 +56,24 @@ export interface NewMessageData {
   }>;
 }
 
+/** Payload opcional do evento contact-updated (backend / WebSocket). */
+export interface ContactUpdatedPayload {
+  instanceId?: string;
+  channel?: 'whatsapp' | 'instagram';
+}
+
 export interface GroupInfoResponseData {
   instanceId: string;
   groupId: string;
   restrict: boolean;
   announce: boolean;
   requestId?: string;
+}
+
+/** Lista de instâncias Instagram (gerenciador de conexões) — emissão vinda do Insta-Clerky via backend. */
+export interface InstagramInstanceSocketData {
+  instanceId: string;
+  status: string;
 }
 
 export interface DispatchUpdateData {
@@ -89,12 +103,13 @@ let globalToken: string | null = null;
 const callbacks = new Set<{
   onStatusUpdate?: (data: { instanceId: string; status: string }) => void;
   onNewMessage?: (data: NewMessageData) => void;
-  onContactUpdate?: () => void;
+  onContactUpdate?: (payload?: ContactUpdatedPayload) => void;
   onDispatchUpdate?: (data: DispatchUpdateData) => void;
   onWorkflowContactUpdate?: (data: { workflowId: string; contactPhone: string; instanceId: string }) => void;
   onGroupsUpdate?: (data: { instanceId: string }) => void;
   onGroupInfoResponse?: (data: GroupInfoResponseData) => void;
   onScrapingCreditsUpdate?: (data: { credits: number }) => void;
+  onInstagramInstanceUpdate?: (data: InstagramInstanceSocketData) => void;
 }>();
 
 /**
@@ -104,12 +119,13 @@ const callbacks = new Set<{
 const createCallbackObj = (callbackRef: React.MutableRefObject<{
   onStatusUpdate?: (data: { instanceId: string; status: string }) => void;
   onNewMessage?: (data: NewMessageData) => void;
-  onContactUpdate?: () => void;
+  onContactUpdate?: (payload?: ContactUpdatedPayload) => void;
   onDispatchUpdate?: (data: DispatchUpdateData) => void;
   onWorkflowContactUpdate?: (data: { workflowId: string; contactPhone: string; instanceId: string }) => void;
   onGroupsUpdate?: (data: { instanceId: string }) => void;
   onGroupInfoResponse?: (data: GroupInfoResponseData) => void;
   onScrapingCreditsUpdate?: (data: { credits: number }) => void;
+  onInstagramInstanceUpdate?: (data: InstagramInstanceSocketData) => void;
 }>) => ({
   get onStatusUpdate() { return callbackRef.current.onStatusUpdate; },
   get onNewMessage() { return callbackRef.current.onNewMessage; },
@@ -119,6 +135,7 @@ const createCallbackObj = (callbackRef: React.MutableRefObject<{
   get onGroupsUpdate() { return callbackRef.current.onGroupsUpdate; },
   get onGroupInfoResponse() { return callbackRef.current.onGroupInfoResponse; },
   get onScrapingCreditsUpdate() { return callbackRef.current.onScrapingCreditsUpdate; },
+  get onInstagramInstanceUpdate() { return callbackRef.current.onInstagramInstanceUpdate; },
 });
 
 /**
@@ -139,19 +156,50 @@ export const useSocket = (
   token: string | null,
   onStatusUpdate?: (data: { instanceId: string; status: string }) => void,
   onNewMessage?: (data: NewMessageData) => void,
-  onContactUpdate?: () => void,
+  onContactUpdate?: (payload?: ContactUpdatedPayload) => void,
   onDispatchUpdate?: (data: DispatchUpdateData) => void,
   onWorkflowContactUpdate?: (data: { workflowId: string; contactPhone: string; instanceId: string }) => void,
   onGroupsUpdate?: (data: { instanceId: string }) => void,
   onGroupInfoResponse?: (data: GroupInfoResponseData) => void,
-  onScrapingCreditsUpdate?: (data: { credits: number }) => void
+  onScrapingCreditsUpdate?: (data: { credits: number }) => void,
+  onInstagramInstanceUpdate?: (data: InstagramInstanceSocketData) => void
 ) => {
-  const callbackRef = useRef({ onStatusUpdate, onNewMessage, onContactUpdate, onDispatchUpdate, onWorkflowContactUpdate, onGroupsUpdate, onGroupInfoResponse, onScrapingCreditsUpdate });
+  const callbackRef = useRef({
+    onStatusUpdate,
+    onNewMessage,
+    onContactUpdate,
+    onDispatchUpdate,
+    onWorkflowContactUpdate,
+    onGroupsUpdate,
+    onGroupInfoResponse,
+    onScrapingCreditsUpdate,
+    onInstagramInstanceUpdate,
+  });
 
   // Atualizar referências dos callbacks
   useEffect(() => {
-    callbackRef.current = { onStatusUpdate, onNewMessage, onContactUpdate, onDispatchUpdate, onWorkflowContactUpdate, onGroupsUpdate, onGroupInfoResponse, onScrapingCreditsUpdate };
-  }, [onStatusUpdate, onNewMessage, onContactUpdate, onDispatchUpdate, onWorkflowContactUpdate, onGroupsUpdate, onGroupInfoResponse, onScrapingCreditsUpdate]);
+    callbackRef.current = {
+      onStatusUpdate,
+      onNewMessage,
+      onContactUpdate,
+      onDispatchUpdate,
+      onWorkflowContactUpdate,
+      onGroupsUpdate,
+      onGroupInfoResponse,
+      onScrapingCreditsUpdate,
+      onInstagramInstanceUpdate,
+    };
+  }, [
+    onStatusUpdate,
+    onNewMessage,
+    onContactUpdate,
+    onDispatchUpdate,
+    onWorkflowContactUpdate,
+    onGroupsUpdate,
+    onGroupInfoResponse,
+    onScrapingCreditsUpdate,
+    onInstagramInstanceUpdate,
+  ]);
 
   useEffect(() => {
     if (!token) {
@@ -218,6 +266,7 @@ export const useSocket = (
         socket.off('groups-updated');
         socket.off('group-info-response');
         socket.off('scraping-credits-updated');
+        socket.off('instagram-instance-updated');
         socket.off('error');
 
       socket.on('instance-status-updated', (data: { instanceId: string; status: string }) => {
@@ -228,10 +277,10 @@ export const useSocket = (
         });
       });
 
-      socket.on('contact-updated', () => {
+      socket.on('contact-updated', (payload?: ContactUpdatedPayload) => {
         callbacks.forEach((cb) => {
           if (cb.onContactUpdate) {
-            cb.onContactUpdate();
+            cb.onContactUpdate(payload);
           }
         });
       });
@@ -282,6 +331,14 @@ export const useSocket = (
         callbacks.forEach((cb) => {
           if (cb.onScrapingCreditsUpdate) {
             cb.onScrapingCreditsUpdate(data);
+          }
+        });
+      });
+
+      socket.on('instagram-instance-updated', (data: InstagramInstanceSocketData) => {
+        callbacks.forEach((cb) => {
+          if (cb.onInstagramInstanceUpdate) {
+            cb.onInstagramInstanceUpdate(data);
           }
         });
       });

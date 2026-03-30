@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { AppLayout } from '../components/Layout';
-import { Card, Button, Input, PasswordInput, ProfilePictureUpload } from '../components/UI';
+import { Card, Button, Input, PasswordInput, ProfilePictureUpload, Modal } from '../components/UI';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { authAPI, crmAPI, CRMColumn, Label, subscriptionAPI, Subscription } from '../services/api';
@@ -54,6 +54,11 @@ const Settings: React.FC = () => {
   const [columnNames, setColumnNames] = useState<Record<string, string>>({});
   const [isLoadingColumns, setIsLoadingColumns] = useState(false);
   const [columnErrors, setColumnErrors] = useState<Record<string, string>>({});
+  const [allowDeleteCard, setAllowDeleteCard] = useState(false);
+  const [showDeleteCardPasswordModal, setShowDeleteCardPasswordModal] = useState(false);
+  const [deleteCardPassword, setDeleteCardPassword] = useState('');
+  const [deleteCardPasswordError, setDeleteCardPasswordError] = useState('');
+  const [isSavingDeleteCardPref, setIsSavingDeleteCardPref] = useState(false);
 
   // Estados para labels
   const [labels, setLabels] = useState<Label[]>([]);
@@ -128,12 +133,22 @@ const Settings: React.FC = () => {
     }
   };
 
-  // Carregar colunas do Kanban
+  // Carregar colunas do Kanban e preferências do CRM
   useEffect(() => {
     if (activeTab === 'kanban') {
       loadColumns();
+      loadCrmPreferencesForKanban();
     }
   }, [activeTab]);
+
+  const loadCrmPreferencesForKanban = async () => {
+    try {
+      const res = await crmAPI.getPreferences();
+      setAllowDeleteCard(!!res.preferences?.allowDeleteConversationCard);
+    } catch (error: any) {
+      console.error('Erro ao carregar preferências do CRM:', error);
+    }
+  };
 
   // Carregar labels
   useEffect(() => {
@@ -424,6 +439,27 @@ const Settings: React.FC = () => {
     }
   };
 
+  const handleConfirmEnableDeleteCard = async () => {
+    setDeleteCardPasswordError('');
+    if (!deleteCardPassword.trim()) {
+      setDeleteCardPasswordError(t('settings.allowDeleteCardPasswordRequired'));
+      return;
+    }
+    try {
+      setIsSavingDeleteCardPref(true);
+      await crmAPI.updateAllowDeleteCard({ enabled: true, password: deleteCardPassword });
+      setAllowDeleteCard(true);
+      setShowDeleteCardPasswordModal(false);
+      setDeleteCardPassword('');
+      setSuccessMessage(t('settings.allowDeleteCardEnabled'));
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (error: any) {
+      setDeleteCardPasswordError(error.message || t('settings.allowDeleteCardWrongPassword'));
+    } finally {
+      setIsSavingDeleteCardPref(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="animate-fadeIn max-w-4xl mx-auto p-4 md:p-6">
@@ -473,7 +509,7 @@ const Settings: React.FC = () => {
                 : 'text-gray-500 dark:text-gray-400 hover:text-clerky-backendText dark:hover:text-gray-200'
             }`}
           >
-            Colunas do Kanban
+            {t('settings.kanbanTab')}
           </button>
           <button
             onClick={() => setActiveTab('labels')}
@@ -772,11 +808,51 @@ const Settings: React.FC = () => {
             <div className="space-y-4 md:space-y-6">
               <div>
                 <h2 className="text-lg md:text-xl font-semibold text-clerky-backendText dark:text-gray-200 mb-2">
-                  Gerenciar Colunas do Kanban
+                  {t('settings.kanbanColumnsHeading')}
                 </h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 md:mb-6">
-                  Edite os nomes das colunas do seu Kanban CRM. As alterações serão aplicadas imediatamente.
+                  {t('settings.kanbanColumnsDescription')}
                 </p>
+              </div>
+
+              <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#091D41]">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 rounded border-gray-300 text-clerky-backendButton focus:ring-clerky-backendButton"
+                    checked={allowDeleteCard}
+                    disabled={isSavingDeleteCardPref}
+                    onChange={async (e) => {
+                      const checked = e.target.checked;
+                      if (checked) {
+                        setDeleteCardPassword('');
+                        setDeleteCardPasswordError('');
+                        setShowDeleteCardPasswordModal(true);
+                        return;
+                      }
+                      try {
+                        setIsSavingDeleteCardPref(true);
+                        await crmAPI.updateAllowDeleteCard({ enabled: false });
+                        setAllowDeleteCard(false);
+                        setSuccessMessage(t('settings.allowDeleteCardDisabled'));
+                        setTimeout(() => setSuccessMessage(null), 4000);
+                      } catch (err: any) {
+                        setSuccessMessage(null);
+                        alert(err.message || t('settings.allowDeleteCardSaveError'));
+                      } finally {
+                        setIsSavingDeleteCardPref(false);
+                      }
+                    }}
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-clerky-backendText dark:text-gray-200">
+                      {t('settings.allowDeleteCard')}
+                    </span>
+                    <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
+                      {t('settings.allowDeleteCardHint')}
+                    </span>
+                  </span>
+                </label>
               </div>
 
               {isLoadingColumns ? (
@@ -925,6 +1001,55 @@ const Settings: React.FC = () => {
           </Card>
         )}
       </div>
+
+      <Modal
+        isOpen={showDeleteCardPasswordModal}
+        onClose={() => {
+          if (!isSavingDeleteCardPref) {
+            setShowDeleteCardPasswordModal(false);
+            setDeleteCardPassword('');
+            setDeleteCardPasswordError('');
+          }
+        }}
+        title={t('settings.allowDeleteCardPasswordTitle')}
+        size="sm"
+      >
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          {t('settings.allowDeleteCardPasswordDescription')}
+        </p>
+        <PasswordInput
+          id="allow-delete-card-password"
+          name="allowDeleteCardPassword"
+          label={t('settings.currentPassword')}
+          value={deleteCardPassword}
+          onChange={(e) => setDeleteCardPassword(e.target.value)}
+          placeholder={t('settings.currentPasswordPlaceholder')}
+          error={deleteCardPasswordError}
+          autoComplete="current-password"
+        />
+        <div className="flex flex-col-reverse sm:flex-row gap-2 mt-6 justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isSavingDeleteCardPref}
+            onClick={() => {
+              setShowDeleteCardPasswordModal(false);
+              setDeleteCardPassword('');
+              setDeleteCardPasswordError('');
+            }}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            isLoading={isSavingDeleteCardPref}
+            onClick={handleConfirmEnableDeleteCard}
+          >
+            {t('common.confirm')}
+          </Button>
+        </div>
+      </Modal>
     </AppLayout>
   );
 };

@@ -162,6 +162,7 @@ const translations = {
     'menu.connectionManager': 'Instâncias',
     'menu.dispatches': 'Disparos',
     'menu.dispatchesOfficial': 'Disparos Oficial',
+    'menu.featureComingSoon': 'Em breve',
     'menu.crm': 'CRM',
     'menu.mindFlow': 'ManyFlow',
     'menu.manyFlow': 'ManyFlow',
@@ -329,6 +330,10 @@ const translations = {
     'menu.documentation': 'Documentação',
     'menu.settings': 'Configurações',
     'menu.logout': 'Sair',
+    'sidebar.collapse': 'Recolher',
+    'sidebar.expand': 'Expandir',
+    'sidebar.collapseCrmTooltip':
+      'Dica: as colunas do CRM ficam com melhor visualização quando o menu lateral está recolhido.',
     // Common
     'common.appName': 'OnlyFlow',
     'common.comingSoon': 'Em breve...',
@@ -349,6 +354,10 @@ const translations = {
     'crm.dragContactsHere': 'Arraste contatos aqui',
     'crm.contact': 'contato',
     'crm.contacts': 'contatos',
+    'crm.deleteCard': 'Excluir conversa do CRM',
+    'crm.deleteCardConfirm':
+      'Excluir este card e todo o histórico de mensagens deste contato no CRM? Esta ação não pode ser desfeita.',
+    'crm.deleteCardError': 'Não foi possível excluir o contato. Tente novamente.',
     // Settings
     'settings.title': 'Configurações',
     'settings.subtitle': 'Gerencie seu perfil, senha e preferências do sistema',
@@ -380,6 +389,21 @@ const translations = {
     'settings.updatePassword': 'Atualizar Senha',
     'settings.updating': 'Atualizando...',
     'settings.passwordUpdated': 'Senha alterada com sucesso!',
+    'settings.kanbanTab': 'Kanban',
+    'settings.kanbanColumnsHeading': 'Gerenciar colunas',
+    'settings.kanbanColumnsDescription':
+      'Edite os nomes das colunas do seu Kanban CRM. As alterações serão aplicadas imediatamente.',
+    'settings.allowDeleteCard': 'Permitir excluir cards de conversa no CRM',
+    'settings.allowDeleteCardHint':
+      'Quando ativado, aparece um botão em cada card para remover o contato e o histórico do Kanban. É necessário confirmar com sua senha para ativar.',
+    'settings.allowDeleteCardPasswordTitle': 'Confirmar com senha',
+    'settings.allowDeleteCardPasswordDescription':
+      'Digite sua senha de acesso para habilitar a exclusão de cards no CRM.',
+    'settings.allowDeleteCardPasswordRequired': 'Digite sua senha.',
+    'settings.allowDeleteCardWrongPassword': 'Senha incorreta.',
+    'settings.allowDeleteCardEnabled': 'Opção ativada: você pode excluir cards no CRM.',
+    'settings.allowDeleteCardDisabled': 'Opção desativada: o botão de excluir não aparecerá mais nos cards.',
+    'settings.allowDeleteCardSaveError': 'Não foi possível salvar a preferência.',
     'settings.selectImage': 'Selecionar Imagem',
     'settings.imageTooLarge': 'A imagem deve ter no máximo 2MB',
     'settings.invalidImageFormat': 'Formato de imagem inválido. Use JPG, PNG ou GIF',
@@ -441,6 +465,9 @@ const translations = {
     'instances.noInstances': 'Nenhuma instância encontrada',
     'instances.noInstancesDescription': 'Crie sua primeira instância WhatsApp para começar.',
     'instances.scanQRCode': 'Escaneie o QR Code com seu WhatsApp',
+    'instances.officialComingSoonPanelTitle': 'Em breve',
+    'instances.officialComingSoonPanelBody':
+      'O gerenciamento de instâncias WhatsApp Oficial (API Cloud) estará disponível em breve.',
     'instances.qrCodeAutoClose': 'O modal será fechado automaticamente quando a conexão for estabelecida.',
     'instances.connectedSuccess': 'Instância conectada com sucesso!',
     'instances.rejectCall': 'Rejeitar chamadas',
@@ -937,6 +964,8 @@ const translations = {
     'aiAgent.isActive': 'Agente ativo',
     'aiAgent.transcribeAudio': 'Transcrever áudios automaticamente',
     'aiAgent.transcribeAudioHelper': 'Quando ativado, mensagens de áudio serão automaticamente transcritas para texto antes de serem processadas pelo agente.',
+    'aiAgent.splitMessages': 'Fracionar resposta em várias mensagens',
+    'aiAgent.splitMessagesHelper': 'Quando ativado, o texto da resposta é dividido em blocos curtos enviados em sequência (mais natural no WhatsApp). Desative para enviar tudo em uma única mensagem.',
     'aiAgent.blockWhenUserReplies': 'Pausar agente quando eu responder ao contato',
     'aiAgent.blockWhenUserRepliesHelper': 'Quando você enviar qualquer mensagem para um contato, o agente deixa de responder automaticamente por um período (ou permanentemente).',
     'aiAgent.blockUnit.minutes': 'Minutos',
@@ -1746,6 +1775,7 @@ const translations = {
     'menu.connectionManager': 'Instances',
     'menu.dispatches': 'Dispatches',
     'menu.dispatchesOfficial': 'Official Dispatches',
+    'menu.featureComingSoon': 'Coming soon',
     'menu.crm': 'CRM',
     'menu.mindFlow': 'ManyFlow',
     'menu.manyFlow': 'ManyFlow',
@@ -1913,6 +1943,10 @@ const translations = {
     'menu.documentation': 'Documentation',
     'menu.settings': 'Settings',
     'menu.logout': 'Logout',
+    'sidebar.collapse': 'Collapse',
+    'sidebar.expand': 'Expand',
+    'sidebar.collapseCrmTooltip':
+      'Tip: CRM columns are easier to view when the side menu is collapsed.',
     // Common
     'common.appName': 'OnlyFlow',
     'common.comingSoon': 'Coming soon...',
@@ -1933,6 +1967,10 @@ const translations = {
     'crm.dragContactsHere': 'Drag contacts here',
     'crm.contact': 'contact',
     'crm.contacts': 'contacts',
+    'crm.deleteCard': 'Remove conversation from CRM',
+    'crm.deleteCardConfirm':
+      'Delete this card and all message history for this contact in the CRM? This cannot be undone.',
+    'crm.deleteCardError': 'Could not delete the contact. Please try again.',
     // Settings
     'settings.title': 'Settings',
     'settings.subtitle': 'Manage your profile, password and system preferences',
@@ -1964,6 +2002,21 @@ const translations = {
     'settings.updatePassword': 'Update Password',
     'settings.updating': 'Updating...',
     'settings.passwordUpdated': 'Password changed successfully!',
+    'settings.kanbanTab': 'Kanban',
+    'settings.kanbanColumnsHeading': 'Manage columns',
+    'settings.kanbanColumnsDescription':
+      'Edit your CRM Kanban column names. Changes apply immediately.',
+    'settings.allowDeleteCard': 'Allow deleting conversation cards in the CRM',
+    'settings.allowDeleteCardHint':
+      'When enabled, each card shows a button to remove the contact and history from the Kanban. Your password is required to turn this on.',
+    'settings.allowDeleteCardPasswordTitle': 'Confirm with password',
+    'settings.allowDeleteCardPasswordDescription':
+      'Enter your account password to enable card deletion in the CRM.',
+    'settings.allowDeleteCardPasswordRequired': 'Enter your password.',
+    'settings.allowDeleteCardWrongPassword': 'Incorrect password.',
+    'settings.allowDeleteCardEnabled': 'Enabled: you can delete cards in the CRM.',
+    'settings.allowDeleteCardDisabled': 'Disabled: the delete button will no longer appear on cards.',
+    'settings.allowDeleteCardSaveError': 'Could not save preference.',
     'settings.selectImage': 'Select Image',
     'settings.imageTooLarge': 'Image must be at most 2MB',
     'settings.invalidImageFormat': 'Invalid image format. Use JPG, PNG or GIF',
@@ -2025,6 +2078,9 @@ const translations = {
     'instances.noInstances': 'No instances found',
     'instances.noInstancesDescription': 'Create your first WhatsApp instance to get started.',
     'instances.scanQRCode': 'Scan the QR Code with your WhatsApp',
+    'instances.officialComingSoonPanelTitle': 'Coming soon',
+    'instances.officialComingSoonPanelBody':
+      'WhatsApp Official (Cloud API) instance management will be available soon.',
     'instances.qrCodeAutoClose': 'The modal will close automatically when the connection is established.',
     'instances.connectedSuccess': 'Instance connected successfully!',
     'instances.rejectCall': 'Reject calls',
@@ -2520,6 +2576,8 @@ const translations = {
     'aiAgent.isActive': 'Active agent',
     'aiAgent.transcribeAudio': 'Transcribe audio automatically',
     'aiAgent.transcribeAudioHelper': 'When enabled, audio messages will be automatically transcribed to text before being processed by the agent.',
+    'aiAgent.splitMessages': 'Split reply into multiple messages',
+    'aiAgent.splitMessagesHelper': 'When enabled, the reply text is split into short chunks sent in sequence (more natural on WhatsApp). Turn off to send everything in a single message.',
     'aiAgent.blockWhenUserReplies': 'Pause agent when I reply to the contact',
     'aiAgent.blockWhenUserRepliesHelper': 'When you send any message to a contact, the agent stops replying automatically for a period (or permanently).',
     'aiAgent.blockUnit.minutes': 'Minutes',

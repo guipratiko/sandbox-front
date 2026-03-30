@@ -5,7 +5,7 @@ import { Card, Button, Modal, HelpIcon } from '../components/UI';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { crmAPI, Contact, CRMColumn, Message, instanceAPI, instagramAPI, Instance, InstagramInstance, Label } from '../services/api';
-import { useSocket, NewMessageData } from '../hooks/useSocket';
+import { useSocket, NewMessageData, ContactUpdatedPayload } from '../hooks/useSocket';
 import { sortMessagesByTimestamp, formatLastMessageContent } from '../utils/messageUtils';
 import { getInitials } from '../utils/formatters';
 import { formatTime } from '../utils/dateFormatters';
@@ -36,6 +36,8 @@ import { CSS } from '@dnd-kit/utilities';
 interface ContactCardProps {
   contact: Contact;
   onClick: () => void;
+  showDeleteButton?: boolean;
+  onDelete?: (contact: Contact) => void;
 }
 
 type CRMInstanceOption = {
@@ -45,7 +47,52 @@ type CRMInstanceOption = {
   channel: 'whatsapp' | 'instagram';
 };
 
-const ContactCard: React.FC<ContactCardProps> = ({ contact, onClick }) => {
+/**
+ * Nome vindo do CRM IG costuma ser "Nome exibido · @usuario" (Insta-Clerky / formatIgContactDisplayName).
+ * Separa o título do card do @ para a linha abaixo da etiqueta Instagram (sem mostrar o ID numérico em `phone`).
+ */
+function parseInstagramContactDisplay(name: string): { title: string; handle: string | null } {
+  const trimmed = name.trim();
+  const dotSep = trimmed.match(/^(.+?)\s*·\s*(@[A-Za-z0-9._]+)\s*$/u);
+  if (dotSep) {
+    const titlePart = dotSep[1].trim();
+    return { title: titlePart || trimmed, handle: dotSep[2] };
+  }
+  const loneHandle = trimmed.match(/^(@[A-Za-z0-9._]+)$/u);
+  if (loneHandle) {
+    return { title: trimmed, handle: loneHandle[1] };
+  }
+  const embedded = trimmed.match(/@([A-Za-z0-9._]+)/u);
+  if (embedded) {
+    const handle = `@${embedded[1]}`;
+    let title = trimmed.replace(/\s*·\s*@[A-Za-z0-9._]+/u, '').trim();
+    title = title.replace(new RegExp(`\\s*${handle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'g'), ' ').trim();
+    if (!title) title = trimmed;
+    return { title, handle };
+  }
+  return { title: trimmed, handle: null };
+}
+
+/** Prévia da última mensagem: remove cercas markdown, aspas iniciais e espaços extras. */
+function formatCrmCardPreview(text: string): string {
+  let s = String(text).trim();
+  s = s.replace(/^```[\w]*\s*/i, '').replace(/\s*```\s*$/, '');
+  s = s.replace(/^[`'"«»\s]+/, '').replace(/[`'"«»\s]+$/, '');
+  return s.trim();
+}
+
+const ContactCard: React.FC<ContactCardProps> = ({
+  contact,
+  onClick,
+  showDeleteButton,
+  onDelete,
+}) => {
+  const { t } = useLanguage();
+  const isInstagram = contact.channel === 'instagram';
+  const igParsed = isInstagram ? parseInstagramContactDisplay(contact.name) : null;
+  const cardTitle = igParsed?.title ?? contact.name;
+  const instagramHandle = igParsed?.handle ?? null;
+
   const {
     attributes,
     listeners,
@@ -63,6 +110,10 @@ const ContactCard: React.FC<ContactCardProps> = ({ contact, onClick }) => {
   };
 
 
+  const hasLabels = Boolean(contact.labels && contact.labels.length > 0);
+  /** Reserva espaço à direita (corpo do card) para alinhar com cards que têm exclusão / não lidas */
+  const reserveBodyActions = Boolean(showDeleteButton && onDelete) || contact.unreadCount > 0;
+
   return (
     <div
       ref={setNodeRef}
@@ -70,12 +121,16 @@ const ContactCard: React.FC<ContactCardProps> = ({ contact, onClick }) => {
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className="bg-white dark:bg-[#091D41] rounded-lg p-4 mb-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow duration-150 border border-gray-200 dark:border-gray-700 relative overflow-hidden"
+      className="group mb-1 w-full max-w-full cursor-grab box-border overflow-hidden rounded-lg border border-slate-200/70 bg-[radial-gradient(ellipse_125%_110%_at_50%_-15%,#F0F8FF_0%,#FAFCFF_42%,#ffffff_100%)] p-[13.7px] shadow-[0_9px_34px_-9px_rgba(30,64,120,0.14),0_3px_11px_-5px_rgba(30,58,95,0.08)] backdrop-blur-[5px] transition-[box-shadow,transform] duration-200 active:cursor-grabbing dark:border-slate-600/35 dark:bg-[radial-gradient(ellipse_125%_110%_at_50%_-15%,#152a4a_0%,#0f1f35_48%,#091525_100%)] dark:shadow-[0_11px_38px_-11px_rgba(0,0,0,0.55),0_5px_17px_-7px_rgba(0,0,0,0.35)] hover:shadow-[0_13px_41px_-11px_rgba(30,64,120,0.18),0_5px_15px_-7px_rgba(30,58,95,0.1)] dark:hover:shadow-[0_15px_43px_-11px_rgba(0,0,0,0.6)]"
     >
       {/* Labels no canto superior esquerdo */}
-      {contact.labels && contact.labels.length > 0 && (
-        <div className="absolute top-2 left-2 flex flex-wrap gap-1 z-10 max-w-[calc(100%-3rem)]">
-          {contact.labels.map((label) => (
+      {hasLabels && (
+        <div
+          className={`absolute top-2 left-2 flex flex-wrap gap-1 z-10 ${
+            reserveBodyActions ? 'max-w-[calc(100%-4.25rem)]' : 'max-w-[calc(100%-3rem)]'
+          }`}
+        >
+          {contact.labels!.map((label) => (
             <span
               key={label.id}
               className="px-2 py-0.5 text-xs font-semibold rounded-md text-white shadow-sm truncate max-w-full"
@@ -87,57 +142,132 @@ const ContactCard: React.FC<ContactCardProps> = ({ contact, onClick }) => {
           ))}
         </div>
       )}
-      <div className="flex items-start justify-between gap-2 min-w-0">
-        <div className="flex items-start gap-3 flex-1 min-w-0">
-          {/* Foto de perfil - movida para baixo quando há labels */}
-          <div className={`flex-shrink-0 ${contact.labels && contact.labels.length > 0 ? 'mt-6' : ''}`}>
-            {contact.profilePicture ? (
-              <img
-                src={contact.profilePicture}
-                alt={contact.name}
-                className="w-12 h-12 rounded-full object-cover border-2 border-gray-200 dark:border-gray-700"
-                onError={(e) => {
-                  // Se a imagem falhar ao carregar, mostrar iniciais
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  const parent = target.parentElement;
-                  if (parent) {
-                    parent.innerHTML = `<div class="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-sm">${getInitials(contact.name)}</div>`;
-                  }
-                }}
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-sm">
-                {getInitials(contact.name)}
+
+      <div className={`min-w-0 ${hasLabels ? 'pt-5' : ''}`}>
+        {/* Cabeçalho: uma linha, sem quebra (ellipsis se não couber) */}
+        <div className="mb-2 min-w-0 border-b border-slate-200/90 pb-1.5 dark:border-slate-500/35">
+          <h4
+            className="truncate text-[11.6px] font-medium leading-snug tracking-tight text-slate-800 dark:text-slate-100 whitespace-nowrap"
+            title={cardTitle}
+          >
+            {cardTitle}
+          </h4>
+        </div>
+
+        {/* Corpo: avatar | telefone + prévia (flex-1) | badge + exclusão (faixa estreita) */}
+        <div className="flex min-w-0 items-start gap-1">
+          <div className="relative h-[2.39rem] w-[2.39rem] shrink-0">
+            {/* Bokeh suave por trás da foto */}
+            <div
+              className="pointer-events-none absolute -inset-1 rounded-full bg-[radial-gradient(circle_at_28%_22%,rgba(255,255,255,0.95)_0%,transparent_42%),radial-gradient(circle_at_72%_28%,rgba(186,210,255,0.45)_0%,transparent_32%),radial-gradient(circle_at_55%_78%,rgba(255,245,220,0.5)_0%,transparent_38%)] opacity-90 dark:bg-[radial-gradient(circle_at_30%_25%,rgba(120,160,220,0.35)_0%,transparent_45%),radial-gradient(circle_at_70%_70%,rgba(80,120,180,0.2)_0%,transparent_40%)] dark:opacity-70"
+              aria-hidden
+            />
+            <div className="relative rounded-full bg-gradient-to-br from-white/95 to-slate-100/90 p-[2px] shadow-[inset_0_2px_5px_rgba(15,23,42,0.14),inset_0_-2px_4px_rgba(255,255,255,0.75)] dark:from-slate-600/50 dark:to-slate-800/85 dark:shadow-[inset_0_2px_9px_rgba(0,0,0,0.5),inset_0_-1px_3px_rgba(255,255,255,0.06)]">
+              <div className="relative overflow-hidden rounded-full ring-1 ring-slate-200/60 dark:ring-slate-500/25">
+                {contact.profilePicture ? (
+                  <img
+                    src={contact.profilePicture}
+                    alt={cardTitle}
+                    className="h-[2.39rem] w-[2.39rem] rounded-full object-cover"
+                    style={{ imageRendering: 'auto' }}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent) {
+                        parent.innerHTML = `<div class="rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold" style="width:2.39rem;height:2.39rem;font-size:0.644rem">${getInitials(cardTitle)}</div>`;
+                      }
+                    }}
+                  />
+                ) : (
+                  <div className="flex h-[2.39rem] w-[2.39rem] items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-[0.644rem] font-semibold text-white">
+                    {getInitials(cardTitle)}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
-          <div className={`flex-1 min-w-0 overflow-hidden ${contact.labels && contact.labels.length > 0 ? 'mt-6 ml-2' : ''}`}>
-            <h4 className="font-semibold text-clerky-backendText dark:text-gray-200 mb-1 truncate max-w-full">
-              {contact.name}
-            </h4>
-            {contact.channel === 'instagram' && (
-              <div className="mb-1">
-                <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300">
+          <div className="flex min-h-[2.39rem] min-w-0 flex-1 flex-col justify-between gap-px overflow-hidden pr-0.5">
+            <div className="min-w-0 space-y-px">
+              {isInstagram && (
+                <span className="inline-flex w-fit items-center rounded px-1.5 py-px text-[8.6px] font-semibold bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300">
                   Instagram
                 </span>
-              </div>
-            )}
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 truncate max-w-full">
-              {contact.phone}
-            </p>
+              )}
+              {isInstagram ? (
+                instagramHandle ? (
+                  <p
+                    className="max-w-full truncate text-[9.6px] font-medium leading-snug text-slate-800 dark:text-slate-100 whitespace-nowrap"
+                    title={instagramHandle}
+                  >
+                    {instagramHandle}
+                  </p>
+                ) : null
+              ) : (
+                <p
+                  className="max-w-full truncate text-[9.6px] font-semibold leading-snug tracking-tight text-slate-800 tabular-nums dark:text-slate-100 whitespace-nowrap"
+                  title={contact.phone}
+                >
+                  {contact.phone}
+                </p>
+              )}
+            </div>
             {contact.lastMessage && (
-              <p className="text-xs text-gray-500 dark:text-gray-500 truncate max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
-                {contact.lastMessage}
+              <p className="line-clamp-3 min-w-0 max-w-full text-left text-[9.6px] font-normal leading-snug text-slate-500 break-words dark:text-slate-400">
+                {formatCrmCardPreview(contact.lastMessage)}
               </p>
             )}
           </div>
+
+          {/* Badge + exclusão: coluna estreita para maximizar texto central */}
+          {reserveBodyActions && (
+            <div
+              className={`flex shrink-0 flex-col items-end justify-start gap-px self-start ${
+                showDeleteButton && onDelete ? 'w-[2.21rem]' : 'w-[1.48rem]'
+              }`}
+            >
+              <div className="h-[1.09rem] w-full flex items-center justify-end shrink-0">
+                {contact.unreadCount > 0 ? (
+                  <span
+                    className="inline-flex h-[1.09rem] min-w-[1.18rem] items-center justify-center rounded-full bg-[#2196F3] px-0.5 text-[8.6px] font-bold tabular-nums leading-none text-white shadow-sm shadow-sky-900/15"
+                    aria-label={String(contact.unreadCount)}
+                  >
+                    {contact.unreadCount > 99 ? '99+' : contact.unreadCount}
+                  </span>
+                ) : null}
+              </div>
+              {showDeleteButton && onDelete && (
+                <button
+                  type="button"
+                  title={t('crm.deleteCard')}
+                  aria-label={t('crm.deleteCard')}
+                  className="rounded-md p-0.5 text-rose-400 transition-colors hover:bg-rose-500/10 hover:text-rose-500 dark:text-rose-400/90 dark:hover:bg-rose-500/15 dark:hover:text-rose-300"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(contact);
+                  }}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-3.5 w-3.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                    aria-hidden
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                    />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
         </div>
-        {contact.unreadCount > 0 && (
-          <span className="ml-2 bg-blue-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0">
-            {contact.unreadCount}
-          </span>
-        )}
       </div>
     </div>
   );
@@ -148,9 +278,17 @@ interface ColumnProps {
   column: CRMColumn;
   contacts: Contact[];
   onContactClick: (contact: Contact) => void;
+  allowDeleteCard?: boolean;
+  onDeleteContact?: (contact: Contact) => void;
 }
 
-const Column: React.FC<ColumnProps> = ({ column, contacts, onContactClick }) => {
+const Column: React.FC<ColumnProps> = ({
+  column,
+  contacts,
+  onContactClick,
+  allowDeleteCard,
+  onDeleteContact,
+}) => {
   const { t } = useLanguage();
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
@@ -161,14 +299,17 @@ const Column: React.FC<ColumnProps> = ({ column, contacts, onContactClick }) => 
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col h-full bg-gray-100 dark:bg-gray-900 rounded-lg p-4 min-w-[239px] transition-all duration-200 border-2 ${
+      className={`flex h-full min-h-0 min-w-0 flex-col bg-gray-100 dark:bg-gray-900 rounded-lg p-2 sm:p-3 transition-all duration-200 border-2 shrink-0 w-[min(249px,85vw)] max-w-[249px] md:w-auto md:max-w-none md:flex-1 md:basis-0 md:min-w-0 ${
         isOver 
           ? 'border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-950 shadow-lg scale-[1.01]' 
           : 'border-transparent'
       }`}
     >
-      <div className="mb-4 pb-4 border-b border-gray-300 dark:border-gray-700">
-        <h3 className="font-semibold text-lg text-clerky-backendText dark:text-gray-200 mb-1">
+      <div className="mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-gray-300 dark:border-gray-700">
+        <h3
+          className="font-semibold text-base md:text-lg text-clerky-backendText dark:text-gray-200 mb-1 truncate"
+          title={column.name}
+        >
           {column.name}
         </h3>
         <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -183,6 +324,8 @@ const Column: React.FC<ColumnProps> = ({ column, contacts, onContactClick }) => 
                 key={contact.id}
                 contact={contact}
                 onClick={() => onContactClick(contact)}
+                showDeleteButton={allowDeleteCard}
+                onDelete={onDeleteContact}
               />
             ))}
           </SortableContext>
@@ -195,6 +338,45 @@ const Column: React.FC<ColumnProps> = ({ column, contacts, onContactClick }) => 
     </div>
   );
 };
+
+/** Quando o backend ainda envia placeholder + URL mas tipo genérico, inferir para renderizar mídia. */
+function effectiveCrmMessageTypeForMedia(msg: Message): string {
+  const mt = msg.messageType || 'conversation';
+  if (
+    ['imageMessage', 'stickerMessage', 'audioMessage', 'videoMessage', 'documentMessage'].includes(mt)
+  ) {
+    return mt;
+  }
+  const url = msg.mediaUrl;
+  if (!url || !String(url).trim()) return mt;
+  const c = (msg.content || '').trim().toLowerCase();
+  const byContent: Record<string, string> = {
+    '[imagem]': 'imageMessage',
+    '[áudio]': 'audioMessage',
+    '[audio]': 'audioMessage',
+    '[vídeo]': 'videoMessage',
+    '[video]': 'videoMessage',
+  };
+  return byContent[c] || mt;
+}
+
+/** Texto só-placeholder de mídia no CRM — não exibir como legenda abaixo da mídia. */
+function isCrmMediaPlaceholderContent(content: string | undefined): boolean {
+  if (content == null || !String(content).trim()) return false;
+  const key = String(content).trim().toLowerCase();
+  const placeholders = new Set([
+    '[mídia]',
+    '[imagem]',
+    '[áudio]',
+    '[audio]',
+    '[vídeo]',
+    '[video]',
+    '[file]',
+    '[share]',
+    '[anexo]',
+  ]);
+  return placeholders.has(key);
+}
 
 // Componente de Modal de Chat
 interface ChatModalProps {
@@ -243,9 +425,18 @@ const ChatModal: React.FC<ChatModalProps> = ({
   const [contactLabels, setContactLabels] = useState<Set<string>>(new Set());
   const [isLoadingLabels, setIsLoadingLabels] = useState(false);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
+
+  /** Garante scroll após o DOM atualizar (mensagens via socket / append). */
+  const scrollToBottomAfterPaint = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+  }, []);
 
   const loadMessages = useCallback(async () => {
     if (!contact) return;
@@ -266,9 +457,12 @@ const ChatModal: React.FC<ChatModalProps> = ({
   const handleNewMessage = useCallback((data: NewMessageData) => {
     if (!contact || !isOpen) return;
 
+    if (data.instanceId && String(data.instanceId) !== String(contact.instanceId)) {
+      return;
+    }
+
     // Verificar se a mensagem é para o contato atual
-    if (data.contactId !== contact.id) {
-      // É para outro contato, apenas atualizar lista de contatos
+    if (String(data.contactId) !== String(contact.id)) {
       return;
     }
 
@@ -316,17 +510,27 @@ const ChatModal: React.FC<ChatModalProps> = ({
       return sorted;
     });
 
-    // Scroll suave para a última mensagem após um pequeno delay
-    setTimeout(() => {
-      scrollToBottom();
-    }, 100);
-  }, [contact, isOpen]);
+    scrollToBottomAfterPaint();
+  }, [contact, isOpen, scrollToBottomAfterPaint]);
 
-  // Callback para atualizar lista de contatos (quando contato é atualizado)
-  const handleContactUpdate = useCallback(() => {
-    // Apenas atualizar lista de contatos, não recarregar mensagens
-    // Isso será tratado pelo componente pai se necessário
-  }, []);
+  // WhatsApp: contact-updated pode exigir recarga da thread. Instagram: usar só new-message (append).
+  const handleContactUpdate = useCallback(
+    (payload?: ContactUpdatedPayload) => {
+      if (!contact || !isOpen) return;
+      if (contact.channel === 'instagram' || payload?.channel === 'instagram') {
+        return;
+      }
+      if (
+        payload?.instanceId != null &&
+        String(payload.instanceId).trim() !== '' &&
+        String(payload.instanceId) !== String(contact.instanceId)
+      ) {
+        return;
+      }
+      loadMessages();
+    },
+    [contact, isOpen, loadMessages]
+  );
 
   // Conectar ao WebSocket para receber novas mensagens em tempo real
   useSocket(token, undefined, handleNewMessage, handleContactUpdate);
@@ -387,6 +591,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
         const filtered = prev.filter((msg) => msg.id !== optimisticMessage.id);
         return sortMessagesByTimestamp([...filtered, response.data]);
       });
+      scrollToBottomAfterPaint();
     } catch (error: any) {
       console.error('Erro ao enviar mensagem:', error);
       // Remover mensagem otimista em caso de erro
@@ -481,6 +686,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
         const filtered = prev.filter((msg) => msg.id !== optimisticMessage.id);
         return sortMessagesByTimestamp([...filtered, response.data]);
       });
+      scrollToBottomAfterPaint();
 
       // Limpar estado
       setSelectedFile(null);
@@ -589,9 +795,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
 
             setMessages((prev) => sortMessagesByTimestamp([...prev, optimisticMessage]));
 
-            setTimeout(() => {
-              scrollToBottom();
-            }, 100);
+            scrollToBottomAfterPaint();
           } catch (error: any) {
             console.error('[CRM] Erro ao enviar áudio:', error?.message || error, error);
             alert('Erro ao enviar áudio. Tente novamente.');
@@ -785,11 +989,16 @@ const ChatModal: React.FC<ChatModalProps> = ({
           ) : (
             <div className="space-y-3 sm:space-y-4">
               {messages.map((msg) => {
-                const isMedia = msg.mediaUrl && msg.content === '[Mídia]';
-                const isImage = isMedia && (msg.messageType === 'imageMessage' || msg.messageType === 'stickerMessage');
-                const isAudio = isMedia && msg.messageType === 'audioMessage';
-                const isVideo = isMedia && msg.messageType === 'videoMessage';
-                const isDocument = isMedia && msg.messageType === 'documentMessage';
+                const effType = effectiveCrmMessageTypeForMedia(msg);
+                const isMedia =
+                  !!msg.mediaUrl &&
+                  ['imageMessage', 'stickerMessage', 'audioMessage', 'videoMessage', 'documentMessage'].includes(
+                    effType
+                  );
+                const isImage = isMedia && (effType === 'imageMessage' || effType === 'stickerMessage');
+                const isAudio = isMedia && effType === 'audioMessage';
+                const isVideo = isMedia && effType === 'videoMessage';
+                const isDocument = isMedia && effType === 'documentMessage';
 
                 const isNewMessage = newMessageIds.has(msg.id);
 
@@ -866,6 +1075,15 @@ const ChatModal: React.FC<ChatModalProps> = ({
                           )}
                           {!isImage && !isVideo && !isAudio && !isDocument && (
                             <p className="text-sm">[Mídia não suportada]</p>
+                          )}
+                          {msg.content && !isCrmMediaPlaceholderContent(msg.content) && (
+                            <p
+                              className={`text-sm mt-2 whitespace-pre-wrap break-words ${
+                                msg.fromMe ? 'text-white/95' : 'text-clerky-backendText dark:text-gray-200'
+                              }`}
+                            >
+                              {msg.content}
+                            </p>
                           )}
                         </div>
                       ) : (
@@ -1112,6 +1330,7 @@ const CRM: React.FC = () => {
   const [instances, setInstances] = useState<CRMInstanceOption[]>([]);
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [selectedChannel, setSelectedChannel] = useState<'whatsapp' | 'instagram' | null>(null);
+  const [allowDeleteCard, setAllowDeleteCard] = useState(false);
   // Map de contatos abertos: contactId -> Contact
   const [openChats, setOpenChats] = useState<Map<string, Contact>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -1165,6 +1384,35 @@ const CRM: React.FC = () => {
       }));
       const merged = [...whatsappInstances, ...instagramInstances];
       setInstances(merged);
+
+      let saved: { instanceId: string; channel: 'whatsapp' | 'instagram' } | null = null;
+      try {
+        const raw = localStorage.getItem('crm.selectedInstanceV1');
+        if (raw) {
+          const parsed = JSON.parse(raw) as { instanceId?: string; channel?: string };
+          if (
+            parsed.instanceId &&
+            (parsed.channel === 'whatsapp' || parsed.channel === 'instagram')
+          ) {
+            saved = { instanceId: parsed.instanceId, channel: parsed.channel };
+          }
+        }
+      } catch {
+        saved = null;
+      }
+
+      const matchSaved =
+        saved &&
+        merged.find(
+          (i) =>
+            String(i.id).trim() === String(saved!.instanceId).trim() && i.channel === saved!.channel
+        );
+
+      if (matchSaved) {
+        setSelectedInstanceId(matchSaved.id);
+        setSelectedChannel(matchSaved.channel);
+        return;
+      }
 
       const connectedInstance = merged.find((inst) => inst.status === 'connected');
       if (connectedInstance) {
@@ -1227,6 +1475,8 @@ const CRM: React.FC = () => {
       return;
     }
 
+    const contactIdNorm = String(data.contactId);
+
     // Se não há instância selecionada, não fazer nada
     if (!selectedInstanceId) {
       return;
@@ -1244,7 +1494,7 @@ const CRM: React.FC = () => {
     // Atualizar o contato específico que recebeu a mensagem
       setContacts((prevContacts) => {
       // Verificar se o contato existe na lista atual
-        const contactExists = prevContacts.some((c) => c.id === data.contactId);
+        const contactExists = prevContacts.some((c) => String(c.id) === contactIdNorm);
         
       // Se o contato não existe na lista atual, recarregar lista completa
         if (!contactExists) {
@@ -1256,7 +1506,7 @@ const CRM: React.FC = () => {
 
         // Atualizar o contato específico
         const updatedContacts = prevContacts.map((contact) => {
-          if (contact.id === data.contactId) {
+          if (String(contact.id) === contactIdNorm) {
             // Pegar a última mensagem (a mais recente)
             const lastMessage = data.messages && data.messages.length > 0 
               ? data.messages[data.messages.length - 1] 
@@ -1290,11 +1540,21 @@ const CRM: React.FC = () => {
   const lastContactUpdateRef = useRef<number>(0);
   const contactUpdateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleContactUpdate = useCallback(() => {
+  const handleContactUpdate = useCallback((payload?: ContactUpdatedPayload) => {
     // Usar debounce para evitar recarregamentos excessivos
-    // O handleNewMessage já atualiza os cards em tempo real
-    // Este callback só é necessário para atualizações de estrutura (labels, colunas, etc)
     if (!selectedInstanceId) return;
+
+    if (payload?.channel === 'instagram') {
+      return;
+    }
+
+    if (
+      payload?.instanceId != null &&
+      String(payload.instanceId).trim() !== '' &&
+      String(payload.instanceId) !== String(selectedInstanceId)
+    ) {
+      return;
+    }
 
     const now = Date.now();
     const timeSinceLastUpdate = now - lastContactUpdateRef.current;
@@ -1332,6 +1592,28 @@ const CRM: React.FC = () => {
     loadInstances();
     loadColumns();
   }, []);
+
+  // Gravar só quando há seleção válida. NUNCA apagar só porque o estado inicial é null —
+  // no primeiro paint isso apagava o localStorage antes de loadInstances restaurar a escolha.
+  useEffect(() => {
+    if (!selectedInstanceId || !selectedChannel) return;
+    try {
+      localStorage.setItem(
+        'crm.selectedInstanceV1',
+        JSON.stringify({ instanceId: selectedInstanceId, channel: selectedChannel })
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [selectedInstanceId, selectedChannel]);
+
+  useEffect(() => {
+    if (!token) return;
+    crmAPI
+      .getPreferences()
+      .then((r) => setAllowDeleteCard(!!r.preferences?.allowDeleteConversationCard))
+      .catch(() => setAllowDeleteCard(false));
+  }, [token]);
 
   useEffect(() => {
     if (selectedInstanceId) {
@@ -1459,6 +1741,21 @@ const CRM: React.FC = () => {
     loadContacts(); // Recarregar para atualizar contador de não lidas
   };
 
+  const handleDeleteContact = async (contact: Contact) => {
+    if (!window.confirm(t('crm.deleteCardConfirm'))) return;
+    try {
+      await crmAPI.deleteContact(contact.id);
+      setContacts((prev) => prev.filter((c) => c.id !== contact.id));
+      setOpenChats((prev) => {
+        const next = new Map(prev);
+        next.delete(contact.id);
+        return next;
+      });
+    } catch (error: any) {
+      alert(error.message || t('crm.deleteCardError'));
+    }
+  };
+
   const draggedContact = activeId ? contacts.find((c) => c.id === activeId) : null;
 
   return (
@@ -1487,9 +1784,16 @@ const CRM: React.FC = () => {
                   if (!value) {
                     setSelectedInstanceId(null);
                     setSelectedChannel(null);
+                    try {
+                      localStorage.removeItem('crm.selectedInstanceV1');
+                    } catch {
+                      /* ignore */
+                    }
                     return;
                   }
-                  const [channel, id] = value.split(':');
+                  const colon = value.indexOf(':');
+                  const channel = colon >= 0 ? value.slice(0, colon) : '';
+                  const id = colon >= 0 ? value.slice(colon + 1) : '';
                   setSelectedInstanceId(id || null);
                   setSelectedChannel((channel as 'whatsapp' | 'instagram') || null);
                 }}
@@ -1546,13 +1850,18 @@ const CRM: React.FC = () => {
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: 'calc(100vh - 250px)' }}>
+            <div
+              className="flex w-full min-w-0 max-w-full gap-2 sm:gap-3 md:gap-4 pb-4 overflow-x-auto md:overflow-x-hidden"
+              style={{ minHeight: 'calc(100vh - 250px)' }}
+            >
               {columns.map((column, index) => (
                 <React.Fragment key={column.id}>
                   <Column
                     column={column}
                     contacts={getContactsByColumn(column.id)}
                     onContactClick={handleContactClick}
+                    allowDeleteCard={allowDeleteCard}
+                    onDeleteContact={handleDeleteContact}
                   />
                   {index < columns.length - 1 && (
                     <div className="w-px bg-gray-300 dark:bg-gray-700 flex-shrink-0" />
@@ -1562,24 +1871,32 @@ const CRM: React.FC = () => {
             </div>
             <DragOverlay>
               {draggedContact ? (
-                <div className="bg-white dark:bg-[#091D41] rounded-lg p-4 border border-gray-200 dark:border-gray-700 shadow-lg opacity-90 w-[222px]">
-                  <div className="flex items-center gap-3">
+                <div className="box-border w-[225px] max-w-[225px] rounded-lg border border-slate-200/70 bg-[radial-gradient(ellipse_125%_110%_at_50%_-15%,#F0F8FF_0%,#FAFCFF_42%,#ffffff_100%)] p-[13.7px] opacity-95 shadow-[0_9px_34px_-9px_rgba(30,64,120,0.16)] backdrop-blur-sm dark:border-slate-600/35 dark:bg-[radial-gradient(ellipse_125%_110%_at_50%_-15%,#152a4a_0%,#0f1f35_48%,#091525_100%)] dark:shadow-[0_11px_38px_-11px_rgba(0,0,0,0.5)]">
+                  <div className="flex items-center gap-2">
                     {draggedContact.profilePicture ? (
                       <img
                         src={draggedContact.profilePicture}
                         alt={draggedContact.name}
-                        className="w-10 h-10 rounded-full object-cover"
+                        className="h-[2.39rem] w-[2.39rem] rounded-full object-cover ring-1 ring-slate-200/60 dark:ring-slate-500/25"
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-xs">
+                      <div className="flex h-[2.39rem] w-[2.39rem] items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-[0.644rem] font-semibold text-white">
                         {getInitials(draggedContact.name)}
                       </div>
                     )}
-                    <div>
-                      <h4 className="font-semibold text-clerky-backendText dark:text-gray-200 mb-1">
+                    <div className="min-w-0 flex-1">
+                      <h4
+                        className="mb-0.5 truncate text-[11.6px] font-medium leading-snug text-slate-800 dark:text-slate-100 whitespace-nowrap"
+                        title={draggedContact.name}
+                      >
                         {draggedContact.name}
                       </h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{draggedContact.phone}</p>
+                      <p
+                        className="truncate text-[9.6px] font-semibold tabular-nums text-slate-800 dark:text-slate-200 whitespace-nowrap"
+                        title={draggedContact.phone}
+                      >
+                        {draggedContact.phone}
+                      </p>
                     </div>
                   </div>
                 </div>

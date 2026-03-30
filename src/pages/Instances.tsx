@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AppLayout } from '../components/Layout';
 import { HelpIcon } from '../components/UI';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import WhatsAppInstances from '../components/WhatsApp/WhatsAppInstances';
 import WhatsAppOfficialInstances from '../components/WhatsApp/WhatsAppOfficialInstances';
 import InstagramInstances from '../components/Instagram/InstagramInstances';
@@ -11,6 +12,8 @@ type TabKey = 'whatsapp' | 'whatsapp-official' | 'instagram';
 
 const Instances: React.FC = () => {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const isAdmin = user?.admin === true;
 
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -52,12 +55,18 @@ const Instances: React.FC = () => {
               WhatsApp
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('whatsapp-official')}
+              title={
+                !isAdmin
+                  ? `${t('instances.officialComingSoonPanelTitle')}: ${t('instances.officialComingSoonPanelBody')}`
+                  : undefined
+              }
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'whatsapp-official'
                   ? 'border-clerky-backendButton text-clerky-backendButton'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-              }`}
+              } ${!isAdmin ? 'opacity-50 hover:opacity-70' : ''}`}
             >
               WhatsApp Oficial
             </button>
@@ -91,7 +100,21 @@ const Instances: React.FC = () => {
                 : 'opacity-0 absolute inset-0 pointer-events-none translate-x-4'
             }`}
           >
-            <WhatsAppOfficialInstances />
+            {!isAdmin ? (
+              <div
+                className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/90 dark:bg-gray-800/50 px-6 py-14 text-center opacity-95"
+                role="status"
+              >
+                <p className="text-lg font-semibold text-clerky-backendText dark:text-gray-200">
+                  {t('instances.officialComingSoonPanelTitle')}
+                </p>
+                <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+                  {t('instances.officialComingSoonPanelBody')}
+                </p>
+              </div>
+            ) : (
+              <WhatsAppOfficialInstances />
+            )}
           </div>
           <div
             className={`transition-all duration-300 ease-in-out ${

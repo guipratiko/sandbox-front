@@ -19,6 +19,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const isMobile = useIsMobile();
+  const isCrmPage = location.pathname === '/crm';
+  const showCrmCollapseHint = isCrmPage && !isCollapsed && Boolean(onToggleCollapse);
   
   const handleLanguageToggle = () => {
     setLanguage(language === 'pt' ? 'en' : 'pt');
@@ -31,6 +33,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
     isMobileRestricted?: boolean;
     isPremiumRestricted?: boolean;
     isStartRestricted?: boolean;
+    /** Só administradores; demais usuários veem item opaco e “em breve”. */
+    isAdminOnly?: boolean;
   }
 
   const isAdmin = user?.admin === true;
@@ -69,6 +73,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       path: '/disparo-api', 
       key: 'menu.dispatchesOfficial',
       isPremiumRestricted: true,
+      isAdminOnly: true,
       icon: (
         <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -211,38 +216,55 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
             const isPremiumRestricted = item.isPremiumRestricted && (!user || !user.premiumPlan || user.premiumPlan === 'free');
             const isStartRestricted = item.isStartRestricted && user?.premiumPlan === 'start';
             const isRestricted = isMobileRestricted || isPremiumRestricted || isStartRestricted;
-            
+            const isAdminOnlyLocked = item.isAdminOnly === true && !isAdmin && !isRestricted;
+
+            const looksDisabled = isRestricted || isAdminOnlyLocked;
+            const dimClass = looksDisabled
+              ? isAdminOnlyLocked
+                ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-50'
+                : 'text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-60'
+              : '';
+
             const itemContent = (
               <div
               className={`
                 flex items-center ${isCollapsed ? 'justify-center' : ''} gap-3 ${isCollapsed ? 'px-2' : 'px-4'} py-2.5 rounded-lg
                   transition-all duration-200 relative
                 ${
-                    isActive(item.path) && !isRestricted
+                    isActive(item.path) && !looksDisabled
                     ? 'bg-clerky-backendButton text-white shadow-md'
-                      : isRestricted
-                      ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-60'
+                      : looksDisabled
+                      ? dimClass
                     : 'text-clerky-backendText dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 hover:shadow-sm'
                 }
               `}
                 title={
-                  isCollapsed 
-                    ? t(item.key) 
-                    : isMobileRestricted 
+                  isCollapsed
+                    ? isAdminOnlyLocked
+                      ? `${t(item.key)} — ${t('menu.featureComingSoon')}`
+                      : t(item.key)
+                    : isMobileRestricted
                     ? t('mobileRestriction.tooltip')
                     : isPremiumRestricted
                     ? t('premium.tooltip')
                     : isStartRestricted
                     ? t('premium.tooltip')
+                    : isAdminOnlyLocked
+                    ? t('dispatchesOfficial.comingSoon')
                     : ''
                 }
             >
-              <span className={`flex-shrink-0 ${isActive(item.path) && !isRestricted ? '[&>svg]:!text-white' : ''}`}>
+              <span className={`flex-shrink-0 ${isActive(item.path) && !looksDisabled ? '[&>svg]:!text-white' : ''}`}>
                 {item.icon}
               </span>
               {!isCollapsed && (
                   <>
                 <span className="text-sm font-medium flex-1 text-left">{t(item.key)}</span>
+                    {isAdminOnlyLocked && (
+                      <span className="text-xs font-medium text-amber-600 dark:text-amber-400 flex-shrink-0">
+                        {t('menu.featureComingSoon')}
+                      </span>
+                    )}
                     {isMobileRestricted && (
                       <span className="flex-shrink-0" title={t('mobileRestriction.tooltip')}>
                         <svg
@@ -298,6 +320,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
               );
             }
 
+            if (isAdminOnlyLocked) {
+              return (
+                <div
+                  key={item.path}
+                  className="cursor-not-allowed select-none"
+                  aria-disabled="true"
+                  onClick={(e) => e.preventDefault()}
+                >
+                  {itemContent}
+                </div>
+              );
+            }
+
             return (
               <Link
                 key={item.path}
@@ -315,27 +350,59 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
           <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
             {/* Botão Recolher Menu (Desktop) */}
             {onToggleCollapse && (
-              <button
-                onClick={onToggleCollapse}
-                className="w-full hidden lg:flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-clerky-backendText dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 hover:border-clerky-backendButton dark:hover:border-clerky-backendButton transition-smooth shadow-sm hover:shadow-md"
-                aria-label="Recolher menu"
-                title="Recolher menu"
+              <div
+                className={`relative hidden lg:block ${showCrmCollapseHint ? 'group/crmCollapse' : ''}`}
               >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                {showCrmCollapseHint && (
+                  <div
+                    role="tooltip"
+                    className="pointer-events-none invisible absolute bottom-[calc(100%+10px)] left-[62%] z-[70] w-[min(20.4rem,calc(100vw-1.25rem))] -translate-x-1/2 rounded-xl border border-gray-200/90 bg-white/95 px-4 py-3 text-left text-[13px] leading-snug text-gray-700 opacity-0 shadow-lg backdrop-blur-sm transition-all duration-200 dark:border-gray-600 dark:bg-gray-800/95 dark:text-gray-200 group-hover/crmCollapse:visible group-hover/crmCollapse:opacity-100"
+                  >
+                    {t('sidebar.collapseCrmTooltip')}
+                  </div>
+                )}
+                <div
+                  className={
+                    showCrmCollapseHint
+                      ? 'animate-crm-collapse-hint rounded-lg ring-2 ring-clerky-backendButton/35 dark:ring-clerky-backendButton/40'
+                      : ''
+                  }
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2.5}
-                    d="M15 19l-7-7 7-7"
-                  />
-                </svg>
-                <span className="font-semibold text-sm">Recolher</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={onToggleCollapse}
+                    className="relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-clerky-backendText shadow-sm transition-smooth hover:border-clerky-backendButton hover:bg-gray-100 hover:shadow-md dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:border-clerky-backendButton dark:hover:bg-gray-600"
+                    aria-label={t('sidebar.collapse')}
+                    title={showCrmCollapseHint ? undefined : t('sidebar.collapse')}
+                  >
+                    {showCrmCollapseHint && (
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-lg"
+                      >
+                        <span
+                          className="absolute left-0 top-0 h-full w-[65%] min-w-[5.5rem] bg-gradient-to-r from-transparent via-cyan-400/95 to-transparent shadow-[0_0_14px_5px_rgba(34,211,238,0.65),0_0_28px_10px_rgba(59,130,246,0.4),inset_0_0_20px_rgba(165,243,252,0.35)] animate-crm-collapse-glow dark:via-sky-300 dark:shadow-[0_0_16px_6px_rgba(125,211,252,0.55),0_0_32px_12px_rgba(56,189,248,0.35)]"
+                        />
+                      </span>
+                    )}
+                    <svg
+                      className="relative z-10 h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.5}
+                        d="M15 19l-7-7 7-7"
+                      />
+                    </svg>
+                    <span className="relative z-10 text-sm font-semibold">{t('sidebar.collapse')}</span>
+                  </button>
+                </div>
+              </div>
             )}
             
             {/* Botões de Ação */}
@@ -373,10 +440,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
             {/* Botão Expandir Menu (Desktop quando recolhido) */}
             {onToggleCollapse && (
               <button
+                type="button"
                 onClick={onToggleCollapse}
-                className="w-full hidden lg:flex items-center justify-center p-2 rounded-lg bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-clerky-backendText dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 hover:border-clerky-backendButton dark:hover:border-clerky-backendButton transition-smooth shadow-sm hover:shadow-md mb-2"
-                aria-label="Expandir menu"
-                title="Expandir menu"
+                className="mb-2 hidden w-full items-center justify-center rounded-lg border border-gray-200 bg-gray-50 p-2 text-clerky-backendText shadow-sm transition-smooth hover:border-clerky-backendButton hover:bg-gray-100 hover:shadow-md dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:border-clerky-backendButton dark:hover:bg-gray-600 lg:flex"
+                aria-label={t('sidebar.expand')}
+                title={t('sidebar.expand')}
               >
                 <svg
                   className="w-5 h-5"

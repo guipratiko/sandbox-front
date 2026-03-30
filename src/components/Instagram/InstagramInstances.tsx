@@ -4,6 +4,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { instagramAPI, InstagramInstance } from '../../services/api';
 import { getErrorMessage, logError } from '../../utils/errorHandler';
+import { useSocket } from '../../hooks/useSocket';
 
 interface InstagramInstancesProps {
   onStatusUpdate?: (data: { instanceId: string; status: string }) => void;
@@ -42,6 +43,40 @@ const InstagramInstances: React.FC<InstagramInstancesProps> = ({ onStatusUpdate 
   useEffect(() => {
     loadInstances();
   }, [loadInstances]);
+
+  const handleInstagramInstanceSocket = useCallback(
+    (data: { instanceId: string; status: string }) => {
+      if (data.status === 'deleted') {
+        setInstances((prev) => prev.filter((inst) => inst.id !== data.instanceId));
+        return;
+      }
+      if (data.status === 'connected') {
+        void loadInstances();
+        return;
+      }
+      setInstances((prev) =>
+        prev.map((inst) =>
+          inst.id === data.instanceId
+            ? { ...inst, status: data.status as InstagramInstance['status'] }
+            : inst
+        )
+      );
+    },
+    [loadInstances]
+  );
+
+  useSocket(
+    token,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    handleInstagramInstanceSocket
+  );
 
   const handleCreateInstance = async () => {
     try {
