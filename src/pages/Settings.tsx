@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { AppLayout } from '../components/Layout';
 import { Card, Button, Input, PasswordInput, ProfilePictureUpload, Modal } from '../components/UI';
@@ -16,6 +16,20 @@ import {
 } from '../services/api';
 import { validators } from '../utils/validators';
 import { normalizeName, formatPhone, normalizePhone } from '../utils/formatters';
+import {
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface ProfileFormData {
   name: string;
@@ -30,6 +44,118 @@ interface PasswordFormData {
   newPassword: string;
   confirmNewPassword: string;
 }
+
+const SortableKanbanColumnSettingsRow: React.FC<{
+  column: CRMColumn;
+  columnNames: Record<string, string>;
+  columnErrors: Record<string, string>;
+  columnsLength: number;
+  onNameChange: (id: string, value: string) => void;
+  onNameSubmit: (id: string) => void;
+  onDelete: (column: CRMColumn) => void;
+  reorderDisabled: boolean;
+}> = ({
+  column,
+  columnNames,
+  columnErrors,
+  columnsLength,
+  onNameChange,
+  onNameSubmit,
+  onDelete,
+  reorderDisabled,
+}) => {
+  const { t } = useLanguage();
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: column.id, disabled: reorderDisabled });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition: isDragging ? 'none' : transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex flex-col md:flex-row md:items-center gap-3 md:gap-4 p-3 md:p-4 bg-gray-50 dark:bg-[#091D41] rounded-lg border border-gray-200 dark:border-gray-700 ${
+        isDragging ? 'shadow-lg ring-2 ring-clerky-backendButton/25 z-[1]' : ''
+      }`}
+    >
+      <button
+        type="button"
+        className="flex-shrink-0 self-start md:self-center mt-0 md:mt-6 p-2 rounded-md text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 dark:text-gray-400 cursor-grab active:cursor-grabbing touch-manipulation disabled:opacity-40 disabled:cursor-not-allowed"
+        aria-label={t('settings.kanbanDragHandleAria')}
+        disabled={reorderDisabled}
+        {...attributes}
+        {...listeners}
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+          <circle cx="7" cy="5" r="1.5" />
+          <circle cx="13" cy="5" r="1.5" />
+          <circle cx="7" cy="10" r="1.5" />
+          <circle cx="13" cy="10" r="1.5" />
+          <circle cx="7" cy="15" r="1.5" />
+          <circle cx="13" cy="15" r="1.5" />
+        </svg>
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <label className="block text-sm font-medium text-clerky-backendText dark:text-gray-200">
+            Coluna {column.order + 1}
+          </label>
+          <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded font-mono">
+            ID: {column.shortId}
+          </span>
+        </div>
+        <Input
+          id={`column-${column.id}`}
+          type="text"
+          value={columnNames[column.id] || ''}
+          onChange={(e) => onNameChange(column.id, e.target.value)}
+          placeholder="Nome da coluna"
+          error={columnErrors[column.id]}
+          maxLength={50}
+          disabled={reorderDisabled}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              onNameSubmit(column.id);
+            }
+          }}
+        />
+      </div>
+      <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto mt-0 md:mt-6">
+        <Button
+          onClick={() => onNameSubmit(column.id)}
+          variant="primary"
+          size="md"
+          className="w-full sm:w-auto py-2.5 md:py-2 touch-manipulation"
+          disabled={reorderDisabled}
+        >
+          Salvar
+        </Button>
+        {columnsLength > CRM_MIN_KANBAN_COLUMNS && (
+          <Button
+            type="button"
+            onClick={() => onDelete(column)}
+            variant="secondary"
+            size="md"
+            className="w-full sm:w-auto py-2.5 md:py-2 touch-manipulation border-red-300 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+            disabled={reorderDisabled}
+          >
+            {t('settings.kanbanDeleteColumnButton')}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const Settings: React.FC = () => {
   const { t } = useLanguage();
@@ -71,6 +197,13 @@ const Settings: React.FC = () => {
   const [newColumnName, setNewColumnName] = useState('');
   const [isCreatingColumn, setIsCreatingColumn] = useState(false);
   const [createColumnError, setCreateColumnError] = useState<string | null>(null);
+  const [isSavingKanbanOrder, setIsSavingKanbanOrder] = useState(false);
+
+  const kanbanColumnReorderSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    })
+  );
 
   // Estados para labels
   const [labels, setLabels] = useState<Label[]>([]);
@@ -274,6 +407,39 @@ const Settings: React.FC = () => {
       alert(error.message || t('settings.kanbanDeleteColumnError'));
     }
   };
+
+  const handleKanbanColumnDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      const snapshot = columns;
+      const oldIndex = snapshot.findIndex((c) => c.id === active.id);
+      const newIndex = snapshot.findIndex((c) => c.id === over.id);
+      if (oldIndex < 0 || newIndex < 0) return;
+
+      const withOrder = arrayMove(snapshot, oldIndex, newIndex).map((c, i) => ({
+        ...c,
+        order: i,
+      }));
+      setColumns(withOrder);
+
+      setIsSavingKanbanOrder(true);
+      try {
+        const res = await crmAPI.reorderColumns(withOrder.map((c) => c.id));
+        const sorted = [...res.columns].sort((a, b) => a.order - b.order);
+        setColumns(sorted);
+        setSuccessMessage(t('settings.kanbanOrderUpdated'));
+        setTimeout(() => setSuccessMessage(null), 4000);
+      } catch (error: any) {
+        setColumns(snapshot);
+        alert(error.message || t('settings.kanbanReorderError'));
+      } finally {
+        setIsSavingKanbanOrder(false);
+      }
+    },
+    [columns, t]
+  );
 
   const loadLabels = async () => {
     try {
@@ -867,8 +1033,11 @@ const Settings: React.FC = () => {
                 <h2 className="text-lg md:text-xl font-semibold text-clerky-backendText dark:text-gray-200 mb-2">
                   {t('settings.kanbanColumnsHeading')}
                 </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 md:mb-6">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                   {t('settings.kanbanColumnsDescription')}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 md:mb-6">
+                  {t('settings.kanbanDragHint')}
                 </p>
               </div>
 
@@ -961,61 +1130,28 @@ const Settings: React.FC = () => {
                   <p className="text-gray-600 dark:text-gray-300">Carregando colunas...</p>
                 </div>
               ) : (
-                <div className="space-y-3 md:space-y-4">
-                  {columns.map((column) => (
-                    <div
-                      key={column.id}
-                      className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 p-3 md:p-4 bg-gray-50 dark:bg-[#091D41] rounded-lg border border-gray-200 dark:border-gray-700"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <label className="block text-sm font-medium text-clerky-backendText dark:text-gray-200">
-                            Coluna {column.order + 1}
-                          </label>
-                          <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded font-mono">
-                            ID: {column.shortId}
-                          </span>
-                        </div>
-                        <Input
-                          id={`column-${column.id}`}
-                          type="text"
-                          value={columnNames[column.id] || ''}
-                          onChange={(e) => handleColumnNameChange(column.id, e.target.value)}
-                          placeholder="Nome da coluna"
-                          error={columnErrors[column.id]}
-                          maxLength={50}
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleColumnNameSubmit(column.id);
-                            }
-                          }}
+                <DndContext sensors={kanbanColumnReorderSensors} onDragEnd={handleKanbanColumnDragEnd}>
+                  <SortableContext
+                    items={columns.map((c) => c.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-3 md:space-y-4">
+                      {columns.map((column) => (
+                        <SortableKanbanColumnSettingsRow
+                          key={column.id}
+                          column={column}
+                          columnNames={columnNames}
+                          columnErrors={columnErrors}
+                          columnsLength={columns.length}
+                          onNameChange={handleColumnNameChange}
+                          onNameSubmit={handleColumnNameSubmit}
+                          onDelete={handleDeleteColumn}
+                          reorderDisabled={isSavingKanbanOrder}
                         />
-                      </div>
-                      <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto mt-0 md:mt-6">
-                        <Button
-                          onClick={() => handleColumnNameSubmit(column.id)}
-                          variant="primary"
-                          size="md"
-                          className="w-full sm:w-auto py-2.5 md:py-2 touch-manipulation"
-                        >
-                          Salvar
-                        </Button>
-                        {columns.length > CRM_MIN_KANBAN_COLUMNS && (
-                          <Button
-                            type="button"
-                            onClick={() => handleDeleteColumn(column)}
-                            variant="secondary"
-                            size="md"
-                            className="w-full sm:w-auto py-2.5 md:py-2 touch-manipulation border-red-300 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
-                          >
-                            {t('settings.kanbanDeleteColumnButton')}
-                          </Button>
-                        )}
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </SortableContext>
+                </DndContext>
               )}
             </div>
           </Card>

@@ -830,6 +830,13 @@ export const crmAPI = {
     });
   },
 
+  reorderColumns: async (columnIds: string[]): Promise<GetColumnsResponse> => {
+    return request<GetColumnsResponse>('/crm/columns/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ columnIds }),
+    });
+  },
+
   deleteColumn: async (id: string): Promise<{ status: string; message: string }> => {
     return request<{ status: string; message: string }>(`/crm/columns/${id}`, {
       method: 'DELETE',

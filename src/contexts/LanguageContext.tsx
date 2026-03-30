@@ -437,6 +437,11 @@ const translations = {
       'Excluir esta coluna? Os contatos dela serão movidos para outra coluna. É obrigatório manter no mínimo 5 colunas.',
     'settings.kanbanColumnDeleted': 'Coluna removida.',
     'settings.kanbanDeleteColumnError': 'Não foi possível excluir a coluna.',
+    'settings.kanbanDragHint':
+      'Use o ícone à esquerda de cada linha para arrastar e definir a ordem das colunas no CRM.',
+    'settings.kanbanDragHandleAria': 'Arrastar para reordenar coluna',
+    'settings.kanbanOrderUpdated': 'Ordem das colunas atualizada.',
+    'settings.kanbanReorderError': 'Não foi possível salvar a nova ordem.',
     'settings.allowDeleteCard': 'Permitir excluir cards de conversa no CRM',
     'settings.allowDeleteCardHint':
       'Quando ativado, aparece um botão em cada card para remover o contato e o histórico do Kanban. É necessário confirmar com sua senha para ativar.',
@@ -2094,6 +2099,11 @@ const translations = {
       'Delete this column? Contacts in it will move to another column. You must keep at least 5 columns.',
     'settings.kanbanColumnDeleted': 'Column removed.',
     'settings.kanbanDeleteColumnError': 'Could not delete the column.',
+    'settings.kanbanDragHint':
+      'Use the icon on the left of each row to drag and set column order in the CRM.',
+    'settings.kanbanDragHandleAria': 'Drag to reorder column',
+    'settings.kanbanOrderUpdated': 'Column order updated.',
+    'settings.kanbanReorderError': 'Could not save the new order.',
     'settings.allowDeleteCard': 'Allow deleting conversation cards in the CRM',
     'settings.allowDeleteCardHint':
       'When enabled, each card shows a button to remove the contact and history from the Kanban. Your password is required to turn this on.',
