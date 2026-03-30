@@ -781,6 +781,9 @@ export interface CrmPreferences {
   allowDeleteConversationCard: boolean;
 }
 
+/** Alinhado ao backend (CRM_MAX_COLUMNS_PER_USER) */
+export const CRM_MAX_KANBAN_COLUMNS = 30;
+
 // API de CRM
 export const crmAPI = {
   getPreferences: async (): Promise<{ status: string; preferences: CrmPreferences }> => {
@@ -813,6 +816,13 @@ export const crmAPI = {
   updateColumn: async (id: string, name: string): Promise<{ status: string; column: CRMColumn }> => {
     return request<{ status: string; column: CRMColumn }>(`/crm/columns/${id}`, {
       method: 'PUT',
+      body: JSON.stringify({ name }),
+    });
+  },
+
+  createColumn: async (name: string): Promise<{ status: string; column: CRMColumn }> => {
+    return request<{ status: string; column: CRMColumn }>('/crm/columns', {
+      method: 'POST',
       body: JSON.stringify({ name }),
     });
   },

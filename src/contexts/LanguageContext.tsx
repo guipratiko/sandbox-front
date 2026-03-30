@@ -361,7 +361,7 @@ const translations = {
     // Settings
     'settings.title': 'Configurações',
     'settings.subtitle': 'Gerencie seu perfil, senha e preferências do sistema',
-    'settings.help': 'Na página de Configurações você pode:\n\n• Atualizar seu perfil: nome, foto, empresa e telefone\n• Alterar sua senha de acesso\n• Configurar seu fuso horário\n• Gerenciar as colunas do Kanban do CRM\n• Criar e gerenciar etiquetas para contatos',
+    'settings.help': 'Na página de Configurações você pode:\n\n• Atualizar seu perfil: nome, foto, empresa e telefone\n• Alterar sua senha de acesso\n• Configurar seu fuso horário\n• Criar e editar colunas do Kanban do CRM\n• Criar e gerenciar etiquetas para contatos',
     'settings.profile': 'Perfil',
     'settings.profilePicture': 'Foto de Perfil',
     'settings.changePicture': 'Alterar Foto',
@@ -392,7 +392,14 @@ const translations = {
     'settings.kanbanTab': 'Kanban',
     'settings.kanbanColumnsHeading': 'Gerenciar colunas',
     'settings.kanbanColumnsDescription':
-      'Edite os nomes das colunas do seu Kanban CRM. As alterações serão aplicadas imediatamente.',
+      'Edite os nomes e adicione novas colunas ao Kanban do CRM. As alterações serão aplicadas imediatamente.',
+    'settings.kanbanAddColumnTitle': 'Nova coluna',
+    'settings.kanbanNewColumnPlaceholder': 'Nome da nova coluna',
+    'settings.kanbanAddColumnButton': 'Adicionar coluna',
+    'settings.kanbanAddingColumn': 'Adicionando...',
+    'settings.kanbanMaxColumnsHint': 'Limite de 30 colunas atingido.',
+    'settings.kanbanColumnCreated': 'Coluna criada com sucesso!',
+    'settings.kanbanNewColumnNameRequired': 'Informe o nome da coluna.',
     'settings.allowDeleteCard': 'Permitir excluir cards de conversa no CRM',
     'settings.allowDeleteCardHint':
       'Quando ativado, aparece um botão em cada card para remover o contato e o histórico do Kanban. É necessário confirmar com sua senha para ativar.',
@@ -1974,7 +1981,7 @@ const translations = {
     // Settings
     'settings.title': 'Settings',
     'settings.subtitle': 'Manage your profile, password and system preferences',
-    'settings.help': 'In the Settings page you can:\n\n• Update your profile: name, photo, company and phone\n• Change your access password\n• Configure your timezone\n• Manage CRM Kanban columns\n• Create and manage contact labels',
+    'settings.help': 'In the Settings page you can:\n\n• Update your profile: name, photo, company and phone\n• Change your access password\n• Configure your timezone\n• Create and edit CRM Kanban columns\n• Create and manage contact labels',
     'settings.profile': 'Profile',
     'settings.profilePicture': 'Profile Picture',
     'settings.changePicture': 'Change Picture',
@@ -2005,7 +2012,14 @@ const translations = {
     'settings.kanbanTab': 'Kanban',
     'settings.kanbanColumnsHeading': 'Manage columns',
     'settings.kanbanColumnsDescription':
-      'Edit your CRM Kanban column names. Changes apply immediately.',
+      'Edit names and add new columns to your CRM Kanban. Changes apply immediately.',
+    'settings.kanbanAddColumnTitle': 'New column',
+    'settings.kanbanNewColumnPlaceholder': 'New column name',
+    'settings.kanbanAddColumnButton': 'Add column',
+    'settings.kanbanAddingColumn': 'Adding...',
+    'settings.kanbanMaxColumnsHint': 'Maximum of 30 columns reached.',
+    'settings.kanbanColumnCreated': 'Column created successfully!',
+    'settings.kanbanNewColumnNameRequired': 'Enter the column name.',
     'settings.allowDeleteCard': 'Allow deleting conversation cards in the CRM',
     'settings.allowDeleteCardHint':
       'When enabled, each card shows a button to remove the contact and history from the Kanban. Your password is required to turn this on.',

@@ -1851,8 +1851,13 @@ const CRM: React.FC = () => {
             onDragEnd={handleDragEnd}
           >
             <div
-              className="flex w-full min-w-0 max-w-full gap-3 pb-4 overflow-x-auto md:grid md:grid-cols-5 md:gap-4 md:overflow-x-hidden"
-              style={{ minHeight: 'calc(100vh - 250px)' }}
+              className="flex w-full min-w-0 max-w-full gap-3 pb-4 overflow-x-auto md:grid md:gap-4 md:overflow-x-hidden"
+              style={{
+                minHeight: 'calc(100vh - 250px)',
+                ...(columns.length > 0
+                  ? { gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }
+                  : {}),
+              }}
             >
               {columns.map((column) => (
                 <Column

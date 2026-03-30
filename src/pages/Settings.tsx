@@ -4,7 +4,15 @@ import { AppLayout } from '../components/Layout';
 import { Card, Button, Input, PasswordInput, ProfilePictureUpload, Modal } from '../components/UI';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { authAPI, crmAPI, CRMColumn, Label, subscriptionAPI, Subscription } from '../services/api';
+import {
+  authAPI,
+  crmAPI,
+  CRM_MAX_KANBAN_COLUMNS,
+  CRMColumn,
+  Label,
+  subscriptionAPI,
+  Subscription,
+} from '../services/api';
 import { validators } from '../utils/validators';
 import { normalizeName, formatPhone, normalizePhone } from '../utils/formatters';
 
@@ -59,6 +67,9 @@ const Settings: React.FC = () => {
   const [deleteCardPassword, setDeleteCardPassword] = useState('');
   const [deleteCardPasswordError, setDeleteCardPasswordError] = useState('');
   const [isSavingDeleteCardPref, setIsSavingDeleteCardPref] = useState(false);
+  const [newColumnName, setNewColumnName] = useState('');
+  const [isCreatingColumn, setIsCreatingColumn] = useState(false);
+  const [createColumnError, setCreateColumnError] = useState<string | null>(null);
 
   // Estados para labels
   const [labels, setLabels] = useState<Label[]>([]);
@@ -215,6 +226,33 @@ const Settings: React.FC = () => {
         ...prev,
         [columnId]: error.message || 'Erro ao atualizar nome da coluna',
       }));
+    }
+  };
+
+  const handleCreateColumn = async () => {
+    const name = newColumnName.trim();
+    if (!name) {
+      setCreateColumnError(t('settings.kanbanNewColumnNameRequired'));
+      return;
+    }
+    if (columns.length >= CRM_MAX_KANBAN_COLUMNS) {
+      setCreateColumnError(t('settings.kanbanMaxColumnsHint'));
+      return;
+    }
+    try {
+      setIsCreatingColumn(true);
+      setCreateColumnError(null);
+      const res = await crmAPI.createColumn(name);
+      const col = res.column;
+      setColumns((prev) => [...prev, col].sort((a, b) => a.order - b.order));
+      setColumnNames((prev) => ({ ...prev, [col.id]: col.name }));
+      setNewColumnName('');
+      setSuccessMessage(t('settings.kanbanColumnCreated'));
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (error: any) {
+      setCreateColumnError(error.message || 'Erro ao criar coluna');
+    } finally {
+      setIsCreatingColumn(false);
     }
   };
 
@@ -813,6 +851,49 @@ const Settings: React.FC = () => {
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 md:mb-6">
                   {t('settings.kanbanColumnsDescription')}
                 </p>
+              </div>
+
+              <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0d1f3c]">
+                <h3 className="text-sm font-semibold text-clerky-backendText dark:text-gray-200 mb-3">
+                  {t('settings.kanbanAddColumnTitle')}
+                </h3>
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-start">
+                  <div className="flex-1 min-w-0">
+                    <Input
+                      id="new-kanban-column-name"
+                      type="text"
+                      value={newColumnName}
+                      onChange={(e) => {
+                        setNewColumnName(e.target.value);
+                        if (createColumnError) setCreateColumnError(null);
+                      }}
+                      placeholder={t('settings.kanbanNewColumnPlaceholder')}
+                      error={createColumnError || undefined}
+                      maxLength={50}
+                      disabled={isCreatingColumn || columns.length >= CRM_MAX_KANBAN_COLUMNS}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleCreateColumn();
+                        }
+                      }}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={handleCreateColumn}
+                    variant="primary"
+                    size="md"
+                    isLoading={isCreatingColumn}
+                    disabled={columns.length >= CRM_MAX_KANBAN_COLUMNS}
+                    className="w-full sm:w-auto shrink-0 touch-manipulation"
+                  >
+                    {isCreatingColumn ? t('settings.kanbanAddingColumn') : t('settings.kanbanAddColumnButton')}
+                  </Button>
+                </div>
+                {columns.length >= CRM_MAX_KANBAN_COLUMNS && (
+                  <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">{t('settings.kanbanMaxColumnsHint')}</p>
+                )}
               </div>
 
               <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#091D41]">
