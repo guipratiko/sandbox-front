@@ -302,13 +302,13 @@ const Column: React.FC<ColumnProps> = ({
   return (
     <div
       ref={setNodeRef}
-      className={`flex h-full min-h-0 min-w-0 flex-col rounded-lg border-2 p-2 sm:p-3 transition-all duration-200 bg-gray-100 dark:bg-gray-900 shrink-0 w-[min(249px,85vw)] max-w-[249px] md:h-full md:w-full md:max-w-none ${
-        isOver 
-          ? 'border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-950 shadow-lg scale-[1.01]' 
+      className={`flex h-full min-h-0 min-w-0 flex-col rounded-lg border-2 p-2 sm:p-3 transition-[border-color,box-shadow,background-color] duration-200 bg-gray-100 dark:bg-gray-900 shrink-0 w-[min(249px,85vw)] max-w-[249px] md:h-full md:w-full md:max-w-none ${
+        isOver
+          ? 'border-blue-500 dark:border-blue-400 bg-blue-50/90 dark:bg-blue-950/80 shadow-md ring-2 ring-blue-400/40 dark:ring-blue-500/35 z-[1]'
           : 'border-transparent'
       }`}
     >
-      <div className="mb-3 sm:mb-4 pb-3 sm:pb-4 border-b border-gray-300 dark:border-gray-700">
+      <div className="relative z-[2] mb-3 sm:mb-4 shrink-0 pb-3 sm:pb-4 border-b border-gray-300 dark:border-gray-700">
         <h3
           className="font-semibold text-base md:text-lg text-clerky-backendText dark:text-gray-200 mb-1 truncate"
           title={column.name}
@@ -1879,15 +1879,20 @@ const CRM: React.FC = () => {
             onDragCancel={handleDragCancel}
             onDragEnd={handleDragEnd}
           >
-            <div
-              className="flex w-full min-w-0 max-w-full gap-3 pb-4 overflow-x-auto md:grid md:gap-4 md:overflow-x-hidden"
-              style={{
-                minHeight: 'calc(100vh - 250px)',
-                ...(columns.length > 0
-                  ? { gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }
-                  : {}),
-              }}
-            >
+            <div className="w-full min-w-0 max-w-full overflow-x-auto pb-4 [scrollbar-gutter:stable]">
+              <div
+                className="flex w-full min-w-0 gap-3 md:grid md:gap-4"
+                style={{
+                  minHeight: 'calc(100vh - 250px)',
+                  ...(columns.length > 0
+                    ? {
+                        gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
+                        /* Até 5 colunas preenchem a largura; da 6ª em diante o bloco fica mais largo e o scroll horizontal aparece */
+                        width: `max(100%, calc(${columns.length} / 5 * 100%))`,
+                      }
+                    : {}),
+                }}
+              >
               {columns.map((column) => (
                 <Column
                   key={column.id}
@@ -1898,6 +1903,7 @@ const CRM: React.FC = () => {
                   onDeleteContact={handleDeleteContact}
                 />
               ))}
+              </div>
             </div>
             <DragOverlay>
               {draggedContact ? (
