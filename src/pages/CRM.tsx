@@ -22,8 +22,11 @@ import {
   useSensor,
   useSensors,
   closestCorners,
+  pointerWithin,
   useDroppable,
   DragOverEvent,
+  DragCancelEvent,
+  CollisionDetection,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -1338,6 +1341,17 @@ const CRM: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draggedOverColumnId, setDraggedOverColumnId] = useState<string | null>(null);
+  /** Última coluna válida sob o ponteiro — evita `over` null no dragEnd (comum com overlay + grid). */
+  const lastOverColumnIdRef = useRef<string | null>(null);
+
+  /** Prioriza o retângulo sob o ponteiro (melhor entre colunas lado a lado); fallback para cantos. */
+  const crmCollisionDetection: CollisionDetection = useCallback((args) => {
+    const pointerHits = pointerWithin(args);
+    if (pointerHits.length > 0) {
+      return pointerHits;
+    }
+    return closestCorners(args);
+  }, []);
 
   // Configuração otimizada de sensors para melhor fluidez em tablet
   // TouchSensor para tablets com delay reduzido
@@ -1636,55 +1650,69 @@ const CRM: React.FC = () => {
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
+    lastOverColumnIdRef.current = null;
+    setDraggedOverColumnId(null);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
     const { over } = event;
-    if (over) {
-      // Verificar se está sobre uma coluna ou um contato dentro de uma coluna
-      const targetColumn = columns.find((col) => col.id === over.id);
-      if (targetColumn) {
-        setDraggedOverColumnId(targetColumn.id);
-      } else {
-        // Se não for coluna diretamente, verificar se é um contato e pegar sua coluna
-        const targetContact = contacts.find((c) => c.id === over.id);
-        if (targetContact?.columnId) {
-          setDraggedOverColumnId(targetContact.columnId);
-        }
-      }
+    if (!over) {
+      return;
     }
+    const overId = String(over.id);
+    const targetColumn = columns.find((col) => String(col.id) === overId);
+    if (targetColumn) {
+      lastOverColumnIdRef.current = targetColumn.id;
+      setDraggedOverColumnId(targetColumn.id);
+      return;
+    }
+    const targetContact = contacts.find((c) => String(c.id) === overId);
+    if (targetContact?.columnId) {
+      lastOverColumnIdRef.current = targetContact.columnId;
+      setDraggedOverColumnId(targetContact.columnId);
+    }
+  };
+
+  const handleDragCancel = (_event: DragCancelEvent) => {
+    setActiveId(null);
+    setDraggedOverColumnId(null);
+    lastOverColumnIdRef.current = null;
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+    const fallbackColumnId = lastOverColumnIdRef.current;
+
     setActiveId(null);
     setDraggedOverColumnId(null);
+    lastOverColumnIdRef.current = null;
 
-    if (!over) return;
-
-    const contactId = active.id as string;
+    const contactId = String(active.id);
     let targetColumnId: string | null = null;
 
-    // Verificar se o destino é uma coluna diretamente
-    const targetColumn = columns.find((col) => col.id === over.id);
-    if (targetColumn) {
-      targetColumnId = targetColumn.id;
-    } else {
-      // Se não for coluna, pode ser um contato - pegar a coluna do contato
-      const targetContact = contacts.find((c) => c.id === over.id);
-      if (targetContact?.columnId) {
-        targetColumnId = targetContact.columnId;
-      } else if (draggedOverColumnId) {
-        // Usar a coluna que estava sendo arrastada sobre
-        targetColumnId = draggedOverColumnId;
+    if (over) {
+      const overId = String(over.id);
+      const targetColumn = columns.find((col) => String(col.id) === overId);
+      if (targetColumn) {
+        targetColumnId = targetColumn.id;
+      } else {
+        const targetContact = contacts.find((c) => String(c.id) === overId);
+        if (targetContact?.columnId) {
+          targetColumnId = targetContact.columnId;
+        }
       }
     }
 
-    if (!targetColumnId) return;
+    if (!targetColumnId && fallbackColumnId) {
+      targetColumnId = fallbackColumnId;
+    }
 
-    // Se arrastou para o mesmo lugar, não fazer nada
-    const currentContact = contacts.find((c) => c.id === contactId);
-    if (currentContact?.columnId === targetColumnId) {
+    if (!targetColumnId) {
+      return;
+    }
+
+    const currentContact = contacts.find((c) => String(c.id) === contactId);
+    if (currentContact && String(currentContact.columnId) === String(targetColumnId)) {
       return;
     }
 
@@ -1845,9 +1873,10 @@ const CRM: React.FC = () => {
         ) : (
           <DndContext
             sensors={sensors}
-            collisionDetection={closestCorners}
+            collisionDetection={crmCollisionDetection}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
+            onDragCancel={handleDragCancel}
             onDragEnd={handleDragEnd}
           >
             <div
