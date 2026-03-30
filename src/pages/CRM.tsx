@@ -299,7 +299,7 @@ const Column: React.FC<ColumnProps> = ({
   return (
     <div
       ref={setNodeRef}
-      className={`flex h-full min-h-0 min-w-0 flex-col bg-gray-100 dark:bg-gray-900 rounded-lg p-2 sm:p-3 transition-all duration-200 border-2 shrink-0 w-[min(249px,85vw)] max-w-[249px] md:w-auto md:max-w-none md:flex-1 md:basis-0 md:min-w-0 ${
+      className={`flex h-full min-h-0 min-w-0 flex-col rounded-lg border-2 p-2 sm:p-3 transition-all duration-200 bg-gray-100 dark:bg-gray-900 shrink-0 w-[min(249px,85vw)] max-w-[249px] md:h-full md:w-full md:max-w-none ${
         isOver 
           ? 'border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-950 shadow-lg scale-[1.01]' 
           : 'border-transparent'
@@ -1851,22 +1851,18 @@ const CRM: React.FC = () => {
             onDragEnd={handleDragEnd}
           >
             <div
-              className="flex w-full min-w-0 max-w-full gap-2 sm:gap-3 md:gap-4 pb-4 overflow-x-auto md:overflow-x-hidden"
+              className="flex w-full min-w-0 max-w-full gap-3 pb-4 overflow-x-auto md:grid md:grid-cols-5 md:gap-4 md:overflow-x-hidden"
               style={{ minHeight: 'calc(100vh - 250px)' }}
             >
-              {columns.map((column, index) => (
-                <React.Fragment key={column.id}>
-                  <Column
-                    column={column}
-                    contacts={getContactsByColumn(column.id)}
-                    onContactClick={handleContactClick}
-                    allowDeleteCard={allowDeleteCard}
-                    onDeleteContact={handleDeleteContact}
-                  />
-                  {index < columns.length - 1 && (
-                    <div className="w-px bg-gray-300 dark:bg-gray-700 flex-shrink-0" />
-                  )}
-                </React.Fragment>
+              {columns.map((column) => (
+                <Column
+                  key={column.id}
+                  column={column}
+                  contacts={getContactsByColumn(column.id)}
+                  onContactClick={handleContactClick}
+                  allowDeleteCard={allowDeleteCard}
+                  onDeleteContact={handleDeleteContact}
+                />
               ))}
             </div>
             <DragOverlay>
