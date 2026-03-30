@@ -16,6 +16,7 @@ import Instances from './pages/Instances';
 import Dispatches from './pages/Dispatches';
 import DispatchesOfficial from './pages/DispatchesOfficial';
 import CRM from './pages/CRM';
+import CrmContacts from './pages/CrmContacts';
 import MindClerky from './pages/MindClerky';
 import Integration from './pages/Integration';
 import AIAgentPage from './pages/AIAgent';
@@ -85,6 +86,18 @@ function AppContent() {
             <PremiumRoute>
               <MobileRestrictedRoute>
             <CRM />
+              </MobileRestrictedRoute>
+            </PremiumRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/crm/contatos"
+        element={
+          <ProtectedRoute>
+            <PremiumRoute>
+              <MobileRestrictedRoute>
+                <CrmContacts />
               </MobileRestrictedRoute>
             </PremiumRoute>
           </ProtectedRoute>

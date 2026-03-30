@@ -358,6 +358,38 @@ const translations = {
     'crm.deleteCardConfirm':
       'Excluir este card e todo o histórico de mensagens deste contato no CRM? Esta ação não pode ser desfeita.',
     'crm.deleteCardError': 'Não foi possível excluir o contato. Tente novamente.',
+    'crm.contactsButton': 'Contatos',
+    'crmContacts.title': 'Contatos do CRM',
+    'crmContacts.subtitle':
+      'Adicione contatos manualmente ou importe um arquivo .vcf (vCard). Válido para instâncias WhatsApp.',
+    'crmContacts.backToCrm': 'Voltar ao CRM',
+    'crmContacts.loading': 'Carregando…',
+    'crmContacts.noWhatsappInstance':
+      'Nenhuma instância WhatsApp encontrada. Conecte uma instância em Gerenciador de conexões.',
+    'crmContacts.sharedSettings': 'Instância e coluna',
+    'crmContacts.instanceLabel': 'Instância WhatsApp',
+    'crmContacts.selectInstance': 'Selecione',
+    'crmContacts.columnLabel': 'Coluna inicial no Kanban',
+    'crmContacts.whatsappOnlyHint':
+      'Criação e importação por telefone funcionam apenas com instâncias WhatsApp (Evolution). Contatos já existentes (mesmo número) não são duplicados.',
+    'crmContacts.createTitle': 'Novo contato',
+    'crmContacts.nameLabel': 'Nome',
+    'crmContacts.namePlaceholder': 'Nome do contato',
+    'crmContacts.phoneLabel': 'Telefone',
+    'crmContacts.phonePlaceholder': 'Ex.: 62 99844-8536 ou +55 62 998448536',
+    'crmContacts.createButton': 'Criar contato',
+    'crmContacts.formRequired': 'Preencha instância, nome e telefone.',
+    'crmContacts.createSuccess': 'Contato criado ou já existia no CRM.',
+    'crmContacts.createError': 'Não foi possível criar o contato.',
+    'crmContacts.vcfTitle': 'Importar arquivo .vcf',
+    'crmContacts.vcfHint':
+      'Selecione um arquivo .vcf exportado de contatos (Google, iPhone, etc.). Cada telefone vira um contato na coluna escolhida.',
+    'crmContacts.vcfFileLabel': 'Arquivo .vcf',
+    'crmContacts.vcfImportButton': 'Importar',
+    'crmContacts.vcfNeedFile': 'Selecione a instância e o arquivo .vcf.',
+    'crmContacts.vcfError': 'Falha na importação.',
+    'crmContacts.vcfResult':
+      'Importação: {created} novos, {skipped} ignorados (duplicados ou número inválido). Cartões lidos no arquivo: {cards}.',
     // Settings
     'settings.title': 'Configurações',
     'settings.subtitle': 'Gerencie seu perfil, senha e preferências do sistema',
@@ -400,6 +432,11 @@ const translations = {
     'settings.kanbanMaxColumnsHint': 'Limite de 30 colunas atingido.',
     'settings.kanbanColumnCreated': 'Coluna criada com sucesso!',
     'settings.kanbanNewColumnNameRequired': 'Informe o nome da coluna.',
+    'settings.kanbanDeleteColumnButton': 'Excluir coluna',
+    'settings.kanbanDeleteColumnConfirm':
+      'Excluir esta coluna? Os contatos dela serão movidos para outra coluna. É obrigatório manter no mínimo 5 colunas.',
+    'settings.kanbanColumnDeleted': 'Coluna removida.',
+    'settings.kanbanDeleteColumnError': 'Não foi possível excluir a coluna.',
     'settings.allowDeleteCard': 'Permitir excluir cards de conversa no CRM',
     'settings.allowDeleteCardHint':
       'Quando ativado, aparece um botão em cada card para remover o contato e o histórico do Kanban. É necessário confirmar com sua senha para ativar.',
@@ -1978,6 +2015,38 @@ const translations = {
     'crm.deleteCardConfirm':
       'Delete this card and all message history for this contact in the CRM? This cannot be undone.',
     'crm.deleteCardError': 'Could not delete the contact. Please try again.',
+    'crm.contactsButton': 'Contacts',
+    'crmContacts.title': 'CRM contacts',
+    'crmContacts.subtitle':
+      'Add contacts manually or import a .vcf (vCard) file. For WhatsApp instances only.',
+    'crmContacts.backToCrm': 'Back to CRM',
+    'crmContacts.loading': 'Loading…',
+    'crmContacts.noWhatsappInstance':
+      'No WhatsApp instance found. Connect one in Connection manager.',
+    'crmContacts.sharedSettings': 'Instance and column',
+    'crmContacts.instanceLabel': 'WhatsApp instance',
+    'crmContacts.selectInstance': 'Select',
+    'crmContacts.columnLabel': 'Initial Kanban column',
+    'crmContacts.whatsappOnlyHint':
+      'Phone-based create and import work only with WhatsApp (Evolution) instances. Existing numbers are not duplicated.',
+    'crmContacts.createTitle': 'New contact',
+    'crmContacts.nameLabel': 'Name',
+    'crmContacts.namePlaceholder': 'Contact name',
+    'crmContacts.phoneLabel': 'Phone',
+    'crmContacts.phonePlaceholder': 'E.g. +1 555 123 4567 or local format',
+    'crmContacts.createButton': 'Create contact',
+    'crmContacts.formRequired': 'Fill in instance, name and phone.',
+    'crmContacts.createSuccess': 'Contact created or already in CRM.',
+    'crmContacts.createError': 'Could not create the contact.',
+    'crmContacts.vcfTitle': 'Import .vcf file',
+    'crmContacts.vcfHint':
+      'Choose a .vcf file exported from contacts (Google, iPhone, etc.). Each phone becomes a contact in the selected column.',
+    'crmContacts.vcfFileLabel': '.vcf file',
+    'crmContacts.vcfImportButton': 'Import',
+    'crmContacts.vcfNeedFile': 'Select instance and .vcf file.',
+    'crmContacts.vcfError': 'Import failed.',
+    'crmContacts.vcfResult':
+      'Import: {created} new, {skipped} skipped (duplicates or invalid). Cards parsed: {cards}.',
     // Settings
     'settings.title': 'Settings',
     'settings.subtitle': 'Manage your profile, password and system preferences',
@@ -2020,6 +2089,11 @@ const translations = {
     'settings.kanbanMaxColumnsHint': 'Maximum of 30 columns reached.',
     'settings.kanbanColumnCreated': 'Column created successfully!',
     'settings.kanbanNewColumnNameRequired': 'Enter the column name.',
+    'settings.kanbanDeleteColumnButton': 'Delete column',
+    'settings.kanbanDeleteColumnConfirm':
+      'Delete this column? Contacts in it will move to another column. You must keep at least 5 columns.',
+    'settings.kanbanColumnDeleted': 'Column removed.',
+    'settings.kanbanDeleteColumnError': 'Could not delete the column.',
     'settings.allowDeleteCard': 'Allow deleting conversation cards in the CRM',
     'settings.allowDeleteCardHint':
       'When enabled, each card shows a button to remove the contact and history from the Kanban. Your password is required to turn this on.',

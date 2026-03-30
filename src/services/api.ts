@@ -784,6 +784,9 @@ export interface CrmPreferences {
 /** Alinhado ao backend (CRM_MAX_COLUMNS_PER_USER) */
 export const CRM_MAX_KANBAN_COLUMNS = 30;
 
+/** Mínimo de colunas no Kanban (não é possível excluir abaixo disso) */
+export const CRM_MIN_KANBAN_COLUMNS = 5;
+
 // API de CRM
 export const crmAPI = {
   getPreferences: async (): Promise<{ status: string; preferences: CrmPreferences }> => {
@@ -825,6 +828,57 @@ export const crmAPI = {
       method: 'POST',
       body: JSON.stringify({ name }),
     });
+  },
+
+  deleteColumn: async (id: string): Promise<{ status: string; message: string }> => {
+    return request<{ status: string; message: string }>(`/crm/columns/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  createManualContact: async (body: {
+    instanceId: string;
+    name: string;
+    phone: string;
+    columnId?: string;
+  }): Promise<{ status: string; contact: Contact }> => {
+    return request<{ status: string; contact: Contact }>('/crm/contacts', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  importVcf: async (params: {
+    instanceId: string;
+    columnId?: string;
+    file: File;
+  }): Promise<{
+    status: string;
+    created: number;
+    skipped: number;
+    errors: string[];
+    cardsParsed: number;
+  }> => {
+    const token = localStorage.getItem('token');
+    const formData = new FormData();
+    formData.append('file', params.file);
+    formData.append('instanceId', params.instanceId);
+    if (params.columnId) {
+      formData.append('columnId', params.columnId);
+    }
+    const response = await fetch(`${API_URL}/crm/contacts/import-vcf`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      const err = data as ApiError & { message?: string };
+      throw new Error(err.message || 'Erro ao importar arquivo VCF');
+    }
+    return data;
   },
 
   getContacts: async (): Promise<GetContactsResponse> => {

@@ -8,6 +8,7 @@ import {
   authAPI,
   crmAPI,
   CRM_MAX_KANBAN_COLUMNS,
+  CRM_MIN_KANBAN_COLUMNS,
   CRMColumn,
   Label,
   subscriptionAPI,
@@ -253,6 +254,24 @@ const Settings: React.FC = () => {
       setCreateColumnError(error.message || 'Erro ao criar coluna');
     } finally {
       setIsCreatingColumn(false);
+    }
+  };
+
+  const handleDeleteColumn = async (column: CRMColumn) => {
+    if (columns.length <= CRM_MIN_KANBAN_COLUMNS) return;
+    if (!window.confirm(t('settings.kanbanDeleteColumnConfirm'))) return;
+    try {
+      await crmAPI.deleteColumn(column.id);
+      setColumns((prev) => prev.filter((c) => c.id !== column.id));
+      setColumnNames((prev) => {
+        const next = { ...prev };
+        delete next[column.id];
+        return next;
+      });
+      setSuccessMessage(t('settings.kanbanColumnDeleted'));
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (error: any) {
+      alert(error.message || t('settings.kanbanDeleteColumnError'));
     }
   };
 
@@ -973,14 +992,27 @@ const Settings: React.FC = () => {
                           }}
                         />
                       </div>
-                      <Button
-                        onClick={() => handleColumnNameSubmit(column.id)}
-                        variant="primary"
-                        size="md"
-                        className="w-full md:w-auto mt-0 md:mt-6 py-2.5 md:py-2 touch-manipulation"
-                      >
-                        Salvar
-                      </Button>
+                      <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto mt-0 md:mt-6">
+                        <Button
+                          onClick={() => handleColumnNameSubmit(column.id)}
+                          variant="primary"
+                          size="md"
+                          className="w-full sm:w-auto py-2.5 md:py-2 touch-manipulation"
+                        >
+                          Salvar
+                        </Button>
+                        {columns.length > CRM_MIN_KANBAN_COLUMNS && (
+                          <Button
+                            type="button"
+                            onClick={() => handleDeleteColumn(column)}
+                            variant="secondary"
+                            size="md"
+                            className="w-full sm:w-auto py-2.5 md:py-2 touch-manipulation border-red-300 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+                          >
+                            {t('settings.kanbanDeleteColumnButton')}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import { AppLayout } from '../components/Layout';
 import { Card, Button, Modal, HelpIcon } from '../components/UI';
 import { useAuth } from '../contexts/AuthContext';
@@ -1789,14 +1790,21 @@ const CRM: React.FC = () => {
   return (
     <AppLayout>
       <div className="animate-fadeIn">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-clerky-backendText dark:text-gray-200 mb-2">
-            {t('crm.title')}
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 inline-flex items-center gap-2">
-            {t('crm.subtitle')}
-            <HelpIcon helpKey="crm" className="ml-1" />
-          </p>
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-clerky-backendText dark:text-gray-200 mb-2">
+              {t('crm.title')}
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 inline-flex items-center gap-2">
+              {t('crm.subtitle')}
+              <HelpIcon helpKey="crm" className="ml-1" />
+            </p>
+          </div>
+          <Link to="/crm/contatos" className="shrink-0">
+            <Button variant="secondary" size="md" className="w-full sm:w-auto">
+              {t('crm.contactsButton')}
+            </Button>
+          </Link>
         </div>
         <div className="flex items-center justify-between mb-6">
           <div className="flex gap-4 items-center">
