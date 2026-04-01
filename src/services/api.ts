@@ -761,6 +761,8 @@ export interface GetContactsResponse {
   status: string;
   count: number;
   contacts: Contact[];
+  /** Presente nas respostas paginadas por coluna (CRM Kanban). */
+  totalInColumn?: number;
 }
 
 export interface GetMessagesResponse {
@@ -888,8 +890,23 @@ export const crmAPI = {
     return data;
   },
 
-  getContacts: async (): Promise<GetContactsResponse> => {
-    return request<GetContactsResponse>('/crm/contacts');
+  getContacts: async (params?: {
+    columnId: string;
+    limit: number;
+    offset?: number;
+    crmScope?: Array<{ id: string; channel: 'whatsapp' | 'instagram' }>;
+  }): Promise<GetContactsResponse> => {
+    if (!params?.columnId || params.limit == null) {
+      return request<GetContactsResponse>('/crm/contacts');
+    }
+    const qs = new URLSearchParams();
+    qs.set('columnId', params.columnId);
+    qs.set('limit', String(params.limit));
+    qs.set('offset', String(params.offset ?? 0));
+    if (params.crmScope && params.crmScope.length > 0) {
+      qs.set('crmScope', JSON.stringify(params.crmScope));
+    }
+    return request<GetContactsResponse>(`/crm/contacts?${qs.toString()}`);
   },
 
   /** CSV UTF-8 com colunas nome,telefone; filtro no servidor (instâncias conectadas). */
@@ -933,8 +950,26 @@ export const crmAPI = {
     return response.blob();
   },
 
-  searchContacts: async (query: string): Promise<GetContactsResponse> => {
-    return request<GetContactsResponse>(`/crm/contacts/search?q=${encodeURIComponent(query)}`);
+  searchContacts: async (
+    query: string,
+    params?: {
+      columnId: string;
+      limit: number;
+      offset?: number;
+      crmScope?: Array<{ id: string; channel: 'whatsapp' | 'instagram' }>;
+    }
+  ): Promise<GetContactsResponse> => {
+    const qs = new URLSearchParams();
+    qs.set('q', query);
+    if (params?.columnId != null && params.limit != null) {
+      qs.set('columnId', params.columnId);
+      qs.set('limit', String(params.limit));
+      qs.set('offset', String(params.offset ?? 0));
+      if (params.crmScope && params.crmScope.length > 0) {
+        qs.set('crmScope', JSON.stringify(params.crmScope));
+      }
+    }
+    return request<GetContactsResponse>(`/crm/contacts/search?${qs.toString()}`);
   },
 
   moveContact: async (contactId: string, data: MoveContactData): Promise<{ status: string; message: string }> => {
