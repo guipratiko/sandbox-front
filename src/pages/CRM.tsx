@@ -12,7 +12,18 @@ import { AppLayout } from '../components/Layout';
 import { Card, Button, Modal, HelpIcon } from '../components/UI';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { crmAPI, Contact, CRMColumn, Message, instanceAPI, instagramAPI, Instance, InstagramInstance, Label } from '../services/api';
+import {
+  crmAPI,
+  Contact,
+  CRMColumn,
+  Message,
+  instanceAPI,
+  instagramAPI,
+  Instance,
+  InstagramInstance,
+  Label,
+  type GetContactsResponse,
+} from '../services/api';
 import {
   CrmInstancePicker,
   CRMInstanceOption,
@@ -381,12 +392,16 @@ const Column: React.FC<ColumnProps> = ({
     id: column.id,
   });
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const loadMoreLockRef = useRef(false);
 
   const contactIds = contacts.map((c) => c.id);
   const displayedTotal = totalInColumn ?? contacts.length;
+  /** Sem total do servidor: página cheia (20) implica possível próxima página. */
   const hasMore =
-    typeof totalInColumn === 'number' ? contacts.length < totalInColumn : false;
+    typeof totalInColumn === 'number'
+      ? contacts.length < totalInColumn
+      : contacts.length >= CRM_KANBAN_PAGE_SIZE;
 
   const handleScroll = () => {
     if (!onLoadMore || loadingMore || !hasMore) return;
@@ -402,10 +417,32 @@ const Column: React.FC<ColumnProps> = ({
     }
   };
 
+  useEffect(() => {
+    const root = scrollRef.current;
+    const sentinel = sentinelRef.current;
+    if (!root || !sentinel || !onLoadMore || loadingMore || !hasMore) {
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        const hit = entries.some((e) => e.isIntersecting);
+        if (!hit || loadMoreLockRef.current) return;
+        loadMoreLockRef.current = true;
+        onLoadMore();
+        window.setTimeout(() => {
+          loadMoreLockRef.current = false;
+        }, 450);
+      },
+      { root, rootMargin: '100px', threshold: 0 }
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [onLoadMore, loadingMore, hasMore, contacts.length, totalInColumn]);
+
   return (
     <div
       ref={setNodeRef}
-      className={`flex h-full min-h-0 min-w-0 flex-col rounded-lg border-2 p-2 sm:p-3 transition-[border-color,box-shadow,background-color] duration-200 bg-gray-100 dark:bg-gray-900 shrink-0 w-[min(249px,85vw)] max-w-[249px] md:h-full md:w-full md:max-w-none ${
+      className={`flex h-full max-h-full min-h-0 min-w-0 flex-col rounded-lg border-2 p-2 sm:p-3 transition-[border-color,box-shadow,background-color] duration-200 bg-gray-100 dark:bg-gray-900 shrink-0 w-[min(249px,85vw)] max-w-[249px] self-stretch md:h-full md:w-full md:max-w-none ${
         isOver
           ? 'border-blue-500 dark:border-blue-400 bg-blue-50/90 dark:bg-blue-950/80 shadow-md ring-2 ring-blue-400/40 dark:ring-blue-500/35 z-[1]'
           : 'border-transparent'
@@ -426,7 +463,7 @@ const Column: React.FC<ColumnProps> = ({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto min-h-[200px]"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
       >
         {contactIds.length > 0 ? (
           <SortableContext items={contactIds} strategy={verticalListSortingStrategy}>
@@ -445,6 +482,7 @@ const Column: React.FC<ColumnProps> = ({
             {t('crm.dragContactsHere')}
           </div>
         )}
+        <div ref={sentinelRef} className="h-px w-full shrink-0" aria-hidden />
         {loadingMore ? (
           <div className="py-2 text-center text-xs text-gray-500 dark:text-gray-400">
             …
@@ -1570,7 +1608,13 @@ const CRM: React.FC = () => {
         results.forEach((r, i) => {
           const col = columns[i];
           merged.push(...r.contacts);
-          totals[col.id] = r.totalInColumn ?? r.count;
+          if (r.contacts.length === 0) {
+            totals[col.id] = typeof r.totalInColumn === 'number' ? r.totalInColumn : 0;
+          } else if (typeof r.totalInColumn === 'number') {
+            totals[col.id] = r.totalInColumn;
+          } else if (r.contacts.length < CRM_KANBAN_PAGE_SIZE) {
+            totals[col.id] = r.contacts.length;
+          }
           offsets[col.id] = r.contacts.length;
         });
         setContacts(dedupeContactsById(merged));
@@ -1593,7 +1637,13 @@ const CRM: React.FC = () => {
         results.forEach((r, i) => {
           const col = columns[i];
           merged.push(...r.contacts);
-          totals[col.id] = r.totalInColumn ?? r.count;
+          if (r.contacts.length === 0) {
+            totals[col.id] = typeof r.totalInColumn === 'number' ? r.totalInColumn : 0;
+          } else if (typeof r.totalInColumn === 'number') {
+            totals[col.id] = r.totalInColumn;
+          } else if (r.contacts.length < CRM_KANBAN_PAGE_SIZE) {
+            totals[col.id] = r.contacts.length;
+          }
           offsets[col.id] = r.contacts.length;
         });
         setContacts(dedupeContactsById(merged));
@@ -1649,8 +1699,8 @@ const CRM: React.FC = () => {
         return;
       }
       const offset = columnOffsets[columnId] ?? 0;
-      const total = columnTotals[columnId] ?? 0;
-      if (offset >= total || total === 0) {
+      const total = columnTotals[columnId];
+      if (total !== undefined && offset >= total) {
         return;
       }
 
@@ -1658,7 +1708,7 @@ const CRM: React.FC = () => {
       setLoadingMoreColumnId(columnId);
       try {
         const scope = selectedInstances;
-        let r;
+        let r: GetContactsResponse;
         if (searchQuery.trim()) {
           r = await crmAPI.searchContacts(searchQuery.trim(), {
             columnId,
@@ -1676,6 +1726,10 @@ const CRM: React.FC = () => {
         }
         const newContacts = r.contacts;
         if (newContacts.length === 0) {
+          setColumnTotals((t) => ({
+            ...t,
+            [columnId]: offset,
+          }));
           return;
         }
         setContacts((prev) => {
@@ -1689,6 +1743,10 @@ const CRM: React.FC = () => {
           }
           return next;
         });
+        if (typeof r.totalInColumn === 'number') {
+          const tInCol = r.totalInColumn;
+          setColumnTotals((t) => ({ ...t, [columnId]: tInCol }));
+        }
         setColumnOffsets((o) => ({
           ...o,
           [columnId]: offset + newContacts.length,
@@ -2167,9 +2225,8 @@ const CRM: React.FC = () => {
           >
             <div className="w-full min-w-0 max-w-full overflow-x-auto pb-4 [scrollbar-gutter:stable]">
               <div
-                className="flex w-full min-w-0 gap-3 md:grid md:gap-4"
+                className="flex h-[min(720px,calc(100vh-250px))] min-h-[280px] w-full min-w-0 items-stretch gap-3 md:grid md:gap-4 md:min-h-0"
                 style={{
-                  minHeight: 'calc(100vh - 250px)',
                   ...(columns.length > 0
                     ? {
                         gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
