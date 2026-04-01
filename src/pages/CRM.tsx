@@ -463,7 +463,7 @@ const Column: React.FC<ColumnProps> = ({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain scrollbar-hide"
       >
         {contactIds.length > 0 ? (
           <SortableContext items={contactIds} strategy={verticalListSortingStrategy}>
@@ -1409,7 +1409,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
                 <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mb-3 sm:mb-4">
                   Selecione as etiquetas para este contato:
                 </p>
-                <div className="space-y-2 max-h-[min(400px,60vh)] overflow-y-auto overscroll-contain pr-1 -mr-1">
+                <div className="space-y-2 max-h-[min(400px,60vh)] overflow-y-auto overscroll-contain pr-1 -mr-1 scrollbar-hide">
                   {availableLabels.map((label) => {
                     const isSelected = contactLabels.has(label.id);
                     return (
@@ -2223,7 +2223,7 @@ const CRM: React.FC = () => {
             onDragCancel={handleDragCancel}
             onDragEnd={handleDragEnd}
           >
-            <div className="w-full min-w-0 max-w-full overflow-x-auto pb-4 [scrollbar-gutter:stable]">
+            <div className="w-full min-w-0 max-w-full overflow-x-auto pb-4 scrollbar-hide">
               <div
                 className="flex h-[min(720px,calc(100vh-250px))] min-h-[280px] w-full min-w-0 items-stretch gap-3 md:grid md:gap-4 md:min-h-0"
                 style={{
