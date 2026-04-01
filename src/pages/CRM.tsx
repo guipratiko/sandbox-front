@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useRef,
+  startTransition,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { AppLayout } from '../components/Layout';
@@ -487,31 +494,36 @@ const ChatModal: React.FC<ChatModalProps> = ({
   const [contactLabels, setContactLabels] = useState<Set<string>>(new Set());
   const [isLoadingLabels, setIsLoadingLabels] = useState(false);
 
-  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+  const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
-  /** Garante scroll após o DOM atualizar (mensagens via socket / append). */
+  /** Garante scroll após o DOM atualizar (mensagens via socket / append). Usa 'auto' para evitar “piscar” por scroll animado. */
   const scrollToBottomAfterPaint = useCallback(() => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
       });
     });
   }, []);
 
-  const loadMessages = useCallback(async () => {
+  const loadMessages = useCallback(async (opts?: { silent?: boolean }) => {
     if (!contact) return;
+    const silent = !!opts?.silent;
 
     try {
-      setIsLoading(true);
-      isInitialLoadRef.current = true;
+      if (!silent) {
+        setIsLoading(true);
+        isInitialLoadRef.current = true;
+      }
       const response = await crmAPI.getMessages(contact.id);
       setMessages(sortMessagesByTimestamp(response.messages));
     } catch (error: any) {
       console.error('Erro ao carregar mensagens:', error);
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
   }, [contact]);
 
@@ -528,17 +540,14 @@ const ChatModal: React.FC<ChatModalProps> = ({
       return;
     }
 
-    // Adicionar mensagens diretamente ao estado (sem recarregar tudo)
     setMessages((prev) => {
       const existingIds = new Set(prev.map((m) => m.id));
       const newMessages = data.messages.filter((m) => !existingIds.has(m.id));
-
       if (newMessages.length === 0) {
-        return prev; // Nenhuma mensagem nova
+        return prev;
       }
 
-      // Adicionar novas mensagens
-      const allMessages = [...prev, ...newMessages.map((m) => ({
+      const mapped = newMessages.map((m) => ({
         id: m.id,
         messageId: m.messageId,
         channel: m.channel,
@@ -548,28 +557,25 @@ const ChatModal: React.FC<ChatModalProps> = ({
         mediaUrl: m.mediaUrl,
         timestamp: m.timestamp,
         read: m.read,
-      }))];
+      }));
 
-      // Ordenar por timestamp
-      const sorted = sortMessagesByTimestamp(allMessages);
-
-      // Marcar mensagens como novas para animação
-      const newIds = new Set(newMessages.map((m) => m.id));
-      setNewMessageIds((prevIds) => {
-        const combined = new Set(Array.from(prevIds));
-        newIds.forEach((id) => combined.add(id));
-        // Remover IDs após 1 segundo (tempo da animação)
-        setTimeout(() => {
+      const highlightIds = new Set(mapped.map((m) => m.id));
+      queueMicrotask(() => {
+        setNewMessageIds((prevIds) => {
+          const combined = new Set(Array.from(prevIds));
+          highlightIds.forEach((id) => combined.add(id));
+          return combined;
+        });
+        window.setTimeout(() => {
           setNewMessageIds((current) => {
             const updated = new Set(Array.from(current));
-            newIds.forEach((id) => updated.delete(id));
+            highlightIds.forEach((id) => updated.delete(id));
             return updated;
           });
-        }, 1000);
-        return combined;
+        }, 600);
       });
 
-      return sorted;
+      return sortMessagesByTimestamp([...prev, ...mapped]);
     });
 
     scrollToBottomAfterPaint();
@@ -589,7 +595,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
       ) {
         return;
       }
-      loadMessages();
+      loadMessages({ silent: true });
     },
     [contact, isOpen, loadMessages]
   );
@@ -607,16 +613,11 @@ const ChatModal: React.FC<ChatModalProps> = ({
     }
   }, [contact, isOpen, loadMessages]);
 
-  // Scroll para o final quando mensagens são carregadas (apenas se não for carregamento inicial)
-  useEffect(() => {
-    if (isInitialLoadRef.current || isLoading) return;
-    scrollToBottom();
-  }, [messages, isLoading]);
+  // Não rolar a cada nova mensagem (causava “piscar” com scroll suave). Scroll só no carregamento inicial abaixo.
 
-  // Definir scroll no final ANTES da renderização (para carregamento inicial)
+  // Definir scroll no final ANTES da renderização (carregamento inicial da thread)
   useLayoutEffect(() => {
     if (isInitialLoadRef.current && !isLoading && messages.length > 0 && messagesContainerRef.current) {
-      // Definir scroll no final sem animação (antes da renderização ser visível)
       const container = messagesContainerRef.current;
       container.scrollTop = container.scrollHeight;
       isInitialLoadRef.current = false;
@@ -1402,6 +1403,8 @@ const CRM: React.FC = () => {
   const [draggedOverColumnId, setDraggedOverColumnId] = useState<string | null>(null);
   /** Última coluna válida sob o ponteiro — evita `over` null no dragEnd (comum com overlay + grid). */
   const lastOverColumnIdRef = useRef<string | null>(null);
+  /** Primeira carga após escolher instâncias: sem debounce para o Kanban aparecer já. */
+  const skipContactsDebounceOnceRef = useRef(true);
 
   /** Prioriza o retângulo sob o ponteiro (melhor entre colunas lado a lado); fallback para cantos. */
   const crmCollisionDetection: CollisionDetection = useCallback((args) => {
@@ -1647,23 +1650,26 @@ const CRM: React.FC = () => {
       .catch(() => setAllowDeleteCard(false));
   }, [token]);
 
+  /** Um único efeito com debounce evita duas chamadas seguidas ao mudar instâncias ou busca. */
   useEffect(() => {
-    if (selectedInstances.length > 0) {
-      loadContacts();
-    } else {
+    if (selectedInstances.length === 0) {
       setContacts([]);
+      setIsLoading(false);
+      skipContactsDebounceOnceRef.current = true;
+      return;
     }
-  }, [selectedInstances, loadContacts]);
-
-  useEffect(() => {
-    if (selectedInstances.length === 0) return;
-
-    const timer = setTimeout(() => {
+    const hasSearch = searchQuery.trim().length > 0;
+    const delay = hasSearch
+      ? 450
+      : skipContactsDebounceOnceRef.current
+        ? 0
+        : 160;
+    const timer = window.setTimeout(() => {
+      skipContactsDebounceOnceRef.current = false;
       loadContacts();
-    }, 500);
-
+    }, delay);
     return () => clearTimeout(timer);
-  }, [searchQuery, selectedInstances, loadContacts]);
+  }, [selectedInstances, searchQuery, loadContacts]);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -1802,22 +1808,28 @@ const CRM: React.FC = () => {
   };
 
   const toggleInstanceSelection = useCallback((inst: CRMInstanceOption) => {
-    setSelectedInstances((prev) => {
-      const key = `${inst.channel}:${inst.id}`;
-      const exists = prev.some((p) => `${p.channel}:${p.id}` === key);
-      if (exists) {
-        return prev.filter((p) => `${p.channel}:${p.id}` !== key);
-      }
-      return [...prev, { id: inst.id, channel: inst.channel }];
+    startTransition(() => {
+      setSelectedInstances((prev) => {
+        const key = `${inst.channel}:${inst.id}`;
+        const exists = prev.some((p) => `${p.channel}:${p.id}` === key);
+        if (exists) {
+          return prev.filter((p) => `${p.channel}:${p.id}` !== key);
+        }
+        return [...prev, { id: inst.id, channel: inst.channel }];
+      });
     });
   }, []);
 
   const selectAllInstances = useCallback(() => {
-    setSelectedInstances(instances.map((i) => ({ id: i.id, channel: i.channel })));
+    startTransition(() => {
+      setSelectedInstances(instances.map((i) => ({ id: i.id, channel: i.channel })));
+    });
   }, [instances]);
 
   const clearInstanceSelection = useCallback(() => {
-    setSelectedInstances([]);
+    startTransition(() => {
+      setSelectedInstances([]);
+    });
   }, []);
 
   const draggedContact = activeId ? contacts.find((c) => c.id === activeId) : null;

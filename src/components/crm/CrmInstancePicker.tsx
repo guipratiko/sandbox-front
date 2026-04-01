@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, memo } from 'react';
 
 export type CRMInstanceOption = {
   id: string;
@@ -23,7 +23,7 @@ interface CrmInstancePickerProps {
   t: (key: string) => string;
 }
 
-export const CrmInstancePicker: React.FC<CrmInstancePickerProps> = ({
+const CrmInstancePickerInner: React.FC<CrmInstancePickerProps> = ({
   instances,
   selected,
   isLoading,
@@ -37,13 +37,19 @@ export const CrmInstancePicker: React.FC<CrmInstancePickerProps> = ({
 
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    let onDoc: ((e: MouseEvent) => void) | undefined;
+    const tid = window.setTimeout(() => {
+      onDoc = (e: MouseEvent) => {
+        if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+          setOpen(false);
+        }
+      };
+      document.addEventListener('mousedown', onDoc);
+    }, 0);
+    return () => {
+      window.clearTimeout(tid);
+      if (onDoc) document.removeEventListener('mousedown', onDoc);
     };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
 
   const isSelected = (inst: CRMInstanceOption) =>
@@ -165,3 +171,5 @@ export const CrmInstancePicker: React.FC<CrmInstancePickerProps> = ({
     </div>
   );
 };
+
+export const CrmInstancePicker = memo(CrmInstancePickerInner);
