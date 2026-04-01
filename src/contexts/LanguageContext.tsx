@@ -354,6 +354,7 @@ const translations = {
     'crm.dragContactsHere': 'Arraste contatos aqui',
     'crm.contact': 'contato',
     'crm.contacts': 'contatos',
+    'crm.loadingMoreContacts': 'Carregando mais…',
     'crm.deleteCard': 'Excluir conversa do CRM',
     'crm.deleteCardConfirm':
       'Excluir este card e todo o histórico de mensagens deste contato no CRM? Esta ação não pode ser desfeita.',
@@ -2047,6 +2048,7 @@ const translations = {
     'crm.dragContactsHere': 'Drag contacts here',
     'crm.contact': 'contact',
     'crm.contacts': 'contacts',
+    'crm.loadingMoreContacts': 'Loading more…',
     'crm.deleteCard': 'Remove conversation from CRM',
     'crm.deleteCardConfirm':
       'Delete this card and all message history for this contact in the CRM? This cannot be undone.',
