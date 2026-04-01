@@ -1519,6 +1519,90 @@ const CRM: React.FC = () => {
   /** Primeira carga após escolher instâncias: sem debounce para o Kanban aparecer já. */
   const skipContactsDebounceOnceRef = useRef(true);
 
+  /** Scroll horizontal ao aproximar o rato das bordas do quadro Kanban. */
+  const kanbanHScrollRef = useRef<HTMLDivElement>(null);
+  const kanbanEdgeScrollRafRef = useRef<number | null>(null);
+  const kanbanEdgeScrollDirRef = useRef<0 | -1 | 1>(0);
+
+  const KANBAN_EDGE_SCROLL_ZONE_PX = 80;
+  const KANBAN_EDGE_SCROLL_SPEED = 14;
+
+  const stopKanbanEdgeScroll = useCallback(() => {
+    kanbanEdgeScrollDirRef.current = 0;
+    if (kanbanEdgeScrollRafRef.current != null) {
+      cancelAnimationFrame(kanbanEdgeScrollRafRef.current);
+      kanbanEdgeScrollRafRef.current = null;
+    }
+  }, []);
+
+  const tickKanbanEdgeScroll = useCallback(() => {
+    const el = kanbanHScrollRef.current;
+    const dir = kanbanEdgeScrollDirRef.current;
+    if (!el || dir === 0) {
+      kanbanEdgeScrollRafRef.current = null;
+      return;
+    }
+    const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
+    if (dir < 0 && el.scrollLeft <= 0) {
+      stopKanbanEdgeScroll();
+      return;
+    }
+    if (dir > 0 && el.scrollLeft >= maxScroll - 0.5) {
+      stopKanbanEdgeScroll();
+      return;
+    }
+    el.scrollLeft += dir * KANBAN_EDGE_SCROLL_SPEED;
+    kanbanEdgeScrollRafRef.current = requestAnimationFrame(tickKanbanEdgeScroll);
+  }, [stopKanbanEdgeScroll]);
+
+  const updateKanbanEdgeScrollFromPointerClientX = useCallback(
+    (clientX: number) => {
+      const el = kanbanHScrollRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const w = rect.width;
+      const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
+      let dir: 0 | -1 | 1 = 0;
+      if (x >= 0 && x < KANBAN_EDGE_SCROLL_ZONE_PX && el.scrollLeft > 0) {
+        dir = -1;
+      } else if (x > w - KANBAN_EDGE_SCROLL_ZONE_PX && x <= w && el.scrollLeft < maxScroll - 0.5) {
+        dir = 1;
+      }
+      kanbanEdgeScrollDirRef.current = dir;
+      if (dir !== 0 && kanbanEdgeScrollRafRef.current == null) {
+        kanbanEdgeScrollRafRef.current = requestAnimationFrame(tickKanbanEdgeScroll);
+      } else if (dir === 0) {
+        stopKanbanEdgeScroll();
+      }
+    },
+    [tickKanbanEdgeScroll, stopKanbanEdgeScroll]
+  );
+
+  const handleKanbanHorizontalPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      updateKanbanEdgeScrollFromPointerClientX(e.clientX);
+    },
+    [updateKanbanEdgeScrollFromPointerClientX]
+  );
+
+  /** Durante o arraste, o ponteiro pode ficar fora do div; usar posição global. */
+  useEffect(() => {
+    if (!activeId) return;
+    const onDocPointerMove = (e: PointerEvent) => {
+      updateKanbanEdgeScrollFromPointerClientX(e.clientX);
+    };
+    document.addEventListener('pointermove', onDocPointerMove);
+    return () => {
+      document.removeEventListener('pointermove', onDocPointerMove);
+      stopKanbanEdgeScroll();
+    };
+  }, [activeId, updateKanbanEdgeScrollFromPointerClientX, stopKanbanEdgeScroll]);
+
+  useEffect(() => {
+    return () => stopKanbanEdgeScroll();
+  }, [stopKanbanEdgeScroll]);
+
   /** Prioriza o retângulo sob o ponteiro (melhor entre colunas lado a lado); fallback para cantos. */
   const crmCollisionDetection: CollisionDetection = useCallback((args) => {
     const pointerHits = pointerWithin(args);
@@ -2246,7 +2330,13 @@ const CRM: React.FC = () => {
             onDragCancel={handleDragCancel}
             onDragEnd={handleDragEnd}
           >
-            <div className="w-full min-w-0 max-w-full overflow-x-auto pb-4 scrollbar-hide">
+            <div
+              ref={kanbanHScrollRef}
+              onPointerMove={handleKanbanHorizontalPointerMove}
+              onPointerLeave={stopKanbanEdgeScroll}
+              onPointerCancel={stopKanbanEdgeScroll}
+              className="w-full min-w-0 max-w-full overflow-x-auto pb-4 scrollbar-hide"
+            >
               <div
                 className="flex h-[min(720px,calc(100vh-250px))] min-h-[280px] w-full min-w-0 items-stretch gap-3 md:grid md:gap-4 md:min-h-0"
                 style={{
