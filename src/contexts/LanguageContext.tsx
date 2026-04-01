@@ -456,6 +456,20 @@ const translations = {
     'settings.kanbanDragHandleAria': 'Arrastar para reordenar coluna',
     'settings.kanbanOrderUpdated': 'Ordem das colunas atualizada.',
     'settings.kanbanReorderError': 'Não foi possível salvar a nova ordem.',
+    'settings.kanbanExportHeading': 'Exportar leads',
+    'settings.kanbanExportDescription':
+      'Baixe um CSV com nome e telefone dos contatos do CRM (UTF-8). Só entram instâncias conectadas. Escolha todas ou selecione instâncias específicas; opcionalmente limite a uma coluna do Kanban.',
+    'settings.kanbanExportScopeLabel': 'Escopo das instâncias',
+    'settings.kanbanExportScopeAll': 'Todas as instâncias conectadas',
+    'settings.kanbanExportScopeSelected': 'Instâncias selecionadas (mesmo seletor do CRM)',
+    'settings.kanbanExportColumnLabel': 'Coluna do Kanban',
+    'settings.kanbanExportColumnAll': 'Todas as colunas',
+    'settings.kanbanExportButton': 'Baixar CSV',
+    'settings.kanbanExporting': 'Gerando arquivo...',
+    'settings.kanbanExportNeedInstances':
+      'Selecione ao menos uma instância ou use a opção \"Todas as instâncias conectadas\".',
+    'settings.kanbanExportSuccess': 'Exportação concluída. Verifique o arquivo baixado.',
+    'settings.kanbanExportError': 'Não foi possível exportar os contatos.',
     'settings.allowDeleteCard': 'Permitir excluir cards de conversa no CRM',
     'settings.allowDeleteCardHint':
       'Quando ativado, aparece um botão em cada card para remover o contato e o histórico do Kanban. É necessário confirmar com sua senha para ativar.',
@@ -2134,6 +2148,20 @@ const translations = {
     'settings.kanbanDragHandleAria': 'Drag to reorder column',
     'settings.kanbanOrderUpdated': 'Column order updated.',
     'settings.kanbanReorderError': 'Could not save the new order.',
+    'settings.kanbanExportHeading': 'Export leads',
+    'settings.kanbanExportDescription':
+      'Download a CSV with contact name and phone from the CRM (UTF-8). Only connected instances are included. Choose all or pick specific instances; optionally limit to one Kanban column.',
+    'settings.kanbanExportScopeLabel': 'Instance scope',
+    'settings.kanbanExportScopeAll': 'All connected instances',
+    'settings.kanbanExportScopeSelected': 'Selected instances (same picker as CRM)',
+    'settings.kanbanExportColumnLabel': 'Kanban column',
+    'settings.kanbanExportColumnAll': 'All columns',
+    'settings.kanbanExportButton': 'Download CSV',
+    'settings.kanbanExporting': 'Generating file...',
+    'settings.kanbanExportNeedInstances':
+      'Select at least one instance or use \"All connected instances\".',
+    'settings.kanbanExportSuccess': 'Export finished. Check your downloaded file.',
+    'settings.kanbanExportError': 'Could not export contacts.',
     'settings.allowDeleteCard': 'Allow deleting conversation cards in the CRM',
     'settings.allowDeleteCardHint':
       'When enabled, each card shows a button to remove the contact and history from the Kanban. Your password is required to turn this on.',

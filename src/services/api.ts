@@ -892,6 +892,47 @@ export const crmAPI = {
     return request<GetContactsResponse>('/crm/contacts');
   },
 
+  /** CSV UTF-8 com colunas nome,telefone; filtro no servidor (instâncias conectadas). */
+  exportContactsCsv: async (params: {
+    allInstances: boolean;
+    instanceIds?: string[];
+    columnId?: string | null;
+  }): Promise<Blob> => {
+    const token = localStorage.getItem('token');
+    const qs = new URLSearchParams();
+    if (params.allInstances) {
+      qs.set('allInstances', 'true');
+    } else if (params.instanceIds && params.instanceIds.length > 0) {
+      qs.set('instanceIds', params.instanceIds.join(','));
+    }
+    if (params.columnId) {
+      qs.set('columnId', params.columnId);
+    }
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}/crm/contacts/export?${qs.toString()}`, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+      });
+    } catch {
+      throw { status: 'error', message: 'Serviço temporariamente indisponível' } as ApiError;
+    }
+    if (!response.ok) {
+      let message = 'Erro ao exportar contatos';
+      try {
+        const data = await response.json();
+        if (typeof data?.message === 'string' && data.message.trim()) {
+          message = data.message;
+        }
+      } catch {
+        /* ignore */
+      }
+      throw { status: 'error', message } as ApiError;
+    }
+    return response.blob();
+  },
+
   searchContacts: async (query: string): Promise<GetContactsResponse> => {
     return request<GetContactsResponse>(`/crm/contacts/search?q=${encodeURIComponent(query)}`);
   },

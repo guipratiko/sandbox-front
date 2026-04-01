@@ -13,7 +13,16 @@ import {
   Label,
   subscriptionAPI,
   Subscription,
+  instanceAPI,
+  instagramAPI,
+  Instance,
+  InstagramInstance,
 } from '../services/api';
+import {
+  CrmInstancePicker,
+  CRMInstanceOption,
+  CrmSelectedInstance,
+} from '../components/crm/CrmInstancePicker';
 import { validators } from '../utils/validators';
 import { normalizeName, formatPhone, normalizePhone } from '../utils/formatters';
 import {
@@ -199,6 +208,13 @@ const Settings: React.FC = () => {
   const [createColumnError, setCreateColumnError] = useState<string | null>(null);
   const [isSavingKanbanOrder, setIsSavingKanbanOrder] = useState(false);
 
+  const [exportInstances, setExportInstances] = useState<CRMInstanceOption[]>([]);
+  const [exportSelectedInstances, setExportSelectedInstances] = useState<CrmSelectedInstance[]>([]);
+  const [exportInstanceScope, setExportInstanceScope] = useState<'all' | 'selected'>('all');
+  const [exportColumnId, setExportColumnId] = useState<string>('');
+  const [isLoadingExportInstances, setIsLoadingExportInstances] = useState(false);
+  const [isExportingLeads, setIsExportingLeads] = useState(false);
+
   const kanbanColumnReorderSensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
@@ -283,6 +299,7 @@ const Settings: React.FC = () => {
     if (activeTab === 'kanban') {
       loadColumns();
       loadCrmPreferencesForKanban();
+      loadKanbanExportInstances();
     }
   }, [activeTab]);
 
@@ -292,6 +309,82 @@ const Settings: React.FC = () => {
       setAllowDeleteCard(!!res.preferences?.allowDeleteConversationCard);
     } catch (error: any) {
       console.error('Erro ao carregar preferências do CRM:', error);
+    }
+  };
+
+  const loadKanbanExportInstances = async () => {
+    try {
+      setIsLoadingExportInstances(true);
+      const [waResponse, igResponse] = await Promise.all([
+        instanceAPI.getAll(),
+        instagramAPI.getInstances(),
+      ]);
+      const whatsappInstances: CRMInstanceOption[] = (waResponse.instances || []).map((inst: Instance) => ({
+        id: inst.id,
+        name: inst.name,
+        status: inst.status,
+        channel: 'whatsapp',
+      }));
+      const instagramInstances: CRMInstanceOption[] = (igResponse.data || []).map((inst: InstagramInstance) => ({
+        id: inst.id,
+        name: inst.name || inst.username || inst.instanceName,
+        status: inst.status,
+        channel: 'instagram',
+      }));
+      setExportInstances([...whatsappInstances, ...instagramInstances]);
+    } catch (error: any) {
+      console.error('Erro ao carregar instâncias para exportação:', error);
+    } finally {
+      setIsLoadingExportInstances(false);
+    }
+  };
+
+  const toggleExportInstanceSelection = useCallback((inst: CRMInstanceOption) => {
+    setExportSelectedInstances((prev) => {
+      const key = `${inst.channel}:${inst.id}`;
+      const exists = prev.some((p) => `${p.channel}:${p.id}` === key);
+      if (exists) {
+        return prev.filter((p) => `${p.channel}:${p.id}` !== key);
+      }
+      return [...prev, { id: inst.id, channel: inst.channel }];
+    });
+  }, []);
+
+  const selectAllExportInstances = useCallback(() => {
+    setExportSelectedInstances(exportInstances.map((i) => ({ id: i.id, channel: i.channel })));
+  }, [exportInstances]);
+
+  const clearExportInstanceSelection = useCallback(() => {
+    setExportSelectedInstances([]);
+  }, []);
+
+  const handleExportLeadsCsv = async () => {
+    if (exportInstanceScope === 'selected' && exportSelectedInstances.length === 0) {
+      alert(t('settings.kanbanExportNeedInstances'));
+      return;
+    }
+    try {
+      setIsExportingLeads(true);
+      const blob = await crmAPI.exportContactsCsv({
+        allInstances: exportInstanceScope === 'all',
+        instanceIds:
+          exportInstanceScope === 'selected'
+            ? exportSelectedInstances.map((s) => s.id)
+            : undefined,
+        columnId: exportColumnId || null,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `leads-crm-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setSuccessMessage(t('settings.kanbanExportSuccess'));
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (error: any) {
+      alert(error?.message || t('settings.kanbanExportError'));
+    } finally {
+      setIsExportingLeads(false);
     }
   };
 
@@ -1122,6 +1215,105 @@ const Settings: React.FC = () => {
                     </span>
                   </span>
                 </label>
+              </div>
+
+              <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#071428] space-y-4">
+                <div>
+                  <h3 className="text-base font-semibold text-clerky-backendText dark:text-gray-200">
+                    {t('settings.kanbanExportHeading')}
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    {t('settings.kanbanExportDescription')}
+                  </p>
+                </div>
+
+                <fieldset className="space-y-2">
+                  <legend className="text-sm font-medium text-clerky-backendText dark:text-gray-200 mb-2">
+                    {t('settings.kanbanExportScopeLabel')}
+                  </legend>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="export-scope"
+                      className="h-4 w-4 text-clerky-backendButton focus:ring-clerky-backendButton"
+                      checked={exportInstanceScope === 'all'}
+                      onChange={() => setExportInstanceScope('all')}
+                    />
+                    <span className="text-sm text-clerky-backendText dark:text-gray-200">
+                      {t('settings.kanbanExportScopeAll')}
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="export-scope"
+                      className="h-4 w-4 text-clerky-backendButton focus:ring-clerky-backendButton"
+                      checked={exportInstanceScope === 'selected'}
+                      onChange={() => setExportInstanceScope('selected')}
+                    />
+                    <span className="text-sm text-clerky-backendText dark:text-gray-200">
+                      {t('settings.kanbanExportScopeSelected')}
+                    </span>
+                  </label>
+                </fieldset>
+
+                {exportInstanceScope === 'selected' && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    {isLoadingExportInstances ? (
+                      <span className="text-sm text-gray-500 dark:text-gray-400">{t('crm.instancesLoading')}</span>
+                    ) : exportInstances.length > 0 ? (
+                      <CrmInstancePicker
+                        instances={exportInstances}
+                        selected={exportSelectedInstances}
+                        isLoading={isLoadingExportInstances}
+                        onToggle={toggleExportInstanceSelection}
+                        onSelectAll={selectAllExportInstances}
+                        onClear={clearExportInstanceSelection}
+                        t={t}
+                      />
+                    ) : (
+                      <span className="text-sm text-gray-500 dark:text-gray-400">{t('crm.instancesNone')}</span>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <label
+                    htmlFor="export-kanban-column"
+                    className="block text-sm font-medium text-clerky-backendText dark:text-gray-200 mb-1"
+                  >
+                    {t('settings.kanbanExportColumnLabel')}
+                  </label>
+                  <select
+                    id="export-kanban-column"
+                    value={exportColumnId}
+                    onChange={(e) => setExportColumnId(e.target.value)}
+                    disabled={isLoadingColumns}
+                    className="w-full max-w-md p-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-[#091D41] dark:text-gray-200 text-base md:text-sm"
+                  >
+                    <option value="">{t('settings.kanbanExportColumnAll')}</option>
+                    {columns.map((col) => (
+                      <option key={col.id} value={col.id}>
+                        {col.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  onClick={handleExportLeadsCsv}
+                  isLoading={isExportingLeads}
+                  disabled={
+                    isExportingLeads ||
+                    (exportInstanceScope === 'selected' && exportSelectedInstances.length === 0)
+                  }
+                  className="touch-manipulation"
+                >
+                  {isExportingLeads ? t('settings.kanbanExporting') : t('settings.kanbanExportButton')}
+                </Button>
               </div>
 
               {isLoadingColumns ? (
