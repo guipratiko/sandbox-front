@@ -51,6 +51,72 @@ type CRMInstanceOption = {
   channel: 'whatsapp' | 'instagram';
 };
 
+/** Instâncias cujo Kanban está visível (pode haver várias). */
+type CrmSelectedInstance = {
+  id: string;
+  channel: 'whatsapp' | 'instagram';
+};
+
+const CRM_STORAGE_INSTANCES = 'crm.selectedInstancesV1';
+const CRM_STORAGE_LEGACY = 'crm.selectedInstanceV1';
+
+type CrmStoredRead =
+  | { kind: 'absent' }
+  | { kind: 'explicit'; instances: CrmSelectedInstance[] };
+
+function readCrmStoredInstances(): CrmStoredRead {
+  try {
+    const rawNew = localStorage.getItem(CRM_STORAGE_INSTANCES);
+    if (rawNew) {
+      const parsed = JSON.parse(rawNew) as { instances?: unknown };
+      if (parsed && Array.isArray(parsed.instances)) {
+        const instances = (parsed.instances as CrmSelectedInstance[]).filter(
+          (x) =>
+            x &&
+            typeof x.id === 'string' &&
+            (x.channel === 'whatsapp' || x.channel === 'instagram')
+        );
+        return { kind: 'explicit', instances };
+      }
+    }
+    const rawLegacy = localStorage.getItem(CRM_STORAGE_LEGACY);
+    if (rawLegacy) {
+      const parsed = JSON.parse(rawLegacy) as { instanceId?: string; channel?: string };
+      if (
+        parsed?.instanceId &&
+        (parsed.channel === 'whatsapp' || parsed.channel === 'instagram')
+      ) {
+        return {
+          kind: 'explicit',
+          instances: [{ id: parsed.instanceId, channel: parsed.channel }],
+        };
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return { kind: 'absent' };
+}
+
+function crmDefaultInstancesFirstVisit(merged: CRMInstanceOption[]): CrmSelectedInstance[] {
+  const connected = merged.find((i) => i.status === 'connected');
+  if (connected) return [{ id: connected.id, channel: connected.channel }];
+  if (merged.length > 0) return [{ id: merged[0].id, channel: merged[0].channel }];
+  return [];
+}
+
+function resolveCrmInitialSelection(
+  merged: CRMInstanceOption[],
+  read: CrmStoredRead
+): CrmSelectedInstance[] {
+  if (read.kind === 'explicit') {
+    return read.instances.filter((s) =>
+      merged.some((m) => m.id === s.id && m.channel === s.channel)
+    );
+  }
+  return crmDefaultInstancesFirstVisit(merged);
+}
+
 /**
  * Nome vindo do CRM IG costuma ser "Nome exibido · @usuario" (Insta-Clerky / formatIgContactDisplayName).
  * Separa o título do card do @ para a linha abaixo da etiqueta Instagram (sem mostrar o ID numérico em `phone`).
@@ -1326,14 +1392,167 @@ const ChatModal: React.FC<ChatModalProps> = ({
   );
 };
 
+interface CrmInstancePickerProps {
+  instances: CRMInstanceOption[];
+  selected: CrmSelectedInstance[];
+  isLoading: boolean;
+  onToggle: (inst: CRMInstanceOption) => void;
+  onSelectAll: () => void;
+  onClear: () => void;
+  t: (key: string) => string;
+}
+
+const CrmInstancePicker: React.FC<CrmInstancePickerProps> = ({
+  instances,
+  selected,
+  isLoading,
+  onToggle,
+  onSelectAll,
+  onClear,
+  t,
+}) => {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const isSelected = (inst: CRMInstanceOption) =>
+    selected.some((s) => s.id === inst.id && s.channel === inst.channel);
+
+  const count = selected.length;
+
+  return (
+    <div className="relative" ref={rootRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        disabled={isLoading || instances.length === 0}
+        className="group inline-flex min-h-[2.75rem] max-w-full items-center gap-2.5 rounded-2xl border border-slate-200/90 bg-white px-4 py-2.5 text-left text-sm font-medium text-slate-800 shadow-sm transition-all hover:border-slate-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-100 dark:hover:border-slate-500"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500/15 to-indigo-500/10 ring-1 ring-slate-200/80 dark:from-sky-400/20 dark:to-indigo-500/15 dark:ring-slate-600/60">
+          <svg className="h-5 w-5 text-sky-600 dark:text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} aria-hidden>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25zM6 13.5a2.25 2.25 0 00-2.25 2.25V18A2.25 2.25 0 006 20.25h2.25A2.25 2.25 0 0010.5 18v-2.25A2.25 2.25 0 008.25 13.5H6z"
+            />
+          </svg>
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            {t('crm.instancesLabel')}
+          </span>
+          <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+            {isLoading
+              ? t('crm.instancesLoading')
+              : instances.length === 0
+                ? t('crm.instancesNone')
+                : count === 0
+                  ? t('crm.instancesPickHint')
+                  : t('crm.instancesSelectedCount').replace('{{count}}', String(count))}
+          </span>
+        </span>
+        {count > 0 && (
+          <span className="flex h-7 min-w-[1.75rem] shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-sky-500 to-indigo-600 px-2 text-xs font-bold tabular-nums text-white shadow-sm">
+            {count}
+          </span>
+        )}
+        <svg
+          className={`h-4 w-4 shrink-0 text-slate-400 transition-transform dark:text-slate-500 ${open ? 'rotate-180' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+          aria-hidden
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && instances.length > 0 && (
+        <div
+          className="absolute left-0 top-[calc(100%+0.5rem)] z-[100] w-[min(100vw-1.5rem,24rem)] overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-2xl ring-1 ring-slate-900/5 dark:border-slate-600 dark:bg-slate-900 dark:ring-white/10"
+          role="listbox"
+          aria-multiselectable
+        >
+          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50/90 to-white px-3 py-2.5 dark:border-slate-700 dark:from-slate-800/80 dark:to-slate-900">
+            <p className="text-xs font-medium text-slate-600 dark:text-slate-400">{t('crm.instancesPanelHint')}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => onSelectAll()}
+                className="rounded-lg bg-white px-2.5 py-1 text-xs font-semibold text-sky-600 shadow-sm ring-1 ring-sky-200/80 transition hover:bg-sky-50 dark:bg-slate-800 dark:text-sky-400 dark:ring-sky-500/30 dark:hover:bg-slate-700"
+              >
+                {t('crm.instancesSelectAll')}
+              </button>
+              <button
+                type="button"
+                onClick={() => onClear()}
+                className="rounded-lg bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-600 dark:hover:bg-slate-700"
+              >
+                {t('crm.instancesClear')}
+              </button>
+            </div>
+          </div>
+          <ul className="max-h-[min(20rem,50vh)] overflow-y-auto overscroll-contain py-1">
+            {instances.map((inst) => {
+              const checked = isSelected(inst);
+              const wa = inst.channel === 'whatsapp';
+              return (
+                <li key={`${inst.channel}:${inst.id}`}>
+                  <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 transition hover:bg-slate-50 dark:hover:bg-slate-800/80">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onToggle(inst)}
+                      className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 dark:border-slate-500 dark:bg-slate-800"
+                    />
+                    <span
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold ${
+                        wa
+                          ? 'bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                          : 'bg-gradient-to-br from-pink-500/20 to-purple-600/25 text-pink-800 dark:from-pink-500/25 dark:to-purple-600/30 dark:text-pink-200'
+                      }`}
+                    >
+                      {wa ? 'WA' : 'IG'}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-slate-900 dark:text-slate-100">{inst.name}</span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                        {wa ? 'WhatsApp' : 'Instagram'}
+                        {inst.status === 'connected' ? ` · ${t('crm.instanceConnected')}` : ''}
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const CRM: React.FC = () => {
   const { token } = useAuth();
   const { t } = useLanguage();
   const [columns, setColumns] = useState<CRMColumn[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [instances, setInstances] = useState<CRMInstanceOption[]>([]);
-  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
-  const [selectedChannel, setSelectedChannel] = useState<'whatsapp' | 'instagram' | null>(null);
+  const [selectedInstances, setSelectedInstances] = useState<CrmSelectedInstance[]>([]);
+  const [crmSelectionReady, setCrmSelectionReady] = useState(false);
   const [allowDeleteCard, setAllowDeleteCard] = useState(false);
   // Map de contatos abertos: contactId -> Contact
   const [openChats, setOpenChats] = useState<Map<string, Contact>>(new Map());
@@ -1400,43 +1619,9 @@ const CRM: React.FC = () => {
       const merged = [...whatsappInstances, ...instagramInstances];
       setInstances(merged);
 
-      let saved: { instanceId: string; channel: 'whatsapp' | 'instagram' } | null = null;
-      try {
-        const raw = localStorage.getItem('crm.selectedInstanceV1');
-        if (raw) {
-          const parsed = JSON.parse(raw) as { instanceId?: string; channel?: string };
-          if (
-            parsed.instanceId &&
-            (parsed.channel === 'whatsapp' || parsed.channel === 'instagram')
-          ) {
-            saved = { instanceId: parsed.instanceId, channel: parsed.channel };
-          }
-        }
-      } catch {
-        saved = null;
-      }
-
-      const matchSaved =
-        saved &&
-        merged.find(
-          (i) =>
-            String(i.id).trim() === String(saved!.instanceId).trim() && i.channel === saved!.channel
-        );
-
-      if (matchSaved) {
-        setSelectedInstanceId(matchSaved.id);
-        setSelectedChannel(matchSaved.channel);
-        return;
-      }
-
-      const connectedInstance = merged.find((inst) => inst.status === 'connected');
-      if (connectedInstance) {
-        setSelectedInstanceId(connectedInstance.id);
-        setSelectedChannel(connectedInstance.channel);
-      } else if (merged.length > 0) {
-        setSelectedInstanceId(merged[0].id);
-        setSelectedChannel(merged[0].channel);
-      }
+      const stored = readCrmStoredInstances();
+      setSelectedInstances(resolveCrmInitialSelection(merged, stored));
+      setCrmSelectionReady(true);
     } catch (error: any) {
       console.error('Erro ao carregar instâncias:', error);
     } finally {
@@ -1454,7 +1639,7 @@ const CRM: React.FC = () => {
   };
 
   const loadContacts = useCallback(async () => {
-    if (!selectedInstanceId) {
+    if (selectedInstances.length === 0) {
       setContacts([]);
       setIsLoading(false);
       return;
@@ -1468,11 +1653,10 @@ const CRM: React.FC = () => {
       } else {
         response = await crmAPI.getContacts();
       }
-      // Filtrar contatos pela instância selecionada
-      const filteredContacts = response.contacts.filter(
-        (contact) =>
-          contact.instanceId === selectedInstanceId &&
-          (selectedChannel ? contact.channel === selectedChannel : true)
+      const filteredContacts = response.contacts.filter((contact) =>
+        selectedInstances.some(
+          (s) => s.id === contact.instanceId && s.channel === contact.channel
+        )
       );
       setContacts(filteredContacts);
     } catch (error: any) {
@@ -1480,7 +1664,7 @@ const CRM: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedInstanceId, selectedChannel, searchQuery]);
+  }, [selectedInstances, searchQuery]);
 
   // Handler para novas mensagens - atualiza o card do contato específico
   // Funciona igual ao chat: verifica apenas se o contato existe na lista atual
@@ -1492,30 +1676,28 @@ const CRM: React.FC = () => {
 
     const contactIdNorm = String(data.contactId);
 
-    // Se não há instância selecionada, não fazer nada
-    if (!selectedInstanceId) {
+    if (selectedInstances.length === 0) {
       return;
     }
 
-    // Verificar se a instância corresponde
     const dataInstanceId = String(data.instanceId || '').trim();
-    const currentInstanceId = String(selectedInstanceId || '').trim();
-    
-    // Se a instância não corresponde, ignorar
-    if (currentInstanceId && dataInstanceId && dataInstanceId !== currentInstanceId) {
+    const dataChannel = data.channel;
+    const matchesInstance = selectedInstances.some((s) => {
+      if (String(s.id) !== dataInstanceId) return false;
+      if (dataChannel === 'whatsapp' || dataChannel === 'instagram') {
+        return s.channel === dataChannel;
+      }
+      return true;
+    });
+    if (!matchesInstance) {
       return;
     }
-    
-    // Atualizar o contato específico que recebeu a mensagem
-      setContacts((prevContacts) => {
-      // Verificar se o contato existe na lista atual
+
+    setContacts((prevContacts) => {
         const contactExists = prevContacts.some((c) => String(c.id) === contactIdNorm);
-        
-      // Se o contato não existe na lista atual, recarregar lista completa
+
         if (!contactExists) {
-        if (dataInstanceId === currentInstanceId || !dataInstanceId) {
           loadContacts();
-        }
           return prevContacts;
         }
 
@@ -1549,26 +1731,26 @@ const CRM: React.FC = () => {
         });
         return updatedContacts;
       });
-  }, [selectedInstanceId, loadContacts]);
+  }, [selectedInstances, loadContacts]);
 
   // Ref para evitar recarregamentos desnecessários
   const lastContactUpdateRef = useRef<number>(0);
   const contactUpdateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleContactUpdate = useCallback((payload?: ContactUpdatedPayload) => {
-    // Usar debounce para evitar recarregamentos excessivos
-    if (!selectedInstanceId) return;
+    if (selectedInstances.length === 0) return;
 
     if (payload?.channel === 'instagram') {
       return;
     }
 
-    if (
-      payload?.instanceId != null &&
-      String(payload.instanceId).trim() !== '' &&
-      String(payload.instanceId) !== String(selectedInstanceId)
-    ) {
-      return;
+    const pid = payload?.instanceId;
+    if (pid != null && String(pid).trim() !== '') {
+      const pch = payload?.channel;
+      const matches = selectedInstances.some(
+        (s) => String(s.id) === String(pid) && (pch ? s.channel === pch : true)
+      );
+      if (!matches) return;
     }
 
     const now = Date.now();
@@ -1589,7 +1771,7 @@ const CRM: React.FC = () => {
     // Atualizar imediatamente se passou tempo suficiente
     lastContactUpdateRef.current = now;
     loadContacts();
-  }, [loadContacts, selectedInstanceId]);
+  }, [loadContacts, selectedInstances]);
 
   // Conectar ao WebSocket - escutar tanto new-message quanto contact-updated
   useSocket(token, undefined, handleNewMessage, handleContactUpdate);
@@ -1608,19 +1790,15 @@ const CRM: React.FC = () => {
     loadColumns();
   }, []);
 
-  // Gravar só quando há seleção válida. NUNCA apagar só porque o estado inicial é null —
-  // no primeiro paint isso apagava o localStorage antes de loadInstances restaurar a escolha.
   useEffect(() => {
-    if (!selectedInstanceId || !selectedChannel) return;
+    if (!crmSelectionReady) return;
     try {
-      localStorage.setItem(
-        'crm.selectedInstanceV1',
-        JSON.stringify({ instanceId: selectedInstanceId, channel: selectedChannel })
-      );
+      localStorage.setItem(CRM_STORAGE_INSTANCES, JSON.stringify({ instances: selectedInstances }));
+      localStorage.removeItem(CRM_STORAGE_LEGACY);
     } catch {
       /* ignore */
     }
-  }, [selectedInstanceId, selectedChannel]);
+  }, [crmSelectionReady, selectedInstances]);
 
   useEffect(() => {
     if (!token) return;
@@ -1631,23 +1809,22 @@ const CRM: React.FC = () => {
   }, [token]);
 
   useEffect(() => {
-    if (selectedInstanceId) {
+    if (selectedInstances.length > 0) {
       loadContacts();
     } else {
       setContacts([]);
     }
-  }, [selectedInstanceId, loadContacts]);
+  }, [selectedInstances, loadContacts]);
 
   useEffect(() => {
-    // Debounce para busca
-    if (!selectedInstanceId) return;
-    
+    if (selectedInstances.length === 0) return;
+
     const timer = setTimeout(() => {
       loadContacts();
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, selectedInstanceId, loadContacts]);
+  }, [searchQuery, selectedInstances, loadContacts]);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -1785,6 +1962,25 @@ const CRM: React.FC = () => {
     }
   };
 
+  const toggleInstanceSelection = useCallback((inst: CRMInstanceOption) => {
+    setSelectedInstances((prev) => {
+      const key = `${inst.channel}:${inst.id}`;
+      const exists = prev.some((p) => `${p.channel}:${p.id}` === key);
+      if (exists) {
+        return prev.filter((p) => `${p.channel}:${p.id}` !== key);
+      }
+      return [...prev, { id: inst.id, channel: inst.channel }];
+    });
+  }, []);
+
+  const selectAllInstances = useCallback(() => {
+    setSelectedInstances(instances.map((i) => ({ id: i.id, channel: i.channel })));
+  }, [instances]);
+
+  const clearInstanceSelection = useCallback(() => {
+    setSelectedInstances([]);
+  }, []);
+
   const draggedContact = activeId ? contacts.find((c) => c.id === activeId) : null;
 
   return (
@@ -1806,68 +2002,53 @@ const CRM: React.FC = () => {
             </Button>
           </Link>
         </div>
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex gap-4 items-center">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
             {isLoadingInstances ? (
-              <div className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700">
-                <span className="text-sm text-gray-500 dark:text-gray-400">Carregando instâncias...</span>
+              <div className="rounded-2xl border border-slate-200/90 bg-slate-50 px-4 py-3 dark:border-slate-600 dark:bg-slate-800/80">
+                <span className="text-sm text-slate-500 dark:text-slate-400">{t('crm.instancesLoading')}</span>
               </div>
             ) : instances.length > 0 ? (
-              <select
-                value={selectedInstanceId && selectedChannel ? `${selectedChannel}:${selectedInstanceId}` : ''}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (!value) {
-                    setSelectedInstanceId(null);
-                    setSelectedChannel(null);
-                    try {
-                      localStorage.removeItem('crm.selectedInstanceV1');
-                    } catch {
-                      /* ignore */
-                    }
-                    return;
-                  }
-                  const colon = value.indexOf(':');
-                  const channel = colon >= 0 ? value.slice(0, colon) : '';
-                  const id = colon >= 0 ? value.slice(colon + 1) : '';
-                  setSelectedInstanceId(id || null);
-                  setSelectedChannel((channel as 'whatsapp' | 'instagram') || null);
-                }}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-clerky-backendButton focus:border-transparent bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200 min-w-[200px]"
-              >
-                <option value="">Selecione uma instância</option>
-                {instances.map((instance) => (
-                  <option key={`${instance.channel}:${instance.id}`} value={`${instance.channel}:${instance.id}`}>
-                    {instance.name} ({instance.channel === 'instagram' ? 'Instagram' : 'WhatsApp'})
-                  </option>
-                ))}
-              </select>
+              <CrmInstancePicker
+                instances={instances}
+                selected={selectedInstances}
+                isLoading={isLoadingInstances}
+                onToggle={toggleInstanceSelection}
+                onSelectAll={selectAllInstances}
+                onClear={clearInstanceSelection}
+                t={t}
+              />
             ) : (
-              <div className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700">
-                <span className="text-sm text-gray-500 dark:text-gray-400">Nenhuma instância disponível</span>
+              <div className="rounded-2xl border border-slate-200/90 bg-slate-50 px-4 py-3 dark:border-slate-600 dark:bg-slate-800/80">
+                <span className="text-sm text-slate-500 dark:text-slate-400">{t('crm.instancesNone')}</span>
               </div>
             )}
           </div>
-          <div className="flex gap-4 items-center">
+          <div className="flex min-w-0 flex-1 gap-4 items-center sm:justify-end">
             <input
               type="text"
               placeholder={t('crm.searchContacts')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              disabled={!selectedInstanceId}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-clerky-backendButton focus:border-transparent bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={selectedInstances.length === 0}
+              className="min-w-0 w-full max-w-md px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-clerky-backendButton focus:border-transparent bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
         </div>
 
-        {!selectedInstanceId ? (
+        {selectedInstances.length === 0 ? (
           <Card padding="lg" shadow="lg">
-            <div className="text-center py-12">
+            <div className="text-center py-12 px-4">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 ring-1 ring-slate-200/80 dark:from-slate-800 dark:to-slate-900 dark:ring-slate-600/60">
+                <svg className="h-8 w-8 text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V19.5m-9-1.035a3.001 3.001 0 003.75.615m4.5-8.25a3.001 3.001 0 00-3.75-.615m0 0a3 3 0 01-6 0m6 0a3 3 0 00-6 0m6 0h.008v.008H12V12z" />
+                </svg>
+              </div>
               <p className="text-xl font-semibold text-clerky-backendText dark:text-gray-200 mb-2">
-                Selecione uma instância
+                {instances.length === 0 ? t('crm.instancesNone') : t('crm.noInstancesSelectedTitle')}
               </p>
-              <p className="text-gray-600 dark:text-gray-400">
-                Escolha uma instância acima para visualizar os contatos do CRM
+              <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+                {instances.length === 0 ? t('crm.instancesNoneHint') : t('crm.noInstancesSelectedHint')}
               </p>
             </div>
           </Card>
