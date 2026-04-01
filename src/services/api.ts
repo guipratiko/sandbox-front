@@ -763,19 +763,6 @@ export interface GetContactsResponse {
   contacts: Contact[];
 }
 
-export interface GetContactsByColumnResponse {
-  status: string;
-  columnId: string;
-  total: number;
-  limit: number;
-  offset: number;
-  hasMore: boolean;
-  contacts: Contact[];
-}
-
-/** Tamanho de página alinhado ao backend (máx. 100). */
-export const CRM_CONTACTS_PAGE_SIZE = 40;
-
 export interface GetMessagesResponse {
   status: string;
   count: number;
@@ -903,21 +890,6 @@ export const crmAPI = {
 
   getContacts: async (): Promise<GetContactsResponse> => {
     return request<GetContactsResponse>('/crm/contacts');
-  },
-
-  /** Uma coluna do Kanban com paginação (scroll infinito). */
-  getContactsByColumn: async (params: {
-    columnId: string;
-    instanceIds: string[];
-    limit?: number;
-    offset?: number;
-  }): Promise<GetContactsByColumnResponse> => {
-    const qs = new URLSearchParams();
-    qs.set('columnId', params.columnId);
-    qs.set('instanceIds', params.instanceIds.join(','));
-    qs.set('limit', String(params.limit ?? CRM_CONTACTS_PAGE_SIZE));
-    qs.set('offset', String(params.offset ?? 0));
-    return request<GetContactsByColumnResponse>(`/crm/contacts/by-column?${qs.toString()}`);
   },
 
   /** CSV UTF-8 com colunas nome,telefone; filtro no servidor (instâncias conectadas). */

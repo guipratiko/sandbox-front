@@ -12,18 +12,7 @@ import { AppLayout } from '../components/Layout';
 import { Card, Button, Modal, HelpIcon } from '../components/UI';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import {
-  crmAPI,
-  Contact,
-  CRMColumn,
-  Message,
-  instanceAPI,
-  instagramAPI,
-  Instance,
-  InstagramInstance,
-  Label,
-  CRM_CONTACTS_PAGE_SIZE,
-} from '../services/api';
+import { crmAPI, Contact, CRMColumn, Message, instanceAPI, instagramAPI, Instance, InstagramInstance, Label } from '../services/api';
 import {
   CrmInstancePicker,
   CRMInstanceOption,
@@ -69,6 +58,9 @@ interface ContactCardProps {
 
 const CRM_STORAGE_INSTANCES = 'crm.selectedInstancesV1';
 const CRM_STORAGE_LEGACY = 'crm.selectedInstanceV1';
+
+/** Cards renderizados por coluna no Kanban; o restante carrega ao rolar. */
+const CRM_COLUMN_PAGE_SIZE = 20;
 
 type CrmStoredRead =
   | { kind: 'absent' }
@@ -353,74 +345,57 @@ const ContactCard: React.FC<ContactCardProps> = ({
   );
 };
 
-/** Estado de paginação por coluna (scroll infinito). */
-type CrmColumnPageState = {
-  offset: number;
-  hasMore: boolean;
-  total: number;
-  loadingMore: boolean;
-};
-
 // Componente de Coluna do Kanban
 interface ColumnProps {
   column: CRMColumn;
   contacts: Contact[];
+  /** Total de contatos na coluna (pode ser maior que `contacts.length` com paginação por scroll). */
+  totalInColumn: number;
+  hasMoreContacts: boolean;
+  onLoadMoreContacts: () => void;
   onContactClick: (contact: Contact) => void;
   allowDeleteCard?: boolean;
   onDeleteContact?: (contact: Contact) => void;
-  /** Quando true, não há paginação por coluna (modo busca). */
-  searchMode?: boolean;
-  columnPageInfo?: CrmColumnPageState | null;
-  onLoadMoreColumn?: () => void;
 }
 
 const Column: React.FC<ColumnProps> = ({
   column,
   contacts,
+  totalInColumn,
+  hasMoreContacts,
+  onLoadMoreContacts,
   onContactClick,
   allowDeleteCard,
   onDeleteContact,
-  searchMode,
-  columnPageInfo,
-  onLoadMoreColumn,
 }) => {
   const { t } = useLanguage();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
   });
 
-  const contactIds = contacts.map((c) => c.id);
-
-  const countLabel =
-    columnPageInfo != null && columnPageInfo.total > contacts.length
-      ? `${contacts.length} / ${columnPageInfo.total}`
-      : `${contacts.length}`;
-
-  const contactCountWord =
-    contacts.length === 1 && (columnPageInfo == null || columnPageInfo.total <= 1)
-      ? t('crm.contact')
-      : t('crm.contacts');
+  const scrollRootRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const onLoadMoreRef = useRef(onLoadMoreContacts);
+  onLoadMoreRef.current = onLoadMoreContacts;
 
   useEffect(() => {
-    if (searchMode || !onLoadMoreColumn || !columnPageInfo?.hasMore) return;
-    const root = scrollRef.current;
-    const target = sentinelRef.current;
-    if (!root || !target) return;
-
+    const root = scrollRootRef.current;
+    const sentinel = sentinelRef.current;
+    if (!root || !sentinel || !hasMoreContacts) return;
     const obs = new IntersectionObserver(
       (entries) => {
-        const [e] = entries;
-        if (e?.isIntersecting && !columnPageInfo.loadingMore) {
-          onLoadMoreColumn();
+        if (entries[0]?.isIntersecting) {
+          onLoadMoreRef.current();
         }
       },
       { root, rootMargin: '100px', threshold: 0 }
     );
-    obs.observe(target);
+    obs.observe(sentinel);
     return () => obs.disconnect();
-  }, [searchMode, onLoadMoreColumn, columnPageInfo?.hasMore, columnPageInfo?.loadingMore]);
+  }, [hasMoreContacts, contacts.length, totalInColumn, column.id]);
+
+  const contactIds = contacts.map((c) => c.id);
+  const showingPartial = totalInColumn > 0 && contacts.length < totalInColumn;
 
   return (
     <div
@@ -439,36 +414,39 @@ const Column: React.FC<ColumnProps> = ({
           {column.name}
         </h3>
         <span className="text-sm text-gray-500 dark:text-gray-400">
-          {countLabel} {contactCountWord}
+          {totalInColumn} {totalInColumn === 1 ? t('crm.contact') : t('crm.contacts')}
         </span>
       </div>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-[200px]">
+      <div ref={scrollRootRef} className="flex min-h-[200px] flex-1 flex-col overflow-y-auto overscroll-contain">
         {contactIds.length > 0 ? (
-          <SortableContext items={contactIds} strategy={verticalListSortingStrategy}>
-            {contacts.map((contact) => (
-              <ContactCard
-                key={contact.id}
-                contact={contact}
-                onClick={() => onContactClick(contact)}
-                showDeleteButton={allowDeleteCard}
-                onDelete={onDeleteContact}
-              />
-            ))}
-          </SortableContext>
+          <>
+            <SortableContext items={contactIds} strategy={verticalListSortingStrategy}>
+              {contacts.map((contact) => (
+                <ContactCard
+                  key={contact.id}
+                  contact={contact}
+                  onClick={() => onContactClick(contact)}
+                  showDeleteButton={allowDeleteCard}
+                  onDelete={onDeleteContact}
+                />
+              ))}
+            </SortableContext>
+            {hasMoreContacts ? (
+              <div ref={sentinelRef} className="h-3 w-full shrink-0" aria-hidden />
+            ) : null}
+          </>
         ) : (
-          <div className="flex items-center justify-center min-h-[120px] text-gray-400 dark:text-gray-500 text-sm border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
+          <div className="flex h-full min-h-[120px] items-center justify-center text-gray-400 dark:text-gray-500 text-sm border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
             {t('crm.dragContactsHere')}
           </div>
         )}
-        {!searchMode && columnPageInfo?.hasMore ? (
-          <>
-            <div ref={sentinelRef} className="h-2 w-full shrink-0" aria-hidden />
-            {columnPageInfo.loadingMore ? (
-              <div className="py-2 text-center text-xs text-gray-500 dark:text-gray-400">
-                {t('crm.loadingMoreContacts')}
-              </div>
-            ) : null}
-          </>
+        {showingPartial ? (
+          <p className="mt-1 shrink-0 px-0.5 text-center text-[11px] text-gray-500 dark:text-gray-500">
+            {t('crm.columnShowingPartial', {
+              visible: String(contacts.length),
+              total: String(totalInColumn),
+            })}
+          </p>
         ) : null}
       </div>
     </div>
@@ -1466,9 +1444,8 @@ const CRM: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingInstances, setIsLoadingInstances] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  /** Paginação por coluna (fora do modo busca). */
-  const [columnPageInfo, setColumnPageInfo] = useState<Record<string, CrmColumnPageState>>({});
-  const columnPageInfoRef = useRef<Record<string, CrmColumnPageState>>({});
+  /** Máximo de cards renderizados por coluna (carrega mais ao rolar). */
+  const [columnVisibleLimit, setColumnVisibleLimit] = useState<Record<string, number>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draggedOverColumnId, setDraggedOverColumnId] = useState<string | null>(null);
   /** Última coluna válida sob o ponteiro — evita `over` null no dragEnd (comum com overlay + grid). */
@@ -1550,121 +1527,33 @@ const CRM: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    columnPageInfoRef.current = columnPageInfo;
-  }, [columnPageInfo]);
-
-  const loadMoreForColumn = useCallback(
-    async (columnId: string) => {
-      if (searchQuery.trim()) return;
-      const st = columnPageInfoRef.current[columnId];
-      if (!st?.hasMore || st.loadingMore) return;
-
-      setColumnPageInfo((prev) => ({
-        ...prev,
-        [columnId]: { ...st, loadingMore: true },
-      }));
-
-      const instanceIds = Array.from(new Set(selectedInstances.map((s) => s.id)));
-      try {
-        const res = await crmAPI.getContactsByColumn({
-          columnId,
-          instanceIds,
-          limit: CRM_CONTACTS_PAGE_SIZE,
-          offset: st.offset,
-        });
-        setContacts((prev) => {
-          const m = new Map(prev.map((c) => [c.id, c]));
-          res.contacts.forEach((c) => m.set(c.id, c));
-          return Array.from(m.values());
-        });
-        setColumnPageInfo((prev) => ({
-          ...prev,
-          [columnId]: {
-            offset: st.offset + res.contacts.length,
-            hasMore: res.hasMore,
-            total: res.total,
-            loadingMore: false,
-          },
-        }));
-      } catch (error: any) {
-        console.error('Erro ao carregar mais contatos:', error);
-        setColumnPageInfo((prev) => {
-          const cur = prev[columnId];
-          if (!cur) return prev;
-          return { ...prev, [columnId]: { ...cur, loadingMore: false } };
-        });
-      }
-    },
-    [searchQuery, selectedInstances]
-  );
-
   const loadContacts = useCallback(async () => {
     if (selectedInstances.length === 0) {
       setContacts([]);
-      setColumnPageInfo({});
       setIsLoading(false);
       return;
     }
 
-    const hasSearch = searchQuery.trim().length > 0;
-
     try {
       setIsLoading(true);
-
-      if (hasSearch) {
-        const response = await crmAPI.searchContacts(searchQuery);
-        const filteredContacts = response.contacts.filter((contact) =>
-          selectedInstances.some(
-            (s) => s.id === contact.instanceId && s.channel === contact.channel
-          )
-        );
-        setContacts(filteredContacts);
-        setColumnPageInfo({});
-        return;
+      let response;
+      if (searchQuery.trim()) {
+        response = await crmAPI.searchContacts(searchQuery);
+      } else {
+        response = await crmAPI.getContacts();
       }
-
-      if (columns.length === 0) {
-        setContacts([]);
-        setColumnPageInfo({});
-        return;
-      }
-
-      const instanceIds = Array.from(new Set(selectedInstances.map((s) => s.id)));
-
-      const results = await Promise.all(
-        columns.map((col) =>
-          crmAPI.getContactsByColumn({
-            columnId: col.id,
-            instanceIds,
-            limit: CRM_CONTACTS_PAGE_SIZE,
-            offset: 0,
-          })
+      const filteredContacts = response.contacts.filter((contact) =>
+        selectedInstances.some(
+          (s) => s.id === contact.instanceId && s.channel === contact.channel
         )
       );
-
-      const merged = new Map<string, Contact>();
-      const nextPage: Record<string, CrmColumnPageState> = {};
-
-      results.forEach((res, i) => {
-        const col = columns[i];
-        res.contacts.forEach((c) => merged.set(c.id, c));
-        nextPage[col.id] = {
-          offset: res.contacts.length,
-          hasMore: res.hasMore,
-          total: res.total,
-          loadingMore: false,
-        };
-      });
-
-      setContacts(Array.from(merged.values()));
-      setColumnPageInfo(nextPage);
+      setContacts(filteredContacts);
     } catch (error: any) {
       console.error('Erro ao carregar contatos:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedInstances, searchQuery, columns]);
+  }, [selectedInstances, searchQuery]);
 
   // Handler para novas mensagens - atualiza o card do contato específico
   // Funciona igual ao chat: verifica apenas se o contato existe na lista atual
@@ -1801,6 +1690,10 @@ const CRM: React.FC = () => {
   }, [crmSelectionReady, selectedInstances]);
 
   useEffect(() => {
+    setColumnVisibleLimit({});
+  }, [selectedInstances, searchQuery]);
+
+  useEffect(() => {
     if (!token) return;
     crmAPI
       .getPreferences()
@@ -1812,7 +1705,6 @@ const CRM: React.FC = () => {
   useEffect(() => {
     if (selectedInstances.length === 0) {
       setContacts([]);
-      setColumnPageInfo({});
       setIsLoading(false);
       skipContactsDebounceOnceRef.current = true;
       return;
@@ -1927,6 +1819,15 @@ const CRM: React.FC = () => {
   const getContactsByColumn = (columnId: string) => {
     return contacts.filter((contact) => contact.columnId === columnId);
   };
+
+  const loadMoreColumnContacts = useCallback((columnId: string, totalInColumn: number) => {
+    setColumnVisibleLimit((prev) => {
+      const cur = prev[columnId] ?? CRM_COLUMN_PAGE_SIZE;
+      const next = Math.min(cur + CRM_COLUMN_PAGE_SIZE, totalInColumn);
+      if (next === cur) return prev;
+      return { ...prev, [columnId]: next };
+    });
+  }, []);
 
   const handleContactClick = (contact: Contact) => {
     // Se o chat já está aberto, não fazer nada (ou focar nele)
@@ -2092,19 +1993,29 @@ const CRM: React.FC = () => {
                     : {}),
                 }}
               >
-              {columns.map((column) => (
-                <Column
-                  key={column.id}
-                  column={column}
-                  contacts={getContactsByColumn(column.id)}
-                  onContactClick={handleContactClick}
-                  allowDeleteCard={allowDeleteCard}
-                  onDeleteContact={handleDeleteContact}
-                  searchMode={searchQuery.trim().length > 0}
-                  columnPageInfo={columnPageInfo[column.id] ?? null}
-                  onLoadMoreColumn={() => loadMoreForColumn(column.id)}
-                />
-              ))}
+              {columns.map((column) => {
+                const allInColumn = getContactsByColumn(column.id);
+                const totalInColumn = allInColumn.length;
+                const limit = Math.min(
+                  columnVisibleLimit[column.id] ?? CRM_COLUMN_PAGE_SIZE,
+                  totalInColumn
+                );
+                const visibleContacts = allInColumn.slice(0, limit);
+                const hasMoreContacts = visibleContacts.length < totalInColumn;
+                return (
+                  <Column
+                    key={column.id}
+                    column={column}
+                    contacts={visibleContacts}
+                    totalInColumn={totalInColumn}
+                    hasMoreContacts={hasMoreContacts}
+                    onLoadMoreContacts={() => loadMoreColumnContacts(column.id, totalInColumn)}
+                    onContactClick={handleContactClick}
+                    allowDeleteCard={allowDeleteCard}
+                    onDeleteContact={handleDeleteContact}
+                  />
+                );
+              })}
               </div>
             </div>
             <DragOverlay>
