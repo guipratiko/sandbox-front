@@ -740,7 +740,10 @@ const translations = {
     'templateBuilder.remove': 'Remover',
     'templateBuilder.addStep': '+ Adicionar Etapa',
     'templateBuilder.delay': 'Delay',
+    'templateBuilder.delayBeforeStep': 'Espera antes desta etapa',
     'templateBuilder.delayUnit': 'Unidade',
+    'templateBuilder.firstStepNoDelayHint':
+      'O intervalo antes da primeira mensagem é definido pela velocidade do disparo (rápido, normal, lento ou aleatório), não por um delay nesta etapa.',
     'templateBuilder.message': 'Mensagem',
     'templateBuilder.digiteMensagem': 'Digite sua mensagem...',
     'templateBuilder.digiteLegenda': 'Digite a legenda...',
@@ -2401,7 +2404,10 @@ const translations = {
     'templateBuilder.remove': 'Remove',
     'templateBuilder.addStep': '+ Add Step',
     'templateBuilder.delay': 'Delay',
+    'templateBuilder.delayBeforeStep': 'Wait before this step',
     'templateBuilder.delayUnit': 'Unit',
+    'templateBuilder.firstStepNoDelayHint':
+      'The delay before the first message is controlled by dispatch speed (fast, normal, slow, or randomized), not by a delay on this step.',
     'templateBuilder.message': 'Message',
     'templateBuilder.digiteMensagem': 'Type your message...',
     'templateBuilder.digiteLegenda': 'Type the caption...',

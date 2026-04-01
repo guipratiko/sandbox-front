@@ -615,35 +615,41 @@ const SequenceBuilder: React.FC<SequenceBuilderProps> = ({ content, setContent }
                 </>
               )}
 
-              {/* Delay */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t('templateBuilder.delay')}
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={step.delay || 0}
-                    onChange={(e) => updateStep(index, 'delay', parseInt(e.target.value) || 0)}
-                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-[#091D41] dark:text-gray-200"
-                  />
+              {/* Delay: da 2ª etapa em diante (a 1ª usa só a velocidade do disparo entre contatos) */}
+              {index === 0 ? (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 border-t border-gray-200 dark:border-gray-600 pt-3">
+                  {t('templateBuilder.firstStepNoDelayHint')}
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 mt-2 border-t border-gray-200 dark:border-gray-600 pt-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      {t('templateBuilder.delayBeforeStep')}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={step.delay || 0}
+                      onChange={(e) => updateStep(index, 'delay', parseInt(e.target.value, 10) || 0)}
+                      className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-[#091D41] dark:text-gray-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      {t('templateBuilder.delayUnit')}
+                    </label>
+                    <select
+                      value={step.delayUnit || 'seconds'}
+                      onChange={(e) => updateStep(index, 'delayUnit', e.target.value)}
+                      className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-[#091D41] dark:text-gray-200"
+                    >
+                      <option value="seconds">{t('dispatchCreator.seconds')}</option>
+                      <option value="minutes">{t('dispatchCreator.minutes')}</option>
+                      <option value="hours">{t('dispatchCreator.hours')}</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t('templateBuilder.delayUnit')}
-                  </label>
-                  <select
-                    value={step.delayUnit || 'seconds'}
-                    onChange={(e) => updateStep(index, 'delayUnit', e.target.value)}
-                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-[#091D41] dark:text-gray-200"
-                  >
-                    <option value="seconds">{t('dispatchCreator.seconds')}</option>
-                    <option value="minutes">{t('dispatchCreator.minutes')}</option>
-                    <option value="hours">{t('dispatchCreator.hours')}</option>
-                  </select>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         ))}
@@ -727,10 +733,18 @@ const TemplateBuilder: React.FC<TemplateBuilderProps> = ({
 
     console.log('✅ TemplateBuilder - Salvando template:', { name, type: templateType, contentKeys: Object.keys(content) });
 
+    let contentToSave = content;
+    if (templateType === 'sequence' && Array.isArray(content.steps) && content.steps.length > 0) {
+      const steps = content.steps.map((s: any, i: number) =>
+        i === 0 ? { ...s, delay: 0 } : s
+      );
+      contentToSave = { ...content, steps };
+    }
+
     await onSave({
       name,
       type: templateType,
-      content,
+      content: contentToSave,
     });
 
     // Reset
