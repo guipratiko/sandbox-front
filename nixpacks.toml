@@ -1,0 +1,5 @@
+# Garante que o Nixpacks use os mesmos limites de rede mesmo se o .npmrc não for lido primeiro
+[phases.install]
+cmds = [
+  "npm ci --fetch-retries=15 --fetch-timeout=600000 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000",
+]
