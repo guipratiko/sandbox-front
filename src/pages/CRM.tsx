@@ -59,9 +59,6 @@ interface ContactCardProps {
 const CRM_STORAGE_INSTANCES = 'crm.selectedInstancesV1';
 const CRM_STORAGE_LEGACY = 'crm.selectedInstanceV1';
 
-/** Cards renderizados por coluna no Kanban; o restante carrega ao rolar. */
-const CRM_COLUMN_PAGE_SIZE = 20;
-
 type CrmStoredRead =
   | { kind: 'absent' }
   | { kind: 'explicit'; instances: CrmSelectedInstance[] };
@@ -349,10 +346,6 @@ const ContactCard: React.FC<ContactCardProps> = ({
 interface ColumnProps {
   column: CRMColumn;
   contacts: Contact[];
-  /** Total de contatos na coluna (pode ser maior que `contacts.length` com paginação por scroll). */
-  totalInColumn: number;
-  hasMoreContacts: boolean;
-  onLoadMoreContacts: () => void;
   onContactClick: (contact: Contact) => void;
   allowDeleteCard?: boolean;
   onDeleteContact?: (contact: Contact) => void;
@@ -361,9 +354,6 @@ interface ColumnProps {
 const Column: React.FC<ColumnProps> = ({
   column,
   contacts,
-  totalInColumn,
-  hasMoreContacts,
-  onLoadMoreContacts,
   onContactClick,
   allowDeleteCard,
   onDeleteContact,
@@ -373,29 +363,7 @@ const Column: React.FC<ColumnProps> = ({
     id: column.id,
   });
 
-  const scrollRootRef = useRef<HTMLDivElement>(null);
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  const onLoadMoreRef = useRef(onLoadMoreContacts);
-  onLoadMoreRef.current = onLoadMoreContacts;
-
-  useEffect(() => {
-    const root = scrollRootRef.current;
-    const sentinel = sentinelRef.current;
-    if (!root || !sentinel || !hasMoreContacts) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          onLoadMoreRef.current();
-        }
-      },
-      { root, rootMargin: '100px', threshold: 0 }
-    );
-    obs.observe(sentinel);
-    return () => obs.disconnect();
-  }, [hasMoreContacts, contacts.length, totalInColumn, column.id]);
-
   const contactIds = contacts.map((c) => c.id);
-  const showingPartial = totalInColumn > 0 && contacts.length < totalInColumn;
 
   return (
     <div
@@ -414,40 +382,27 @@ const Column: React.FC<ColumnProps> = ({
           {column.name}
         </h3>
         <span className="text-sm text-gray-500 dark:text-gray-400">
-          {totalInColumn} {totalInColumn === 1 ? t('crm.contact') : t('crm.contacts')}
+          {contacts.length} {contacts.length === 1 ? t('crm.contact') : t('crm.contacts')}
         </span>
       </div>
-      <div ref={scrollRootRef} className="flex min-h-[200px] flex-1 flex-col overflow-y-auto overscroll-contain">
+      <div className="flex-1 overflow-y-auto min-h-[200px]">
         {contactIds.length > 0 ? (
-          <>
-            <SortableContext items={contactIds} strategy={verticalListSortingStrategy}>
-              {contacts.map((contact) => (
-                <ContactCard
-                  key={contact.id}
-                  contact={contact}
-                  onClick={() => onContactClick(contact)}
-                  showDeleteButton={allowDeleteCard}
-                  onDelete={onDeleteContact}
-                />
-              ))}
-            </SortableContext>
-            {hasMoreContacts ? (
-              <div ref={sentinelRef} className="h-3 w-full shrink-0" aria-hidden />
-            ) : null}
-          </>
+          <SortableContext items={contactIds} strategy={verticalListSortingStrategy}>
+            {contacts.map((contact) => (
+              <ContactCard
+                key={contact.id}
+                contact={contact}
+                onClick={() => onContactClick(contact)}
+                showDeleteButton={allowDeleteCard}
+                onDelete={onDeleteContact}
+              />
+            ))}
+          </SortableContext>
         ) : (
-          <div className="flex h-full min-h-[120px] items-center justify-center text-gray-400 dark:text-gray-500 text-sm border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
+          <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500 text-sm border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
             {t('crm.dragContactsHere')}
           </div>
         )}
-        {showingPartial ? (
-          <p className="mt-1 shrink-0 px-0.5 text-center text-[11px] text-gray-500 dark:text-gray-500">
-            {t('crm.columnShowingPartial', {
-              visible: String(contacts.length),
-              total: String(totalInColumn),
-            })}
-          </p>
-        ) : null}
       </div>
     </div>
   );
@@ -1444,8 +1399,6 @@ const CRM: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingInstances, setIsLoadingInstances] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  /** Máximo de cards renderizados por coluna (carrega mais ao rolar). */
-  const [columnVisibleLimit, setColumnVisibleLimit] = useState<Record<string, number>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draggedOverColumnId, setDraggedOverColumnId] = useState<string | null>(null);
   /** Última coluna válida sob o ponteiro — evita `over` null no dragEnd (comum com overlay + grid). */
@@ -1690,10 +1643,6 @@ const CRM: React.FC = () => {
   }, [crmSelectionReady, selectedInstances]);
 
   useEffect(() => {
-    setColumnVisibleLimit({});
-  }, [selectedInstances, searchQuery]);
-
-  useEffect(() => {
     if (!token) return;
     crmAPI
       .getPreferences()
@@ -1819,15 +1768,6 @@ const CRM: React.FC = () => {
   const getContactsByColumn = (columnId: string) => {
     return contacts.filter((contact) => contact.columnId === columnId);
   };
-
-  const loadMoreColumnContacts = useCallback((columnId: string, totalInColumn: number) => {
-    setColumnVisibleLimit((prev) => {
-      const cur = prev[columnId] ?? CRM_COLUMN_PAGE_SIZE;
-      const next = Math.min(cur + CRM_COLUMN_PAGE_SIZE, totalInColumn);
-      if (next === cur) return prev;
-      return { ...prev, [columnId]: next };
-    });
-  }, []);
 
   const handleContactClick = (contact: Contact) => {
     // Se o chat já está aberto, não fazer nada (ou focar nele)
@@ -1993,29 +1933,16 @@ const CRM: React.FC = () => {
                     : {}),
                 }}
               >
-              {columns.map((column) => {
-                const allInColumn = getContactsByColumn(column.id);
-                const totalInColumn = allInColumn.length;
-                const limit = Math.min(
-                  columnVisibleLimit[column.id] ?? CRM_COLUMN_PAGE_SIZE,
-                  totalInColumn
-                );
-                const visibleContacts = allInColumn.slice(0, limit);
-                const hasMoreContacts = visibleContacts.length < totalInColumn;
-                return (
-                  <Column
-                    key={column.id}
-                    column={column}
-                    contacts={visibleContacts}
-                    totalInColumn={totalInColumn}
-                    hasMoreContacts={hasMoreContacts}
-                    onLoadMoreContacts={() => loadMoreColumnContacts(column.id, totalInColumn)}
-                    onContactClick={handleContactClick}
-                    allowDeleteCard={allowDeleteCard}
-                    onDeleteContact={handleDeleteContact}
-                  />
-                );
-              })}
+              {columns.map((column) => (
+                <Column
+                  key={column.id}
+                  column={column}
+                  contacts={getContactsByColumn(column.id)}
+                  onContactClick={handleContactClick}
+                  allowDeleteCard={allowDeleteCard}
+                  onDeleteContact={handleDeleteContact}
+                />
+              ))}
               </div>
             </div>
             <DragOverlay>
