@@ -564,6 +564,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
   const [showCaptionInput, setShowCaptionInput] = useState(false);
   const [caption, setCaption] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [newMessageIds, setNewMessageIds] = useState<Set<string>>(new Set());
@@ -698,6 +699,23 @@ const ChatModal: React.FC<ChatModalProps> = ({
     }
   }, [contact, isOpen, loadMessages]);
 
+  const focusMessageInput = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = messageInputRef.current;
+        if (!el || el.disabled) return;
+        el.focus({ preventScroll: true });
+      });
+    });
+  }, []);
+
+  /** Ao abrir o chat ou fechar o fluxo de legenda, foco no campo de texto. */
+  useEffect(() => {
+    if (!isOpen || !contact || showCaptionInput || isRecording) return;
+    const id = window.setTimeout(focusMessageInput, 80);
+    return () => window.clearTimeout(id);
+  }, [isOpen, contact?.id, showCaptionInput, isRecording, focusMessageInput]);
+
   // Não rolar a cada nova mensagem (causava “piscar” com scroll suave). Scroll só no carregamento inicial abaixo.
 
   // Definir scroll no final ANTES da renderização (carregamento inicial da thread)
@@ -748,10 +766,12 @@ const ChatModal: React.FC<ChatModalProps> = ({
       alert(error.message || 'Erro ao enviar mensagem');
     } finally {
       setIsSending(false);
+      // Após o React voltar a habilitar o input (fim do envio), restaurar o foco para a próxima mensagem
+      window.setTimeout(() => focusMessageInput(), 0);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
@@ -1316,13 +1336,15 @@ const ChatModal: React.FC<ChatModalProps> = ({
                 </svg>
               </button>
               <input
+                ref={messageInputRef}
                 type="text"
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
+                onKeyDown={handleKeyPress}
                 placeholder={isRecording ? `Gravando... ${Math.floor(recordingTime / 60)}:${String(recordingTime % 60).padStart(2, '0')}` : "Digite sua mensagem..."}
                 className="flex-1 px-3 sm:px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-clerky-backendButton/50 focus:border-clerky-backendButton bg-white dark:bg-gray-700/90 text-clerky-backendText dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 disabled:opacity-50 transition-colors duration-200"
                 disabled={isSending || isRecording}
+                autoComplete="off"
               />
               <button
                 onClick={isRecording ? stopRecording : startRecording}
@@ -1354,6 +1376,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
                 )}
               </button>
               <Button
+                type="button"
                 variant="primary"
                 onClick={handleSendMessage}
                 disabled={!newMessage.trim() || isSending || isRecording}
