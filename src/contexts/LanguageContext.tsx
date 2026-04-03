@@ -358,6 +358,8 @@ const translations = {
     'crm.deleteCardConfirm':
       'Excluir este card e todo o histórico de mensagens deste contato no CRM? Esta ação não pode ser desfeita.',
     'crm.deleteCardError': 'Não foi possível excluir o contato. Tente novamente.',
+    'crm.moveToColumnTitle': 'Mover para coluna',
+    'crm.moveToColumnCurrent': 'Coluna atual',
     'crm.contactsButton': 'Contatos',
     'crm.instancesLabel': 'Conexões',
     'crm.instancesLoading': 'Carregando instâncias...',
@@ -2051,6 +2053,8 @@ const translations = {
     'crm.deleteCardConfirm':
       'Delete this card and all message history for this contact in the CRM? This cannot be undone.',
     'crm.deleteCardError': 'Could not delete the contact. Please try again.',
+    'crm.moveToColumnTitle': 'Move to column',
+    'crm.moveToColumnCurrent': 'Current column',
     'crm.contactsButton': 'Contacts',
     'crm.instancesLabel': 'Connections',
     'crm.instancesLoading': 'Loading instances...',

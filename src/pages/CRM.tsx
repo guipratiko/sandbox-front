@@ -65,6 +65,8 @@ interface ContactCardProps {
   onClick: () => void;
   showDeleteButton?: boolean;
   onDelete?: (contact: Contact) => void;
+  /** Botão direito: abrir escolha de coluna para mover o card. */
+  onRequestMoveToColumn?: (contact: Contact, clientX: number, clientY: number) => void;
 }
 
 const CRM_STORAGE_INSTANCES = 'crm.selectedInstancesV1';
@@ -177,6 +179,7 @@ const ContactCard: React.FC<ContactCardProps> = ({
   onClick,
   showDeleteButton,
   onDelete,
+  onRequestMoveToColumn,
 }) => {
   const { t } = useLanguage();
   const isInstagram = contact.channel === 'instagram';
@@ -212,6 +215,15 @@ const ContactCard: React.FC<ContactCardProps> = ({
       {...attributes}
       {...listeners}
       onClick={onClick}
+      onContextMenu={
+        onRequestMoveToColumn
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onRequestMoveToColumn(contact, e.clientX, e.clientY);
+            }
+          : undefined
+      }
       className="group mb-1 w-full max-w-full cursor-grab box-border overflow-hidden rounded-lg border border-slate-200/70 bg-[radial-gradient(ellipse_125%_110%_at_50%_-15%,#F0F8FF_0%,#FAFCFF_42%,#ffffff_100%)] p-[13.7px] shadow-[0_9px_34px_-9px_rgba(30,64,120,0.14),0_3px_11px_-5px_rgba(30,58,95,0.08)] backdrop-blur-[5px] transition-[box-shadow,transform] duration-200 active:cursor-grabbing dark:border-slate-600/35 dark:bg-[radial-gradient(ellipse_125%_110%_at_50%_-15%,#152a4a_0%,#0f1f35_48%,#091525_100%)] dark:shadow-[0_11px_38px_-11px_rgba(0,0,0,0.55),0_5px_17px_-7px_rgba(0,0,0,0.35)] hover:shadow-[0_13px_41px_-11px_rgba(30,64,120,0.18),0_5px_15px_-7px_rgba(30,58,95,0.1)] dark:hover:shadow-[0_15px_43px_-11px_rgba(0,0,0,0.6)]"
     >
       {/* Labels no canto superior esquerdo */}
@@ -375,6 +387,7 @@ interface ColumnProps {
   onContactClick: (contact: Contact) => void;
   allowDeleteCard?: boolean;
   onDeleteContact?: (contact: Contact) => void;
+  onRequestMoveToColumn?: (contact: Contact, clientX: number, clientY: number) => void;
 }
 
 const Column: React.FC<ColumnProps> = ({
@@ -386,6 +399,7 @@ const Column: React.FC<ColumnProps> = ({
   onContactClick,
   allowDeleteCard,
   onDeleteContact,
+  onRequestMoveToColumn,
 }) => {
   const { t } = useLanguage();
   const { setNodeRef, isOver } = useDroppable({
@@ -474,6 +488,7 @@ const Column: React.FC<ColumnProps> = ({
                 onClick={() => onContactClick(contact)}
                 showDeleteButton={allowDeleteCard}
                 onDelete={onDeleteContact}
+                onRequestMoveToColumn={onRequestMoveToColumn}
               />
             ))}
           </SortableContext>
@@ -2055,6 +2070,73 @@ const CRM: React.FC = () => {
     return () => clearTimeout(timer);
   }, [selectedInstances, searchQuery, loadContacts]);
 
+  const [columnPickerMenu, setColumnPickerMenu] = useState<{
+    contact: Contact;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const performMoveContactToColumn = useCallback(
+    async (contactId: string, targetColumnId: string) => {
+      const currentContact = contacts.find((c) => String(c.id) === contactId);
+      if (!currentContact || String(currentContact.columnId) === String(targetColumnId)) {
+        return;
+      }
+      const finalColumn = columns.find((col) => col.id === targetColumnId);
+      if (!finalColumn) return;
+
+      const previousContacts = contacts;
+      setContacts((prev) =>
+        prev.map((contact) =>
+          contact.id === contactId
+            ? { ...contact, columnId: targetColumnId, columnName: finalColumn.name }
+            : contact
+        )
+      );
+
+      const fromCol = currentContact.columnId ? String(currentContact.columnId) : null;
+      const toCol = String(targetColumnId);
+      if (fromCol && fromCol !== toCol) {
+        setColumnTotals((t) => ({
+          ...t,
+          [fromCol]: Math.max(0, (t[fromCol] ?? 1) - 1),
+          [toCol]: (t[toCol] ?? 0) + 1,
+        }));
+        setColumnOffsets((o) => ({
+          ...o,
+          [fromCol]: Math.max(0, (o[fromCol] ?? 1) - 1),
+          [toCol]: (o[toCol] ?? 0) + 1,
+        }));
+      }
+
+      try {
+        await crmAPI.moveContact(contactId, { columnId: targetColumnId });
+      } catch (error: any) {
+        console.error('Erro ao mover contato:', error);
+        setContacts(previousContacts);
+        void loadContacts();
+        alert(error.message || 'Erro ao mover contato. Tente novamente.');
+      }
+    },
+    [contacts, columns, loadContacts]
+  );
+
+  const handleRequestMoveToColumn = useCallback(
+    (contact: Contact, clientX: number, clientY: number) => {
+      setColumnPickerMenu({ contact, x: clientX, y: clientY });
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!columnPickerMenu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setColumnPickerMenu(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [columnPickerMenu]);
+
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
     lastOverColumnIdRef.current = null;
@@ -2118,51 +2200,7 @@ const CRM: React.FC = () => {
       return;
     }
 
-    const currentContact = contacts.find((c) => String(c.id) === contactId);
-    if (currentContact && String(currentContact.columnId) === String(targetColumnId)) {
-      return;
-    }
-
-    const finalColumn = columns.find((col) => col.id === targetColumnId);
-    if (!finalColumn) return;
-
-    // Salvar estado anterior para possível reversão
-    const previousContacts = contacts;
-
-    // Atualização otimista - atualizar imediatamente na UI
-    setContacts((prev) =>
-      prev.map((contact) =>
-        contact.id === contactId 
-          ? { ...contact, columnId: targetColumnId, columnName: finalColumn.name } 
-          : contact
-      )
-    );
-
-    const fromCol = currentContact?.columnId ? String(currentContact.columnId) : null;
-    const toCol = String(targetColumnId);
-    if (fromCol && fromCol !== toCol) {
-      setColumnTotals((t) => ({
-        ...t,
-        [fromCol]: Math.max(0, (t[fromCol] ?? 1) - 1),
-        [toCol]: (t[toCol] ?? 0) + 1,
-      }));
-      setColumnOffsets((o) => ({
-        ...o,
-        [fromCol]: Math.max(0, (o[fromCol] ?? 1) - 1),
-        [toCol]: (o[toCol] ?? 0) + 1,
-      }));
-    }
-
-    // Sincronizar com backend em background
-    try {
-      await crmAPI.moveContact(contactId, { columnId: targetColumnId });
-    } catch (error: any) {
-      console.error('Erro ao mover contato:', error);
-      // Reverter mudança em caso de erro
-      setContacts(previousContacts);
-      void loadContacts();
-      alert(error.message || 'Erro ao mover contato. Tente novamente.');
-    }
+    void performMoveContactToColumn(contactId, targetColumnId);
   };
 
   const getContactsByColumn = (columnId: string) => {
@@ -2360,6 +2398,7 @@ const CRM: React.FC = () => {
                   onContactClick={handleContactClick}
                   allowDeleteCard={allowDeleteCard}
                   onDeleteContact={handleDeleteContact}
+                  onRequestMoveToColumn={handleRequestMoveToColumn}
                 />
               ))}
               </div>
@@ -2425,6 +2464,68 @@ const CRM: React.FC = () => {
             />
           );
         })}
+
+        {columnPickerMenu &&
+          createPortal(
+            <>
+              <div
+                className="fixed inset-0 z-[10040] bg-transparent"
+                aria-hidden
+                onMouseDown={() => setColumnPickerMenu(null)}
+              />
+              <div
+                role="menu"
+                aria-label={t('crm.moveToColumnTitle')}
+                className="fixed z-[10050] w-[min(260px,calc(100vw-1rem))] max-h-[min(320px,70vh)] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl scrollbar-hide dark:border-slate-600 dark:bg-slate-900"
+                style={{
+                  left: Math.min(
+                    Math.max(8, columnPickerMenu.x),
+                    window.innerWidth - Math.min(260, window.innerWidth - 16) - 8
+                  ),
+                  top: Math.min(
+                    Math.max(8, columnPickerMenu.y),
+                    window.innerHeight - Math.min(320, window.innerHeight * 0.7) - 8
+                  ),
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div className="border-b border-slate-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-600 dark:text-slate-400">
+                  {t('crm.moveToColumnTitle')}
+                </div>
+                <div className="py-1">
+                  {[...columns]
+                    .sort((a, b) => a.order - b.order)
+                    .map((col) => {
+                      const isCurrent =
+                        columnPickerMenu.contact.columnId != null &&
+                        String(columnPickerMenu.contact.columnId) === String(col.id);
+                      return (
+                        <button
+                          key={col.id}
+                          type="button"
+                          role="menuitem"
+                          disabled={isCurrent}
+                          className="flex w-full items-center px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-100 disabled:cursor-default disabled:opacity-45 disabled:hover:bg-transparent dark:text-slate-100 dark:hover:bg-slate-800 dark:disabled:hover:bg-transparent"
+                          onClick={() => {
+                            if (isCurrent) return;
+                            void performMoveContactToColumn(columnPickerMenu.contact.id, col.id);
+                            setColumnPickerMenu(null);
+                          }}
+                        >
+                          <span className="min-w-0 flex-1 truncate">{col.name}</span>
+                          {isCurrent ? (
+                            <span className="ml-2 shrink-0 text-[10px] text-slate-400 dark:text-slate-300">
+                              {t('crm.moveToColumnCurrent')}
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            </>,
+            document.body
+          )}
       </div>
     </AppLayout>
   );
