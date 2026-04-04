@@ -6,7 +6,7 @@ import React, {
   useRef,
   startTransition,
 } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { AppLayout } from '../components/Layout';
 import { Card, Button, Modal, HelpIcon } from '../components/UI';
@@ -767,8 +767,11 @@ const ChatModal: React.FC<ChatModalProps> = ({
       read: true,
     };
 
-    // Inserir na posição correta mantendo ordenação
-    setMessages((prev) => sortMessagesByTimestamp([...prev, optimisticMessage]));
+    // Commit síncrono + scroll no próximo paint: sensação imediata (não esperar a API)
+    flushSync(() => {
+      setMessages((prev) => sortMessagesByTimestamp([...prev, optimisticMessage]));
+    });
+    scrollToBottomAfterPaint();
 
     try {
       setIsSending(true);
@@ -864,7 +867,10 @@ const ChatModal: React.FC<ChatModalProps> = ({
         read: true,
       };
 
-      setMessages((prev) => sortMessagesByTimestamp([...prev, optimisticMessage]));
+      flushSync(() => {
+        setMessages((prev) => sortMessagesByTimestamp([...prev, optimisticMessage]));
+      });
+      scrollToBottomAfterPaint();
 
       // Enviar mídia
       const response = isAudio
