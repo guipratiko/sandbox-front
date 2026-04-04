@@ -1205,7 +1205,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
                         msg.fromMe
                           ? isAutomationOutbound
                             ? 'bg-[#5B9DFE] text-white rounded-br-md'
-                            : 'bg-blue-500 text-white rounded-br-md'
+                            : 'bg-[#D9FCD2] text-[#0f1f1c] dark:bg-[#064640] dark:text-gray-100 rounded-br-md'
                           : 'bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200 rounded-bl-md'
                       }`}
                     >
@@ -1272,7 +1272,11 @@ const ChatModal: React.FC<ChatModalProps> = ({
                           {msg.content && !isCrmMediaPlaceholderContent(msg.content) && (
                             <p
                               className={`text-sm mt-2 whitespace-pre-wrap break-words ${
-                                msg.fromMe ? 'text-white/95' : 'text-clerky-backendText dark:text-gray-200'
+                                msg.fromMe
+                                  ? isAutomationOutbound
+                                    ? 'text-white/95'
+                                    : 'text-[#0f1f1c]/95 dark:text-gray-100'
+                                  : 'text-clerky-backendText dark:text-gray-200'
                               }`}
                             >
                               {msg.content}
@@ -1287,7 +1291,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
                           msg.fromMe
                             ? isAutomationOutbound
                               ? 'text-white/85'
-                              : 'text-blue-100'
+                              : 'text-[#14532d]/65 dark:text-white/70'
                             : 'text-gray-500'
                         }`}
                       >
