@@ -53,6 +53,7 @@ export interface NewMessageData {
     mediaUrl: string | null;
     timestamp: string;
     read: boolean;
+    automatedOutbound?: boolean;
   }>;
 }
 

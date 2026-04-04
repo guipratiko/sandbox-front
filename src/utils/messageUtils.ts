@@ -20,6 +20,14 @@ export const sortMessagesByTimestamp = (messages: Message[]): Message[] => {
  * @param message - Mensagem a ser formatada
  * @returns String formatada para exibição
  */
+function mediaLabelFromMessageType(messageType: string): string | null {
+  if (messageType === 'imageMessage' || messageType === 'stickerMessage') return '📷 Imagem';
+  if (messageType === 'videoMessage') return '🎥 Vídeo';
+  if (messageType === 'audioMessage') return '🎤 Áudio';
+  if (messageType === 'documentMessage') return '📄 Documento';
+  return null;
+}
+
 export const formatLastMessageContent = (message: {
   messageType?: string;
   mediaUrl?: string | null;
@@ -27,26 +35,24 @@ export const formatLastMessageContent = (message: {
 }): string => {
   if (!message) return '';
 
-  // Se é mídia, mostrar tipo apropriado
+  const messageType = message.messageType || '';
+
+  // Mídia com URL ou só tipo (ex.: placeholder "[Mídia]" no conteúdo)
   if (message.mediaUrl) {
-    const messageType = message.messageType || '';
-    if (messageType === 'imageMessage' || messageType === 'stickerMessage') {
-      return '📷 Imagem';
-    } else if (messageType === 'videoMessage') {
-      return '🎥 Vídeo';
-    } else if (messageType === 'audioMessage') {
-      return '🎤 Áudio';
-    } else if (messageType === 'documentMessage') {
-      return '📄 Documento';
-    } else {
-      return '📎 Mídia';
-    }
+    return mediaLabelFromMessageType(messageType) || '📎 Mídia';
   }
 
-  // Se tem conteúdo de texto, usar o conteúdo
-  if (message.content && message.content.trim()) {
-    return message.content;
+  const c = (message.content || '').trim();
+  if (/^\[m[ií]dia\]$/i.test(c)) {
+    return mediaLabelFromMessageType(messageType) || '📎 Mídia';
   }
+
+  if (c) {
+    return c;
+  }
+
+  const fromType = mediaLabelFromMessageType(messageType);
+  if (fromType) return fromType;
 
   return '';
 };

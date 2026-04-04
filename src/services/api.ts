@@ -745,6 +745,8 @@ export interface Message {
   mediaUrl?: string | null;
   timestamp: string;
   read: boolean;
+  /** Resposta do agente de IA ou envio via webhook API — balão #5B9DFE no CRM. */
+  automatedOutbound?: boolean;
 }
 
 export interface GetColumnsResponse {

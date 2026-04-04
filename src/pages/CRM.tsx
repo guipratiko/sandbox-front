@@ -169,6 +169,12 @@ function parseInstagramContactDisplay(name: string): { title: string; handle: st
 /** Prévia da última mensagem: remove cercas markdown, aspas iniciais e espaços extras. */
 function formatCrmCardPreview(text: string): string {
   let s = String(text).trim();
+  const compact = s.replace(/\s+/g, ' ');
+  if (/^\[m[ií]dia\]$/i.test(compact)) return '📎 Mídia';
+  if (/^\[(áudio|audio)\]$/i.test(compact)) return '🎤 Áudio';
+  if (/^\[(imagem|figurinha)\]$/i.test(compact)) return '📷 Imagem';
+  if (/^\[(v[ií]deo|video)\]$/i.test(compact)) return '🎥 Vídeo';
+  if (/^\[documento\]$/i.test(compact)) return '📄 Documento';
   s = s.replace(/^```[\w]*\s*/i, '').replace(/\s*```\s*$/, '');
   s = s.replace(/^[`'"«»\s]+/, '').replace(/[`'"«»\s]+$/, '');
   return s.trim();
@@ -658,6 +664,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
         mediaUrl: m.mediaUrl,
         timestamp: m.timestamp,
         read: m.read,
+        automatedOutbound: m.automatedOutbound === true,
       }));
 
       const highlightIds = new Set(mapped.map((m) => m.id));
@@ -1184,6 +1191,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
                 const isDocument = isMedia && effType === 'documentMessage';
 
                 const isNewMessage = newMessageIds.has(msg.id);
+                const isAutomationOutbound = msg.fromMe && msg.automatedOutbound === true;
 
                 return (
                   <div
@@ -1195,7 +1203,9 @@ const ChatModal: React.FC<ChatModalProps> = ({
                     <div
                       className={`${isImage || isVideo ? 'w-fit' : 'max-w-[85%] sm:max-w-[75%]'} rounded-2xl ${isImage || isVideo ? 'p-1 overflow-hidden' : 'px-3 sm:px-4 py-2 sm:py-2.5'} shadow-sm ${
                         msg.fromMe
-                          ? 'bg-blue-500 text-white rounded-br-md'
+                          ? isAutomationOutbound
+                            ? 'bg-[#5B9DFE] text-white rounded-br-md'
+                            : 'bg-blue-500 text-white rounded-br-md'
                           : 'bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200 rounded-bl-md'
                       }`}
                     >
@@ -1272,7 +1282,15 @@ const ChatModal: React.FC<ChatModalProps> = ({
                       ) : (
                         <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
                       )}
-                      <p className={`text-xs mt-1 ${msg.fromMe ? 'text-blue-100' : 'text-gray-500'}`}>
+                      <p
+                        className={`text-xs mt-1 ${
+                          msg.fromMe
+                            ? isAutomationOutbound
+                              ? 'text-white/85'
+                              : 'text-blue-100'
+                            : 'text-gray-500'
+                        }`}
+                      >
                         {formatTime(msg.timestamp, language as 'pt' | 'en')}
                       </p>
                     </div>
