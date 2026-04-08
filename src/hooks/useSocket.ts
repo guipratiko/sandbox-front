@@ -4,8 +4,20 @@ import { DispatchStatus } from '../services/api';
 
 // Normalizar URL do WebSocket (converter HTTP para WS e HTTPS para WSS)
 const getSocketUrl = (): string => {
-  const url = process.env.REACT_APP_SOCKET_URL || 'http://localhost:4331';
-  
+  let url = process.env.REACT_APP_SOCKET_URL || 'http://localhost:4331';
+  // Página HTTPS não pode usar ws:// em domínio remoto (Mixed Content)
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.startsWith('http://')) {
+    try {
+      const u = new URL(url);
+      if (u.hostname !== 'localhost' && u.hostname !== '127.0.0.1') {
+        u.protocol = 'https:';
+        url = u.href;
+      }
+    } catch {
+      /* manter url */
+    }
+  }
+
   try {
     const urlObj = new URL(url);
     
@@ -71,10 +83,16 @@ export interface GroupInfoResponseData {
   requestId?: string;
 }
 
-/** Lista de instâncias Instagram (gerenciador de conexões) — emissão vinda do Insta-Clerky via backend. */
+/** Lista de instâncias Instagram (gerenciador de conexões) — emissão vinda do microserviço Instagram via backend. */
 export interface InstagramInstanceSocketData {
   instanceId: string;
   status: string;
+}
+
+/** QR Code da instância Evolution renovado (webhook QRCODE_UPDATED). */
+export interface QrCodeUpdatedPayload {
+  instanceId: string;
+  qrcodeBase64: string;
 }
 
 export interface DispatchUpdateData {
@@ -111,6 +129,7 @@ const callbacks = new Set<{
   onGroupInfoResponse?: (data: GroupInfoResponseData) => void;
   onScrapingCreditsUpdate?: (data: { credits: number }) => void;
   onInstagramInstanceUpdate?: (data: InstagramInstanceSocketData) => void;
+  onQrCodeUpdate?: (data: QrCodeUpdatedPayload) => void;
 }>();
 
 /**
@@ -127,6 +146,7 @@ const createCallbackObj = (callbackRef: React.MutableRefObject<{
   onGroupInfoResponse?: (data: GroupInfoResponseData) => void;
   onScrapingCreditsUpdate?: (data: { credits: number }) => void;
   onInstagramInstanceUpdate?: (data: InstagramInstanceSocketData) => void;
+  onQrCodeUpdate?: (data: QrCodeUpdatedPayload) => void;
 }>) => ({
   get onStatusUpdate() { return callbackRef.current.onStatusUpdate; },
   get onNewMessage() { return callbackRef.current.onNewMessage; },
@@ -137,6 +157,7 @@ const createCallbackObj = (callbackRef: React.MutableRefObject<{
   get onGroupInfoResponse() { return callbackRef.current.onGroupInfoResponse; },
   get onScrapingCreditsUpdate() { return callbackRef.current.onScrapingCreditsUpdate; },
   get onInstagramInstanceUpdate() { return callbackRef.current.onInstagramInstanceUpdate; },
+  get onQrCodeUpdate() { return callbackRef.current.onQrCodeUpdate; },
 });
 
 /**
@@ -163,7 +184,8 @@ export const useSocket = (
   onGroupsUpdate?: (data: { instanceId: string }) => void,
   onGroupInfoResponse?: (data: GroupInfoResponseData) => void,
   onScrapingCreditsUpdate?: (data: { credits: number }) => void,
-  onInstagramInstanceUpdate?: (data: InstagramInstanceSocketData) => void
+  onInstagramInstanceUpdate?: (data: InstagramInstanceSocketData) => void,
+  onQrCodeUpdate?: (data: QrCodeUpdatedPayload) => void
 ) => {
   const callbackRef = useRef({
     onStatusUpdate,
@@ -175,6 +197,7 @@ export const useSocket = (
     onGroupInfoResponse,
     onScrapingCreditsUpdate,
     onInstagramInstanceUpdate,
+    onQrCodeUpdate,
   });
 
   // Atualizar referências dos callbacks
@@ -189,6 +212,7 @@ export const useSocket = (
       onGroupInfoResponse,
       onScrapingCreditsUpdate,
       onInstagramInstanceUpdate,
+      onQrCodeUpdate,
     };
   }, [
     onStatusUpdate,
@@ -200,6 +224,7 @@ export const useSocket = (
     onGroupInfoResponse,
     onScrapingCreditsUpdate,
     onInstagramInstanceUpdate,
+    onQrCodeUpdate,
   ]);
 
   useEffect(() => {
@@ -268,6 +293,7 @@ export const useSocket = (
         socket.off('group-info-response');
         socket.off('scraping-credits-updated');
         socket.off('instagram-instance-updated');
+        socket.off('qrcode-updated');
         socket.off('error');
 
       socket.on('instance-status-updated', (data: { instanceId: string; status: string }) => {
@@ -340,6 +366,15 @@ export const useSocket = (
         callbacks.forEach((cb) => {
           if (cb.onInstagramInstanceUpdate) {
             cb.onInstagramInstanceUpdate(data);
+          }
+        });
+      });
+
+      socket.on('qrcode-updated', (data: QrCodeUpdatedPayload) => {
+        if (!data?.instanceId || !data?.qrcodeBase64) return;
+        callbacks.forEach((cb) => {
+          if (cb.onQrCodeUpdate) {
+            cb.onQrCodeUpdate(data);
           }
         });
       });

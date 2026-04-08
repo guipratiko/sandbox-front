@@ -38,6 +38,7 @@ const WhatsAppInstances: React.FC = () => {
     alwaysOnline: false,
     readMessages: false,
     readStatus: false,
+    syncFullHistory: true,
   });
 
   // Formulário de atualização de settings
@@ -73,8 +74,31 @@ const WhatsAppInstances: React.FC = () => {
     }
   }, [t]);
 
-  // Conectar ao WebSocket
-  useSocket(token, handleStatusUpdate);
+  const handleQrCodeUpdate = useCallback((data: { instanceId: string; qrcodeBase64: string }) => {
+    setInstances((prev) =>
+      prev.map((inst) =>
+        inst.id === data.instanceId ? { ...inst, qrcodeBase64: data.qrcodeBase64 } : inst
+      )
+    );
+    setSelectedInstance((current) =>
+      current?.id === data.instanceId ? { ...current, qrcodeBase64: data.qrcodeBase64 } : current
+    );
+  }, []);
+
+  // Conectar ao WebSocket (status da instância + QR renovado pela Evolution)
+  useSocket(
+    token,
+    handleStatusUpdate,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    handleQrCodeUpdate
+  );
 
   const loadInstances = useCallback(async () => {
     try {
@@ -110,6 +134,7 @@ const WhatsAppInstances: React.FC = () => {
         alwaysOnline: false,
         readMessages: false,
         readStatus: false,
+        syncFullHistory: true,
       });
 
       // Se tiver QR code, mostrar modal
@@ -462,6 +487,18 @@ const WhatsAppInstances: React.FC = () => {
               />
               <span className="text-clerky-backendText dark:text-gray-200">
                 {t('instances.readStatus')}
+              </span>
+            </label>
+
+            <label className="flex items-center space-x-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.syncFullHistory}
+                onChange={(e) => setFormData({ ...formData, syncFullHistory: e.target.checked })}
+                className="w-5 h-5 text-clerky-backendButton rounded focus:ring-clerky-backendButton"
+              />
+              <span className="text-clerky-backendText dark:text-gray-200">
+                {t('instances.syncFullHistory')}
               </span>
             </label>
           </div>

@@ -18,6 +18,9 @@ const isProduction =
 if (buildExists) {
   console.log('🚀 Iniciando servidor de produção (arquivos estáticos)...');
   console.log(`📦 Build encontrado em: ${buildPath}`);
+  console.log(
+    'ℹ️  REACT_APP_* do .env não altera o JS já compilado. Para mudar URL de upgrade: edite public/upgrade-redirect-config.js e rode `npm run build` de novo, ou altere build/upgrade-redirect-config.js no servidor.'
+  );
   const port = process.env.PORT || 3000;
   execSync(`serve -s build -l ${port}`, { stdio: 'inherit' });
 } else if (isProduction) {

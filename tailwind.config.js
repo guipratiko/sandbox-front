@@ -14,7 +14,7 @@ module.exports = {
         '20': '80px',
       },
       colors: {
-        // Paleta de cores baseada no site clerky.com.br
+        // Paleta de cores baseada no site onlyflow.com.br
         clerky: {
           primary: '#0040FF',      // Azul profundo
           secondary: '#00C0FF',    // Azul vibrante/ciano

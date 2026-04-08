@@ -1,7 +1,30 @@
 import type { AssistedConfig } from '../types/aiAgent';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4331/api';
-const MINDLERKY_API_URL = process.env.REACT_APP_MINDLERKY_URL || 'http://localhost:4333/api';
+/**
+ * Evita Mixed Content: página em HTTPS não pode chamar API em HTTP.
+ * Se o build tiver REACT_APP_API_URL com http:// (mesmo domínio ou outro), força https no browser.
+ * Localhost continua em http quando a página também é http (dev).
+ */
+function upgradeHttpToHttpsWhenPageIsSecure(url: string): string {
+  if (typeof window === 'undefined') return url;
+  if (window.location.protocol !== 'https:') return url;
+  if (!url.startsWith('http://')) return url;
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return url;
+    u.protocol = 'https:';
+    return u.href;
+  } catch {
+    return url;
+  }
+}
+
+const API_URL = upgradeHttpToHttpsWhenPageIsSecure(
+  process.env.REACT_APP_API_URL || 'http://localhost:4331/api'
+);
+const MINDLERKY_API_URL = upgradeHttpToHttpsWhenPageIsSecure(
+  process.env.REACT_APP_MINDLERKY_URL || 'http://localhost:4333/api'
+);
 
 export interface LoginData {
   email: string;
@@ -171,6 +194,8 @@ export interface CreateInstanceData {
   alwaysOnline?: boolean;
   readMessages?: boolean;
   readStatus?: boolean;
+  /** Evolution: sincronizar histórico completo ao conectar */
+  syncFullHistory?: boolean;
 }
 
 export interface UpdateInstanceSettingsData {
@@ -225,6 +250,11 @@ export interface WhatsAppBusinessProfile {
   profile_picture_url?: string;
   vertical?: string;
   websites?: string[];
+  /**
+   * Só no PATCH: novo nome de exibição verificado (Graph API: new_display_name).
+   * A Meta pode exigir revisão; limite de ~10 alterações / 30 dias.
+   */
+  verified_name?: string;
 }
 
 /** Um dia na configuração de horário (minutos desde 0h). */
@@ -246,6 +276,12 @@ export interface WhatsAppPhoneSettings {
   id?: string;
   display_phone_number?: string;
   verified_name?: string;
+  /** Estado do nome aprovado (ex.: APPROVED). */
+  name_status?: string;
+  /** Nome solicitado enquanto aguarda revisão. */
+  new_display_name?: string;
+  /** Ex.: PENDING_REVIEW, APPROVED. */
+  new_name_status?: string;
   quality_rating?: string;
   messaging_limit_tier?: string;
   throughput?: Record<string, unknown>;
@@ -356,7 +392,7 @@ export const request = async <T>(
   }
 };
 
-// Função auxiliar para fazer requisições ao MindClerky
+// Função auxiliar para fazer requisições ao microserviço MindFlow (workflows)
 const requestMindClerky = async <T>(
   endpoint: string,
   options: RequestInit = {}
@@ -767,6 +803,13 @@ export interface GetContactsResponse {
   totalInColumn?: number;
 }
 
+/** POST /crm/kanban/bootstrap — colunas + primeira página por coluna em uma requisição. */
+export interface GetKanbanBootstrapResponse {
+  status: string;
+  columns: CRMColumn[];
+  byColumn: Record<string, { contacts: Contact[]; totalInColumn: number }>;
+}
+
 export interface GetMessagesResponse {
   status: string;
   count: number;
@@ -909,6 +952,25 @@ export const crmAPI = {
       qs.set('crmScope', JSON.stringify(params.crmScope));
     }
     return request<GetContactsResponse>(`/crm/contacts?${qs.toString()}`);
+  },
+
+  /**
+   * Carrega colunas do Kanban e a primeira página de contatos de todas as colunas de uma vez
+   * (substitui N chamadas a getContacts/searchContacts no carregamento do quadro).
+   */
+  kanbanBootstrap: async (params: {
+    limit: number;
+    crmScope: Array<{ id: string; channel: 'whatsapp' | 'instagram' }>;
+    q?: string;
+  }): Promise<GetKanbanBootstrapResponse> => {
+    return request<GetKanbanBootstrapResponse>('/crm/kanban/bootstrap', {
+      method: 'POST',
+      body: JSON.stringify({
+        limit: params.limit,
+        crmScope: params.crmScope,
+        ...(params.q != null && params.q !== '' ? { q: params.q } : {}),
+      }),
+    });
   },
 
   /** CSV UTF-8 com colunas nome,telefone; filtro no servidor (instâncias conectadas). */
@@ -1426,7 +1488,7 @@ export interface WorkflowContact {
   enteredAt: string;
 }
 
-// API de Workflows (usa MindClerky microserviço)
+// API de Workflows (microserviço MindFlow)
 export const workflowAPI = {
   getAll: async (): Promise<{ status: string; workflows: Workflow[] }> => {
     return requestMindClerky<{ status: string; workflows: Workflow[] }>('/workflows');
@@ -1503,6 +1565,13 @@ export const workflowAPI = {
 // Agente de IA
 export type BlockDurationUnit = 'minutes' | 'hours' | 'days' | 'permanent';
 
+export type ContactExceptionBehavior = 'ignore' | 'default_message';
+
+export interface ContactExceptionEntry {
+  name: string;
+  phone: string;
+}
+
 export interface AIAgent {
   id: string;
   userId: string;
@@ -1519,6 +1588,11 @@ export interface AIAgent {
   blockWhenUserReplies?: boolean;
   blockDuration?: number | null;
   blockDurationUnit?: BlockDurationUnit | null;
+  /** Presente após atualização do backend com lista de exceção */
+  contactExceptionEntries?: ContactExceptionEntry[];
+  contactExceptionBehavior?: ContactExceptionBehavior;
+  contactExceptionDefaultMessage?: string;
+  contactExceptionRepeatOnSameMessage?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -1536,6 +1610,10 @@ export interface CreateAIAgentData {
   blockWhenUserReplies?: boolean;
   blockDuration?: number | null;
   blockDurationUnit?: BlockDurationUnit | null;
+  contactExceptionEntries?: ContactExceptionEntry[];
+  contactExceptionBehavior?: ContactExceptionBehavior;
+  contactExceptionDefaultMessage?: string;
+  contactExceptionRepeatOnSameMessage?: boolean;
 }
 
 export interface UpdateAIAgentData {
@@ -1551,6 +1629,10 @@ export interface UpdateAIAgentData {
   blockWhenUserReplies?: boolean;
   blockDuration?: number | null;
   blockDurationUnit?: BlockDurationUnit | null;
+  contactExceptionEntries?: ContactExceptionEntry[];
+  contactExceptionBehavior?: ContactExceptionBehavior;
+  contactExceptionDefaultMessage?: string;
+  contactExceptionRepeatOnSameMessage?: boolean;
 }
 
 export interface AIAgentLead {
@@ -1921,6 +2003,24 @@ export const groupAPI = {
     return request<{ status: string }>('/groups/leaveGroup', {
       method: 'POST',
       body: JSON.stringify({ instanceId, groupJid }),
+    });
+  },
+
+  /** Evolution: sendText com mentionsEveryOne para um ou vários JIDs de grupo (@g.us). */
+  mentionEveryone: async (params: {
+    instanceId: string;
+    text: string;
+    groupJid?: string;
+    groupJids?: string[];
+  }): Promise<{
+    status: 'success' | 'partial' | 'error';
+    results: Array<{ groupJid: string; ok: boolean; error?: string }>;
+    successCount: number;
+    failCount: number;
+  }> => {
+    return request('/groups/mentionEveryone', {
+      method: 'POST',
+      body: JSON.stringify(params),
     });
   },
 };

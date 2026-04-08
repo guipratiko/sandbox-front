@@ -5,6 +5,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { LanguageToggle, ThemeToggle } from '../UI';
+import { getUpgradePlanUrl } from '../../config/marketing';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -33,11 +34,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
     isMobileRestricted?: boolean;
     isPremiumRestricted?: boolean;
     isStartRestricted?: boolean;
-    /** Só administradores; demais usuários veem item opaco e “em breve”. */
-    isAdminOnly?: boolean;
+    /** Ex.: Disparo Oficial: exige plano com vaga de API Oficial (Advance/Pro). */
+    requiresOfficialWhatsAppPlan?: boolean;
   }
-
-  const isAdmin = user?.admin === true;
 
   const menuItems: MenuItem[] = [
     { 
@@ -73,7 +72,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
       path: '/disparo-api', 
       key: 'menu.dispatchesOfficial',
       isPremiumRestricted: true,
-      isAdminOnly: true,
+      requiresOfficialWhatsAppPlan: true,
       icon: (
         <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -216,11 +215,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
             const isPremiumRestricted = item.isPremiumRestricted && (!user || !user.premiumPlan || user.premiumPlan === 'free');
             const isStartRestricted = item.isStartRestricted && user?.premiumPlan === 'start';
             const isRestricted = isMobileRestricted || isPremiumRestricted || isStartRestricted;
-            const isAdminOnlyLocked = item.isAdminOnly === true && !isAdmin && !isRestricted;
+            const isOfficialPlanLocked =
+              item.requiresOfficialWhatsAppPlan === true &&
+              !isRestricted &&
+              (user?.maxOfficialWhatsAppInstances ?? 0) === 0;
 
-            const looksDisabled = isRestricted || isAdminOnlyLocked;
+            const looksDisabled = isRestricted || isOfficialPlanLocked;
             const dimClass = looksDisabled
-              ? isAdminOnlyLocked
+              ? isOfficialPlanLocked
                 ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-50'
                 : 'text-gray-400 dark:text-gray-600 cursor-not-allowed opacity-60'
               : '';
@@ -240,8 +242,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
               `}
                 title={
                   isCollapsed
-                    ? isAdminOnlyLocked
-                      ? `${t(item.key)} — ${t('menu.featureComingSoon')}`
+                    ? isOfficialPlanLocked
+                      ? `${t(item.key)} — ${t('menu.officialPlanTooltip')}`
                       : t(item.key)
                     : isMobileRestricted
                     ? t('mobileRestriction.tooltip')
@@ -249,8 +251,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                     ? t('premium.tooltip')
                     : isStartRestricted
                     ? t('premium.tooltip')
-                    : isAdminOnlyLocked
-                    ? t('dispatchesOfficial.comingSoon')
+                    : isOfficialPlanLocked
+                    ? t('menu.officialPlanTooltip')
                     : ''
                 }
             >
@@ -260,9 +262,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
               {!isCollapsed && (
                   <>
                 <span className="text-sm font-medium flex-1 text-left">{t(item.key)}</span>
-                    {isAdminOnlyLocked && (
+                    {isOfficialPlanLocked && (
                       <span className="text-xs font-medium text-amber-600 dark:text-amber-400 flex-shrink-0">
-                        {t('menu.featureComingSoon')}
+                        {t('menu.officialPlanBadge')}
                       </span>
                     )}
                     {isMobileRestricted && (
@@ -311,7 +313,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
                   onClick={(e) => {
                     e.preventDefault();
                     if ((isPremiumRestricted || isStartRestricted) && !isMobileRestricted) {
-                      window.location.href = 'https://clerky.com.br/#precos';
+                      window.location.href = getUpgradePlanUrl();
                     }
                   }}
                 >
@@ -320,13 +322,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
               );
             }
 
-            if (isAdminOnlyLocked) {
+            if (isOfficialPlanLocked) {
               return (
                 <div
                   key={item.path}
-                  className="cursor-not-allowed select-none"
-                  aria-disabled="true"
-                  onClick={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.location.href = getUpgradePlanUrl();
+                  }}
                 >
                   {itemContent}
                 </div>

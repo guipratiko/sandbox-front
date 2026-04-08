@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Card } from '../UI';
+import { getUpgradePlanUrl } from '../../config/marketing';
 
 interface PremiumRouteProps {
   children: React.ReactElement;
@@ -19,7 +20,7 @@ const PremiumRoute: React.FC<PremiumRouteProps> = ({ children, disallowStart = f
     // Se não for premium e não estiver carregando, redirecionar após um pequeno delay
     if (!isLoading && user && (!user.premiumPlan || user.premiumPlan === 'free' || (disallowStart && user.premiumPlan === 'start'))) {
       const timer = setTimeout(() => {
-        window.location.href = 'https://clerky.com.br/#precos';
+        window.location.href = getUpgradePlanUrl();
       }, 2000); // Redirecionar após 2 segundos
 
       return () => clearTimeout(timer);

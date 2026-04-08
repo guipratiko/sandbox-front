@@ -10,7 +10,9 @@ import NewCampaignWizard, { NewCampaignData } from '../components/Groups/NewCamp
 import EditCampaignModal, { CampaignEditData } from '../components/Groups/EditCampaignModal';
 import ConfigureGroupModal from '../components/Groups/ConfigureGroupModal';
 import BulkConfigureGroupsModal from '../components/Groups/BulkConfigureGroupsModal';
+import MentionEveryoneModal from '../components/Groups/MentionEveryoneModal';
 import CreateGroupsModal from '../components/Groups/CreateGroupsModal';
+import AddGroupsToCampaignModal from '../components/Groups/AddGroupsToCampaignModal';
 import GroupMessagesSection from '../components/Groups/GroupMessagesSection';
 
 const GROUP_MANAGER_INSTANCE_KEY = 'groupManager.selectedInstanceId';
@@ -44,7 +46,11 @@ const GroupManager: React.FC = () => {
   const [showConfigureGroupModal, setShowConfigureGroupModal] = useState(false);
   const [configureGroup, setConfigureGroup] = useState<Group | null>(null);
   const [showBulkConfigureModal, setShowBulkConfigureModal] = useState(false);
+  const [showMentionEveryoneModal, setShowMentionEveryoneModal] = useState(false);
+  const [mentionModalMode, setMentionModalMode] = useState<'one' | 'all'>('all');
+  const [mentionModalGroup, setMentionModalGroup] = useState<Group | null>(null);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [showAddGroupsModal, setShowAddGroupsModal] = useState(false);
   const [showMessagesPage, setShowMessagesPage] = useState(false);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
@@ -363,6 +369,31 @@ const GroupManager: React.FC = () => {
     setShowCreateGroupModal(true);
   }, [selectedCampaign]);
 
+  const handleAddGroupsToCampaignConfirm = useCallback(
+    async (selectedGroupJids: string[]) => {
+      if (!selectedCampaignId || !selectedCampaign || selectedGroupJids.length === 0) return;
+      const current = selectedCampaign.importGroups;
+      if (current === 'all') return;
+      const next: string[] =
+        current === null
+          ? [...selectedGroupJids]
+          : Array.from(new Set([...current, ...selectedGroupJids]));
+      try {
+        setError(null);
+        await campaignAPI.update(selectedCampaignId, { importGroups: next });
+        setCampaigns((prev) =>
+          prev.map((c) => (c.id === selectedCampaignId ? { ...c, importGroups: next } : c))
+        );
+        setSuccessMessage(t('groupManager.addGroupsModal.success'));
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } catch (err: unknown) {
+        logError('Erro ao adicionar grupos à campanha', err);
+        throw new Error(getErrorMessage(err, t('groupManager.error.loadGroups')));
+      }
+    },
+    [selectedCampaignId, selectedCampaign, t]
+  );
+
   const handleDeleteCampaign = useCallback(async () => {
     if (!selectedCampaignId) return;
     if (!window.confirm(t('groupManager.campaignDetail.confirmDeleteCampaign'))) return;
@@ -444,6 +475,44 @@ const GroupManager: React.FC = () => {
   const getInstanceName = (instanceId: string) => {
     return instances.find((i) => i.id === instanceId)?.name ?? instanceId;
   };
+
+  const handleMentionEveryoneSubmit = useCallback(
+    async (text: string) => {
+      if (!selectedCampaign) return;
+      const instanceId = selectedCampaign.instanceId;
+      const res =
+        mentionModalMode === 'all'
+          ? await groupAPI.mentionEveryone({
+              instanceId,
+              text,
+              groupJids: campaignGroups.map((g) => g.id),
+            })
+          : mentionModalGroup
+            ? await groupAPI.mentionEveryone({ instanceId, text, groupJid: mentionModalGroup.id })
+            : null;
+      if (!res) return;
+      if (res.status === 'error') {
+        const firstErr = res.results.find((r) => !r.ok)?.error;
+        throw new Error(firstErr || t('groupManager.mentionResult.allFailed'));
+      }
+      if (res.status === 'partial') {
+        setSuccessMessage(
+          t('groupManager.mentionResult.partial')
+            .replace('{ok}', String(res.successCount))
+            .replace('{fail}', String(res.failCount))
+        );
+        setTimeout(() => setSuccessMessage(null), 5000);
+        return;
+      }
+      const okMsg =
+        mentionModalMode === 'all'
+          ? t('groupManager.mentionAllGroups.success').replace('{count}', String(res.successCount))
+          : t('groupManager.mention.sent');
+      setSuccessMessage(okMsg);
+      setTimeout(() => setSuccessMessage(null), 3000);
+    },
+    [selectedCampaign, mentionModalMode, mentionModalGroup, campaignGroups, t]
+  );
 
   if (isLoadingInstances) {
     return (
@@ -543,6 +612,9 @@ const GroupManager: React.FC = () => {
                   <Button variant="outline" size="xs" onClick={handleOpenCreateGroupModal} className="shrink-0">
                     {t('groupManager.campaignDetail.createGroup')}
                   </Button>
+                  <Button variant="outline" size="xs" onClick={() => setShowAddGroupsModal(true)} className="shrink-0">
+                    {t('groupManager.campaignDetail.addGroup')}
+                  </Button>
                   <Button
                     variant="outline"
                     size="xs"
@@ -560,6 +632,19 @@ const GroupManager: React.FC = () => {
                     className="shrink-0"
                   >
                     {t('groupManager.campaignDetail.configureGroups')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => {
+                      setMentionModalMode('all');
+                      setMentionModalGroup(null);
+                      setShowMentionEveryoneModal(true);
+                    }}
+                    disabled={campaignGroups.length === 0}
+                    className="shrink-0"
+                  >
+                    {t('groupManager.campaignDetail.btnMentionInAll')}
                   </Button>
                   <Button
                     variant="outline"
@@ -587,6 +672,15 @@ const GroupManager: React.FC = () => {
             <Card className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-xl">
               <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
             </Card>
+          )}
+
+          {successMessage && (
+            <div
+              className="bg-green-100 dark:bg-green-900/20 border border-green-400 text-green-700 dark:text-green-400 px-4 py-3 rounded-xl text-sm"
+              role="alert"
+            >
+              {successMessage}
+            </div>
           )}
 
           <Card padding="md">
@@ -655,6 +749,18 @@ const GroupManager: React.FC = () => {
                       <Button
                         variant="outline"
                         size="xs"
+                        onClick={() => {
+                          setMentionModalMode('one');
+                          setMentionModalGroup(group);
+                          setShowMentionEveryoneModal(true);
+                        }}
+                        className="shrink-0"
+                      >
+                        {t('groupManager.campaignDetail.btnMentionEveryone')}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="xs"
                         onClick={() => handleDeleteGroup(group.id)}
                         className="shrink-0 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border-red-200 dark:border-red-700"
                       >
@@ -701,6 +807,25 @@ const GroupManager: React.FC = () => {
             campaignId={selectedCampaignId}
             onCreated={handleCreateGroupsDone}
             onCreateGroups={handleCreateGroups}
+          />
+
+          <AddGroupsToCampaignModal
+            isOpen={showAddGroupsModal}
+            onClose={() => setShowAddGroupsModal(false)}
+            instanceId={selectedCampaign.instanceId}
+            importGroups={selectedCampaign.importGroups}
+            onConfirm={handleAddGroupsToCampaignConfirm}
+          />
+
+          <MentionEveryoneModal
+            isOpen={showMentionEveryoneModal}
+            onClose={() => {
+              setShowMentionEveryoneModal(false);
+              setMentionModalGroup(null);
+            }}
+            mode={mentionModalMode}
+            groupCount={campaignGroups.length}
+            onSubmit={handleMentionEveryoneSubmit}
           />
         </div>
       </AppLayout>

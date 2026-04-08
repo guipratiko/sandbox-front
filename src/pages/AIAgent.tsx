@@ -4,10 +4,52 @@ import { Card, Button, Modal, Input, HelpIcon } from '../components/UI';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { aiAgentAPI, instanceAPI, Instance } from '../services/api';
-import type { AIAgent, AIAgentLead, AgentMedia, AgentLocation, BlockDurationUnit } from '../services/api';
+import type {
+  AIAgent,
+  AIAgentLead,
+  AgentMedia,
+  AgentLocation,
+  BlockDurationUnit,
+  ContactExceptionBehavior,
+  ContactExceptionEntry,
+} from '../services/api';
 import type { AssistedConfig } from '../types/aiAgent';
 import AssistedForm from '../components/AIAgent/AssistedForm';
 import { getErrorMessage, logError } from '../utils/errorHandler';
+
+function parseContactExceptionPaste(raw: string): ContactExceptionEntry[] {
+  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const out: ContactExceptionEntry[] = [];
+  for (const line of lines) {
+    let name = '';
+    let phone = '';
+    const semi = line.indexOf(';');
+    const comma = line.indexOf(',');
+    if (semi !== -1) {
+      name = line.slice(0, semi).trim();
+      phone = line.slice(semi + 1).trim();
+    } else if (comma !== -1) {
+      name = line.slice(0, comma).trim();
+      phone = line.slice(comma + 1).trim();
+    } else {
+      continue;
+    }
+    if (!phone) continue;
+    out.push({ name: name || 'Contato', phone });
+  }
+  const seen = new Set<string>();
+  return out.filter((e) => {
+    const d = e.phone.replace(/\D/g, '');
+    if (!d || seen.has(d)) return false;
+    seen.add(d);
+    return true;
+  });
+}
+
+function entriesToPasteText(entries: ContactExceptionEntry[]): string {
+  if (!entries.length) return '';
+  return entries.map((e) => `${e.name};${e.phone}`).join('\n');
+}
 
 const AIAgentPage: React.FC = () => {
   const { t } = useLanguage();
@@ -46,6 +88,13 @@ const AIAgentPage: React.FC = () => {
   const [mediaCaption, setMediaCaption] = useState('');
   const [mediaMaxUses, setMediaMaxUses] = useState(1);
   const mediaFileInputRef = React.useRef<HTMLInputElement>(null);
+  const contactCsvInputRef = React.useRef<HTMLInputElement>(null);
+
+  const [contactExceptionRaw, setContactExceptionRaw] = useState('');
+  const [contactExceptionBehavior, setContactExceptionBehavior] =
+    useState<ContactExceptionBehavior>('ignore');
+  const [contactExceptionDefaultMessage, setContactExceptionDefaultMessage] = useState('');
+  const [contactExceptionRepeatOnSameMessage, setContactExceptionRepeatOnSameMessage] = useState(true);
 
   // Carregar agentes
   const loadAgents = useCallback(async () => {
@@ -140,6 +189,10 @@ const AIAgentPage: React.FC = () => {
     setBlockWhenUserReplies(agent.blockWhenUserReplies ?? false);
     setBlockDuration(agent.blockDuration ?? 30);
     setBlockDurationUnit((agent.blockDurationUnit as BlockDurationUnit) || 'minutes');
+    setContactExceptionRaw(entriesToPasteText(agent.contactExceptionEntries ?? []));
+    setContactExceptionBehavior(agent.contactExceptionBehavior ?? 'ignore');
+    setContactExceptionDefaultMessage(agent.contactExceptionDefaultMessage ?? '');
+    setContactExceptionRepeatOnSameMessage(agent.contactExceptionRepeatOnSameMessage !== false);
   };
 
   // Criar agente (assistido) ao avançar para o passo 11 do formulário assistido; retorna o id do agente.
@@ -150,6 +203,15 @@ const AIAgentPage: React.FC = () => {
     }
     try {
       setIsSaving(true);
+      const excEntries = parseContactExceptionPaste(contactExceptionRaw);
+      if (
+        contactExceptionBehavior === 'default_message' &&
+        excEntries.length > 0 &&
+        !contactExceptionDefaultMessage.trim()
+      ) {
+        alert(t('aiAgent.contactExceptions.validation.needMessage'));
+        return undefined;
+      }
       const response = await aiAgentAPI.create({
         name: agentName.trim(),
         instanceId: agentInstanceId,
@@ -163,6 +225,10 @@ const AIAgentPage: React.FC = () => {
         blockWhenUserReplies,
         blockDuration: blockWhenUserReplies && blockDurationUnit !== 'permanent' ? blockDuration : null,
         blockDurationUnit: blockWhenUserReplies ? blockDurationUnit : null,
+        contactExceptionEntries: excEntries,
+        contactExceptionBehavior,
+        contactExceptionDefaultMessage: contactExceptionDefaultMessage.trim(),
+        contactExceptionRepeatOnSameMessage,
       });
       setAgents((prev) => [response.agent, ...prev]);
       setSelectedAgent(response.agent);
@@ -172,6 +238,10 @@ const AIAgentPage: React.FC = () => {
       setKnowledgeCount(0);
       setAgentMedia([]);
       setAgentLocations([]);
+      setContactExceptionRaw(entriesToPasteText(response.agent.contactExceptionEntries ?? []));
+      setContactExceptionBehavior(response.agent.contactExceptionBehavior ?? 'ignore');
+      setContactExceptionDefaultMessage(response.agent.contactExceptionDefaultMessage ?? '');
+      setContactExceptionRepeatOnSameMessage(response.agent.contactExceptionRepeatOnSameMessage !== false);
       return response.agent.id;
     } catch (error: unknown) {
       logError('AIAgent.createAgentForAssisted', error);
@@ -181,7 +251,23 @@ const AIAgentPage: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [agentName, agentInstanceId, agentWaitTime, agentIsActive, agentTranscribeAudio, agentSplitMessages, assistedConfig, blockWhenUserReplies, blockDuration, blockDurationUnit, t]);
+  }, [
+    agentName,
+    agentInstanceId,
+    agentWaitTime,
+    agentIsActive,
+    agentTranscribeAudio,
+    agentSplitMessages,
+    assistedConfig,
+    blockWhenUserReplies,
+    blockDuration,
+    blockDurationUnit,
+    contactExceptionRaw,
+    contactExceptionBehavior,
+    contactExceptionDefaultMessage,
+    contactExceptionRepeatOnSameMessage,
+    t,
+  ]);
 
   // Criar novo agente
   const handleCreateAgent = async () => {
@@ -200,6 +286,16 @@ const AIAgentPage: React.FC = () => {
       return;
     }
 
+    const excEntriesCreate = parseContactExceptionPaste(contactExceptionRaw);
+    if (
+      contactExceptionBehavior === 'default_message' &&
+      excEntriesCreate.length > 0 &&
+      !contactExceptionDefaultMessage.trim()
+    ) {
+      alert(t('aiAgent.contactExceptions.validation.needMessage'));
+      return;
+    }
+
     try {
       setIsSaving(true);
       const response = await aiAgentAPI.create({
@@ -215,6 +311,10 @@ const AIAgentPage: React.FC = () => {
         blockWhenUserReplies,
         blockDuration: blockWhenUserReplies && blockDurationUnit !== 'permanent' ? blockDuration : null,
         blockDurationUnit: blockWhenUserReplies ? blockDurationUnit : null,
+        contactExceptionEntries: excEntriesCreate,
+        contactExceptionBehavior,
+        contactExceptionDefaultMessage: contactExceptionDefaultMessage.trim(),
+        contactExceptionRepeatOnSameMessage,
       });
       setAgents([response.agent, ...agents]);
       setSelectedAgent(response.agent);
@@ -224,6 +324,10 @@ const AIAgentPage: React.FC = () => {
       setKnowledgeCount(0);
       setAgentMedia([]);
       setAgentLocations([]);
+      setContactExceptionRaw(entriesToPasteText(response.agent.contactExceptionEntries ?? []));
+      setContactExceptionBehavior(response.agent.contactExceptionBehavior ?? 'ignore');
+      setContactExceptionDefaultMessage(response.agent.contactExceptionDefaultMessage ?? '');
+      setContactExceptionRepeatOnSameMessage(response.agent.contactExceptionRepeatOnSameMessage !== false);
       alert(t('aiAgent.success.createAgent'));
     } catch (error: unknown) {
       logError('AIAgent.createAgent', error);
@@ -253,6 +357,16 @@ const AIAgentPage: React.FC = () => {
       return;
     }
 
+    const excEntriesUpdate = parseContactExceptionPaste(contactExceptionRaw);
+    if (
+      contactExceptionBehavior === 'default_message' &&
+      excEntriesUpdate.length > 0 &&
+      !contactExceptionDefaultMessage.trim()
+    ) {
+      alert(t('aiAgent.contactExceptions.validation.needMessage'));
+      return;
+    }
+
     try {
       setIsSaving(true);
       const response = await aiAgentAPI.update(selectedAgent.id, {
@@ -268,6 +382,10 @@ const AIAgentPage: React.FC = () => {
         blockWhenUserReplies,
         blockDuration: blockWhenUserReplies && blockDurationUnit !== 'permanent' ? blockDuration : null,
         blockDurationUnit: blockWhenUserReplies ? blockDurationUnit : null,
+        contactExceptionEntries: excEntriesUpdate,
+        contactExceptionBehavior,
+        contactExceptionDefaultMessage: contactExceptionDefaultMessage.trim(),
+        contactExceptionRepeatOnSameMessage,
       });
       setAgents(agents.map((a) => (a.id === response.agent.id ? response.agent : a)));
       setSelectedAgent(response.agent);
@@ -380,6 +498,30 @@ const AIAgentPage: React.FC = () => {
     } catch (err: unknown) {
       alert(getErrorMessage(err, t('aiAgent.location.deleteError')));
     }
+  };
+
+  const handleContactExceptionCsv = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? '');
+      const parsed = parseContactExceptionPaste(text);
+      if (!parsed.length) return;
+      setContactExceptionRaw((prev) => {
+        const existing = parseContactExceptionPaste(prev);
+        const map = new Map<string, ContactExceptionEntry>();
+        for (const x of existing) {
+          map.set(x.phone.replace(/\D/g, ''), x);
+        }
+        for (const x of parsed) {
+          map.set(x.phone.replace(/\D/g, ''), x);
+        }
+        return entriesToPasteText(Array.from(map.values()));
+      });
+    };
+    reader.readAsText(file, 'UTF-8');
+    e.target.value = '';
   };
 
   // Deletar agente
@@ -495,6 +637,10 @@ const AIAgentPage: React.FC = () => {
                   setAssistedConfig({});
                   setKnowledgeContent('');
                   setKnowledgeCount(null);
+                  setContactExceptionRaw('');
+                  setContactExceptionBehavior('ignore');
+                  setContactExceptionDefaultMessage('');
+                  setContactExceptionRepeatOnSameMessage(true);
                 }}
                 disabled={atAIAgentLimit}
                 title={atAIAgentLimit ? `Limite de Agentes de IA do plano atingido (${maxAIAgents} agente(s)). Plano Advance: 1 agente. Plano PRO: até 4 agentes. Faça upgrade para adicionar mais.` : undefined}
@@ -747,6 +893,82 @@ const AIAgentPage: React.FC = () => {
                 <p className="text-xs text-gray-500 dark:text-gray-400 ml-6">
                   {t('aiAgent.splitMessagesHelper')}
                 </p>
+
+                <div className="border-t border-gray-200 dark:border-gray-600 pt-4 mt-4">
+                  <h3 className="text-base font-semibold text-clerky-backendText dark:text-gray-200 mb-2">
+                    {t('aiAgent.contactExceptions.title')}
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    {t('aiAgent.contactExceptions.helper')}
+                  </p>
+                  <textarea
+                    value={contactExceptionRaw}
+                    onChange={(e) => setContactExceptionRaw(e.target.value)}
+                    placeholder={t('aiAgent.contactExceptions.placeholder')}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-clerky-backendButton focus:border-transparent bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200 min-h-[100px] text-sm font-mono"
+                  />
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <input
+                      ref={contactCsvInputRef}
+                      type="file"
+                      accept=".csv,text/csv,text/plain"
+                      className="hidden"
+                      onChange={handleContactExceptionCsv}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => contactCsvInputRef.current?.click()}
+                    >
+                      {t('aiAgent.contactExceptions.importCsv')}
+                    </Button>
+                  </div>
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      {t('aiAgent.contactExceptions.behavior')}
+                    </label>
+                    <select
+                      value={contactExceptionBehavior}
+                      onChange={(e) =>
+                        setContactExceptionBehavior(e.target.value as ContactExceptionBehavior)
+                      }
+                      className="w-full max-w-md px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200"
+                    >
+                      <option value="ignore">{t('aiAgent.contactExceptions.ignore')}</option>
+                      <option value="default_message">{t('aiAgent.contactExceptions.defaultMessage')}</option>
+                    </select>
+                  </div>
+                  {contactExceptionBehavior === 'default_message' && (
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        {t('aiAgent.contactExceptions.messageLabel')}
+                      </label>
+                      <textarea
+                        value={contactExceptionDefaultMessage}
+                        onChange={(e) => setContactExceptionDefaultMessage(e.target.value)}
+                        placeholder={t('aiAgent.contactExceptions.messagePlaceholder')}
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200 min-h-[80px] text-sm"
+                        maxLength={8000}
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 mt-3">
+                    <input
+                      type="checkbox"
+                      id="contactExceptionRepeat"
+                      checked={contactExceptionRepeatOnSameMessage}
+                      onChange={(e) => setContactExceptionRepeatOnSameMessage(e.target.checked)}
+                      className="w-4 h-4 text-clerky-backendButton border-gray-300 rounded focus:ring-clerky-backendButton"
+                    />
+                    <label htmlFor="contactExceptionRepeat" className="text-sm text-gray-700 dark:text-gray-300">
+                      {t('aiAgent.contactExceptions.repeatLabel')}
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 ml-6 mt-1">
+                    {t('aiAgent.contactExceptions.repeatHelper')}
+                  </p>
+                </div>
 
                 <div className="flex gap-2">
                   <Button

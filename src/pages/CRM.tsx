@@ -31,6 +31,7 @@ import {
 } from '../components/crm/CrmInstancePicker';
 import { useSocket, NewMessageData, ContactUpdatedPayload } from '../hooks/useSocket';
 import { sortMessagesByTimestamp, formatLastMessageContent } from '../utils/messageUtils';
+import { userHasPremiumPlan } from '../utils/planAccess';
 import { getInitials } from '../utils/formatters';
 import { formatTime } from '../utils/dateFormatters';
 
@@ -141,7 +142,7 @@ function resolveCrmInitialSelection(
 }
 
 /**
- * Nome vindo do CRM IG costuma ser "Nome exibido · @usuario" (Insta-Clerky / formatIgContactDisplayName).
+ * Nome vindo do CRM IG costuma ser "Nome exibido · @usuario" (microserviço Instagram / formatIgContactDisplayName).
  * Separa o título do card do @ para a linha abaixo da etiqueta Instagram (sem mostrar o ID numérico em `phone`).
  */
 function parseInstagramContactDisplay(name: string): { title: string; handle: string | null } {
@@ -1537,7 +1538,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
 };
 
 const CRM: React.FC = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { t } = useLanguage();
   const [columns, setColumns] = useState<CRMColumn[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -1681,9 +1682,12 @@ const CRM: React.FC = () => {
   const loadInstances = async () => {
     try {
       setIsLoadingInstances(true);
+      const premium = userHasPremiumPlan(user);
       const [waResponse, igResponse] = await Promise.all([
         instanceAPI.getAll(),
-        instagramAPI.getInstances(),
+        premium
+          ? instagramAPI.getInstances()
+          : Promise.resolve({ status: 'success' as const, data: [] as InstagramInstance[] }),
       ]);
 
       const whatsappInstances: CRMInstanceOption[] = (waResponse.instances || []).map((inst: Instance) => ({
@@ -1711,25 +1715,22 @@ const CRM: React.FC = () => {
     }
   };
 
-  const loadColumns = async () => {
+  /** Só colunas (ex.: nenhuma instância selecionada no filtro do CRM). */
+  const loadColumnsOnly = useCallback(async () => {
     try {
       const response = await crmAPI.getColumns();
       setColumns(response.columns.sort((a, b) => a.order - b.order));
     } catch (error: any) {
       console.error('Erro ao carregar colunas:', error);
     }
-  };
+  }, []);
 
-  const loadContacts = useCallback(async () => {
+  /**
+   * Uma requisição: colunas + primeira página de cada coluna (lista ou busca).
+   * Elimina N× HTTP que serializavam no browser e repetiam init/IGC no servidor.
+   */
+  const loadKanbanBootstrap = useCallback(async () => {
     if (selectedInstances.length === 0) {
-      setContacts([]);
-      setColumnTotals({});
-      setColumnOffsets({});
-      setIsLoading(false);
-      return;
-    }
-
-    if (columns.length === 0) {
       setContacts([]);
       setColumnTotals({});
       setColumnOffsets({});
@@ -1740,72 +1741,42 @@ const CRM: React.FC = () => {
     try {
       setIsLoading(true);
       const scope = selectedInstances;
+      const r = await crmAPI.kanbanBootstrap({
+        limit: CRM_KANBAN_PAGE_SIZE,
+        crmScope: scope,
+        q: searchQuery.trim() || undefined,
+      });
 
-      if (searchQuery.trim()) {
-        const results = await Promise.all(
-          columns.map((col) =>
-            crmAPI.searchContacts(searchQuery.trim(), {
-              columnId: col.id,
-              limit: CRM_KANBAN_PAGE_SIZE,
-              offset: 0,
-              crmScope: scope,
-            })
-          )
-        );
-        const merged: Contact[] = [];
-        const totals: Record<string, number> = {};
-        const offsets: Record<string, number> = {};
-        results.forEach((r, i) => {
-          const col = columns[i];
-          merged.push(...r.contacts);
-          if (r.contacts.length === 0) {
-            totals[col.id] = typeof r.totalInColumn === 'number' ? r.totalInColumn : 0;
-          } else if (typeof r.totalInColumn === 'number') {
-            totals[col.id] = r.totalInColumn;
-          } else if (r.contacts.length < CRM_KANBAN_PAGE_SIZE) {
-            totals[col.id] = r.contacts.length;
-          }
-          offsets[col.id] = r.contacts.length;
-        });
-        setContacts(dedupeContactsById(merged));
-        setColumnTotals(totals);
-        setColumnOffsets(offsets);
-      } else {
-        const results = await Promise.all(
-          columns.map((col) =>
-            crmAPI.getContacts({
-              columnId: col.id,
-              limit: CRM_KANBAN_PAGE_SIZE,
-              offset: 0,
-              crmScope: scope,
-            })
-          )
-        );
-        const merged: Contact[] = [];
-        const totals: Record<string, number> = {};
-        const offsets: Record<string, number> = {};
-        results.forEach((r, i) => {
-          const col = columns[i];
-          merged.push(...r.contacts);
-          if (r.contacts.length === 0) {
-            totals[col.id] = typeof r.totalInColumn === 'number' ? r.totalInColumn : 0;
-          } else if (typeof r.totalInColumn === 'number') {
-            totals[col.id] = r.totalInColumn;
-          } else if (r.contacts.length < CRM_KANBAN_PAGE_SIZE) {
-            totals[col.id] = r.contacts.length;
-          }
-          offsets[col.id] = r.contacts.length;
-        });
-        setContacts(dedupeContactsById(merged));
-        setColumnTotals(totals);
-        setColumnOffsets(offsets);
+      const sortedCols = [...r.columns].sort((a, b) => a.order - b.order);
+      setColumns(sortedCols);
+
+      const merged: Contact[] = [];
+      const totals: Record<string, number> = {};
+      const offsets: Record<string, number> = {};
+
+      for (const col of sortedCols) {
+        const slot = r.byColumn[col.id];
+        const list = slot?.contacts ?? [];
+        merged.push(...list);
+        if (list.length === 0) {
+          totals[col.id] = typeof slot?.totalInColumn === 'number' ? slot.totalInColumn : 0;
+        } else if (typeof slot?.totalInColumn === 'number') {
+          totals[col.id] = slot.totalInColumn;
+        } else if (list.length < CRM_KANBAN_PAGE_SIZE) {
+          totals[col.id] = list.length;
+        }
+        offsets[col.id] = list.length;
       }
+
+      setContacts(dedupeContactsById(merged));
+      setColumnTotals(totals);
+      setColumnOffsets(offsets);
     } catch (error: any) {
-      console.error('Erro ao carregar contatos:', error);
+      console.error('Erro ao carregar quadro do CRM:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedInstances, searchQuery, columns]);
+  }, [selectedInstances, searchQuery]);
 
   /** Lista completa (para sincronizar após WebSocket / fechar chat). */
   const loadContactsFull = useCallback(async () => {
@@ -2056,8 +2027,20 @@ const CRM: React.FC = () => {
 
   useEffect(() => {
     loadInstances();
-    loadColumns();
-  }, []);
+  }, [user?.id, user?.premiumPlan]);
+
+  /** Colunas do quadro antes de `crmSelectionReady` (evita Kanban vazio só de cabeçalhos). */
+  useEffect(() => {
+    if (crmSelectionReady) return;
+    void (async () => {
+      try {
+        const response = await crmAPI.getColumns();
+        setColumns(response.columns.sort((a, b) => a.order - b.order));
+      } catch (error: any) {
+        console.error('Erro ao carregar colunas:', error);
+      }
+    })();
+  }, [crmSelectionReady]);
 
   useEffect(() => {
     if (!crmSelectionReady) return;
@@ -2077,14 +2060,23 @@ const CRM: React.FC = () => {
       .catch(() => setAllowDeleteCard(false));
   }, [token]);
 
-  /** Um único efeito com debounce evita duas chamadas seguidas ao mudar instâncias ou busca. */
+  /**
+   * Com instâncias selecionadas: POST /kanban/bootstrap (debounce na busca).
+   * Sem instâncias: só colunas vazias no quadro.
+   */
   useEffect(() => {
+    if (!crmSelectionReady) return;
+
     if (selectedInstances.length === 0) {
-      setContacts([]);
-      setIsLoading(false);
       skipContactsDebounceOnceRef.current = true;
+      setContacts([]);
+      setColumnTotals({});
+      setColumnOffsets({});
+      setIsLoading(false);
+      void loadColumnsOnly();
       return;
     }
+
     const hasSearch = searchQuery.trim().length > 0;
     const delay = hasSearch
       ? 450
@@ -2093,10 +2085,10 @@ const CRM: React.FC = () => {
         : 160;
     const timer = window.setTimeout(() => {
       skipContactsDebounceOnceRef.current = false;
-      loadContacts();
+      void loadKanbanBootstrap();
     }, delay);
     return () => clearTimeout(timer);
-  }, [selectedInstances, searchQuery, loadContacts]);
+  }, [crmSelectionReady, selectedInstances, searchQuery, loadKanbanBootstrap, loadColumnsOnly]);
 
   const [columnPickerMenu, setColumnPickerMenu] = useState<{
     contact: Contact;
@@ -2142,11 +2134,11 @@ const CRM: React.FC = () => {
       } catch (error: any) {
         console.error('Erro ao mover contato:', error);
         setContacts(previousContacts);
-        void loadContacts();
+        void loadKanbanBootstrap();
         alert(error.message || 'Erro ao mover contato. Tente novamente.');
       }
     },
-    [contacts, columns, loadContacts]
+    [contacts, columns, loadKanbanBootstrap]
   );
 
   const handleRequestMoveToColumn = useCallback(

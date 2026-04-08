@@ -428,7 +428,7 @@ const Admin: React.FC = () => {
                     type="url"
                     value={promoUrl}
                     onChange={(e) => setPromoUrl(e.target.value)}
-                    placeholder="Ex: https://clerky.com.br/promo"
+                    placeholder="Ex: https://onlyflow.com.br/promo"
                     className="w-full"
                   />
                 </div>

@@ -11,7 +11,7 @@ import { OfficialDispatchComposer } from '../components/Dispatches/OfficialDispa
 const DispatchesOfficial: React.FC = () => {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const isAdmin = user?.admin === true;
+  const canAccessOfficialDispatch = (user?.maxOfficialWhatsAppInstances ?? 0) > 0;
 
   const [activeTab, setActiveTab] = useState<'templates' | 'dispatches'>('templates');
   const [instances, setInstances] = useState<Instance[]>([]);
@@ -59,14 +59,14 @@ const DispatchesOfficial: React.FC = () => {
   }, [selectedInstanceId, t]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canAccessOfficialDispatch) return;
     loadInstances();
-  }, [isAdmin, loadInstances]);
+  }, [canAccessOfficialDispatch, loadInstances]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canAccessOfficialDispatch) return;
     loadTemplates();
-  }, [isAdmin, loadTemplates]);
+  }, [canAccessOfficialDispatch, loadTemplates]);
 
   const handleCreateSubmit = async (
     body: CreateOfficialTemplateBody
@@ -90,11 +90,11 @@ const DispatchesOfficial: React.FC = () => {
     }
   };
 
-  if (!isAdmin) {
+  if (!canAccessOfficialDispatch) {
     return (
       <AppLayout>
         <div className="animate-fadeIn max-w-2xl mx-auto">
-          <div className="mb-6 opacity-60">
+          <div className="mb-6">
             <h1 className="text-3xl font-bold text-clerky-backendText dark:text-gray-200 mb-2">
               {t('dispatchesOfficial.title')}
             </h1>
@@ -106,10 +106,10 @@ const DispatchesOfficial: React.FC = () => {
             className="p-10 text-center border-dashed border-2 border-gray-300 dark:border-gray-600 bg-gray-50/90 dark:bg-gray-800/40 shadow-sm"
           >
             <p className="text-lg font-semibold text-clerky-backendText dark:text-gray-200">
-              {t('menu.featureComingSoon')}
+              {t('dispatchesOfficial.planRequiredTitle')}
             </p>
             <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
-              {t('dispatchesOfficial.comingSoon')}
+              {t('dispatchesOfficial.planRequiredBody')}
             </p>
           </Card>
         </div>

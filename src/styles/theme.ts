@@ -1,6 +1,6 @@
 /**
  * Sistema de Design Global - OnlyFlow
- * Baseado na paleta de cores do site clerky.com.br
+ * Baseado na paleta de cores do site onlyflow.com.br
  */
 
 export const theme = {

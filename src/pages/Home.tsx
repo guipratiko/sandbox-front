@@ -8,6 +8,7 @@ import { dashboardAPI, DashboardStats, RecentActivity, Banner, instagramAPI, new
 import type { Dispatch } from '../services/api';
 import { useSocket } from '../hooks/useSocket';
 import { getErrorMessage, logError } from '../utils/errorHandler';
+import { userHasPremiumPlan } from '../utils/planAccess';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR, enUS } from 'date-fns/locale';
 
@@ -582,11 +583,14 @@ const Home: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
+      const premium = userHasPremiumPlan(user);
+      const emptyIg = { status: 'success' as const, data: [] };
+      const emptyDisp = { status: 'success' as const, dispatches: [] as Dispatch[] };
       const [statsResponse, bannersResponse, instagramResponse, dispatchesResponse] = await Promise.all([
         dashboardAPI.getStats(),
         dashboardAPI.getBanners().catch(() => ({ status: 'success', data: [] as Banner[] })),
-        instagramAPI.getInstances().catch(() => ({ status: 'success', data: [] })),
-        dispatchAPI.getDispatches().catch(() => ({ status: 'success', dispatches: [] as Dispatch[] })),
+        premium ? instagramAPI.getInstances().catch(() => emptyIg) : Promise.resolve(emptyIg),
+        premium ? dispatchAPI.getDispatches().catch(() => emptyDisp) : Promise.resolve(emptyDisp),
       ]);
       
       setStats(statsResponse.stats);
@@ -606,7 +610,7 @@ const Home: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [t]);
+  }, [t, user]);
 
   // WebSocket para atualizações em tempo real
   useSocket(

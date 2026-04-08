@@ -26,6 +26,8 @@ declare global {
           config_id: string;
           response_type: string;
           override_default_response_type: boolean;
+          /** Deve ser idêntico ao usado no backend na troca code→token e à URI cadastrada na Meta */
+          redirect_uri?: string;
           display?: 'popup' | 'page' | 'touch';
           extras: object;
         }
@@ -34,9 +36,13 @@ declare global {
   }
 }
 
-const META_APP_ID = process.env.REACT_APP_META_APP_ID || '';
-const META_CONFIG_ID = process.env.REACT_APP_META_EMBEDDED_SIGNUP_CONFIG_ID || '';
-const OAUTH_CALLBACK_URL = process.env.REACT_APP_OAUTH_WHATSAPP_CALLBACK_URL || window.location.origin + '/oauth/whatsapp/callback';
+const META_APP_ID = (process.env.REACT_APP_META_APP_ID || '').trim();
+const META_CONFIG_ID = (process.env.REACT_APP_META_EMBEDDED_SIGNUP_CONFIG_ID || '').trim();
+const OAUTH_CALLBACK_URL = (
+  process.env.REACT_APP_OAUTH_WHATSAPP_CALLBACK_URL || `${window.location.origin}/oauth/whatsapp/callback`
+).trim();
+/** Sem isso a Meta retorna: "Parâmetro inválido: config_id é obrigatório" */
+const HAS_META_EMBEDDED_CONFIG = META_CONFIG_ID.length > 0;
 
 const DAY_LABELS: Record<string, string> = {
   sun: 'Dom',
@@ -52,6 +58,45 @@ function minutesToTime(min: number): string {
   const h = Math.floor(min / 60);
   const m = min % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/** Enum `vertical` da Graph API; a Meta pode devolver a string "UNDEFINED" quando não há categoria. */
+const WHATSAPP_BUSINESS_VERTICAL_SLUGS = new Set([
+  'OTHER',
+  'AUTO',
+  'BEAUTY',
+  'APPAREL',
+  'EDU',
+  'ENTERTAIN',
+  'EVENT_PLAN',
+  'FINANCE',
+  'GROCERY',
+  'GOVT',
+  'HOTEL',
+  'HEALTH',
+  'NONPROFIT',
+  'PROF_SERVICES',
+  'RETAIL',
+  'TRAVEL',
+  'RESTAURANT',
+  'ALCOHOL',
+  'ONLINE_GAMBLING',
+  'PHYSICAL_GAMBLING',
+  'OTC_DRUGS',
+  'MATRIMONY_SERVICE',
+]);
+
+function normalizeWhatsAppProfileVerticalFromApi(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  const t = raw.trim();
+  if (!t || t.toUpperCase() === 'UNDEFINED') return '';
+  return WHATSAPP_BUSINESS_VERTICAL_SLUGS.has(t) ? t : '';
+}
+
+function whatsappProfileVerticalForPatch(verticalState: string): string | undefined {
+  const t = verticalState.trim();
+  if (!t || t.toUpperCase() === 'UNDEFINED') return undefined;
+  return WHATSAPP_BUSINESS_VERTICAL_SLUGS.has(t) ? t : undefined;
 }
 
 const SettingsBusinessHoursDisplay: React.FC<{ data: BusinessHoursConfig }> = ({ data }) => {
@@ -76,6 +121,8 @@ const SettingsBusinessHoursDisplay: React.FC<{ data: BusinessHoursConfig }> = ({
 
 interface SettingsProfileFormProps {
   profile: WhatsAppBusinessProfile | null;
+  /** Valor inicial do nome de exibição (API: verified_name / new_display_name em revisão). */
+  verifiedDisplayNameSeed?: string;
   verticalOptions: { value: string; label: string }[];
   onSave: (data: Partial<WhatsAppBusinessProfile>) => Promise<void>;
   saving: boolean;
@@ -86,6 +133,7 @@ interface SettingsProfileFormProps {
 
 const SettingsProfileForm: React.FC<SettingsProfileFormProps> = ({
   profile,
+  verifiedDisplayNameSeed = '',
   verticalOptions,
   onSave,
   saving,
@@ -94,6 +142,8 @@ const SettingsProfileForm: React.FC<SettingsProfileFormProps> = ({
   uploadingPicture,
 }) => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const initialDisplayNameRef = React.useRef('');
+  const [verifiedDisplayName, setVerifiedDisplayName] = useState('');
   const [about, setAbout] = useState('');
   const [description, setDescription] = useState('');
   const [address, setAddress] = useState('');
@@ -101,6 +151,7 @@ const SettingsProfileForm: React.FC<SettingsProfileFormProps> = ({
   const [vertical, setVertical] = useState('');
   const [website0, setWebsite0] = useState('');
   const [website1, setWebsite1] = useState('');
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
   const [showCropModal, setShowCropModal] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   /** Preview local após upload (evita "Sem foto" enquanto a API não devolve profile_picture_url) */
@@ -112,25 +163,44 @@ const SettingsProfileForm: React.FC<SettingsProfileFormProps> = ({
     setDescription(profile.description ?? '');
     setAddress(profile.address ?? '');
     setEmail(profile.email ?? '');
-    setVertical(profile.vertical ?? '');
+    setVertical(normalizeWhatsAppProfileVerticalFromApi(profile.vertical));
     const sites = profile.websites ?? [];
     setWebsite0(sites[0] ?? '');
     setWebsite1(sites[1] ?? '');
   }, [profile]);
 
+  useEffect(() => {
+    const seed = verifiedDisplayNameSeed ?? '';
+    initialDisplayNameRef.current = seed;
+    setVerifiedDisplayName(seed);
+  }, [verifiedDisplayNameSeed]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setDisplayNameError(null);
     const websites: string[] = [];
     if (website0.trim()) websites.push(website0.trim());
     if (website1.trim()) websites.push(website1.trim());
-    onSave({
+    const nameTrim = verifiedDisplayName.trim();
+    const nameChanged = nameTrim !== (initialDisplayNameRef.current || '').trim();
+    if (nameChanged) {
+      if (nameTrim.length > 0 && nameTrim.length < 3) {
+        setDisplayNameError('Nome de exibição: use pelo menos 3 caracteres (regra da Meta) ou deixe igual ao atual.');
+        return;
+      }
+    }
+    const payload: Partial<WhatsAppBusinessProfile> = {
       about: about.trim() || undefined,
       description: description.trim() || undefined,
       address: address.trim() || undefined,
       email: email.trim() || undefined,
-      vertical: vertical || undefined,
+      vertical: whatsappProfileVerticalForPatch(vertical),
       websites: websites.length ? websites : undefined,
-    });
+    };
+    if (nameChanged && nameTrim.length >= 3) {
+      payload.verified_name = nameTrim;
+    }
+    onSave(payload);
   };
 
   const photoDisplayUrl = profile?.profile_picture_url || uploadedPreviewUrl;
@@ -187,6 +257,34 @@ const SettingsProfileForm: React.FC<SettingsProfileFormProps> = ({
         </Modal>
       )}
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Perfil do negócio</h3>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Nome de exibição verificado (como aparece no WhatsApp)
+        </label>
+        <input
+          type="text"
+          maxLength={150}
+          value={verifiedDisplayName}
+          onChange={(e) => setVerifiedDisplayName(e.target.value)}
+          placeholder="Ex.: Minha Empresa LTDA"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+        />
+        {displayNameError && (
+          <p className="mt-1 text-sm text-red-600 dark:text-red-400">{displayNameError}</p>
+        )}
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Mínimo 3 caracteres. A Meta pode analisar antes de publicar; há limite de alterações por período (veja a{' '}
+          <a
+            href="https://developers.facebook.com/docs/whatsapp/display-names/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-clerky-backendButton hover:underline"
+          >
+            documentação de display names
+          </a>
+          ).
+        </p>
+      </div>
       <div className="flex items-center gap-4 flex-wrap">
         {photoDisplayUrl ? (
           <img
@@ -328,7 +426,16 @@ const WhatsAppOfficialInstances: React.FC = () => {
   const [settingsProfileSaving, setSettingsProfileSaving] = useState(false);
   const [settingsProfileError, setSettingsProfileError] = useState<string | null>(null);
   const [uploadingPicture, setUploadingPicture] = useState(false);
-  const pendingSignup = useRef<{ name: string; waba_id?: string; phone_number_id?: string; code?: string; redirect_uri?: string; isCoex?: boolean } | null>(null);
+  const pendingSignup = useRef<{
+    name: string;
+    waba_id?: string;
+    phone_number_id?: string;
+    code?: string;
+    redirect_uri?: string;
+    isCoex?: boolean;
+    /** Evita POST duplicado */
+    submitStarted?: boolean;
+  } | null>(null);
 
   const VERTICAL_OPTIONS: { value: string; label: string }[] = [
     { value: '', label: '— Selecione —' },
@@ -359,8 +466,6 @@ const WhatsAppOfficialInstances: React.FC = () => {
   const maxOfficialWhatsApp = user?.maxOfficialWhatsAppInstances ?? 0;
   const officialOnly = instances.filter((i) => i.integration === 'WHATSAPP-CLOUD');
   const atOfficialLimit = maxOfficialWhatsApp > 0 && officialOnly.length >= maxOfficialWhatsApp;
-  const isStartPlan = user?.premiumPlan === 'start';
-  const isNonAdmin = user?.admin !== true;
 
   const handleStatusUpdate = useCallback((data: { instanceId: string; status: string }) => {
     setInstances((prev) =>
@@ -393,6 +498,10 @@ const WhatsAppOfficialInstances: React.FC = () => {
   const submitPendingOfficial = useCallback(async () => {
     const p = pendingSignup.current;
     if (!p || !p.name || !p.waba_id || !p.phone_number_id) return;
+    // OAuth: o código do FB.login e o redirect_uri precisam existir antes do POST (mesmo par usado na troca na Meta).
+    if (!p.code || !p.redirect_uri) return;
+    if (p.submitStarted) return;
+    p.submitStarted = true;
     const isCoex = !!p.isCoex;
     try {
       setIsCreating(true);
@@ -401,12 +510,10 @@ const WhatsAppOfficialInstances: React.FC = () => {
         name: p.name.trim(),
         waba_id: p.waba_id,
         phone_number_id: p.phone_number_id,
+        code: p.code,
+        redirect_uri: p.redirect_uri,
         ...(isCoex ? { is_coex: true } : {}),
       };
-      if (p.code && p.redirect_uri) {
-        data.code = p.code;
-        data.redirect_uri = p.redirect_uri;
-      }
       const response = await instanceAPI.createOfficial(data);
       setInstances((prev) => [...prev, response.instance]);
       setShowCreateModal(false);
@@ -421,6 +528,7 @@ const WhatsAppOfficialInstances: React.FC = () => {
         setShowRegisterModal(true);
       }
     } catch (err: unknown) {
+      if (pendingSignup.current) pendingSignup.current.submitStarted = false;
       logError('WhatsAppOfficialInstances.createOfficial', err);
       setError(getErrorMessage(err, 'Falha ao criar instância oficial'));
     } finally {
@@ -428,15 +536,46 @@ const WhatsAppOfficialInstances: React.FC = () => {
     }
   }, [loadInstances]);
 
+  /** Só cria a instância quando Embedded Signup (postMessage) e FB.login (code) estiverem prontos — evita invalid_code por ordem aleatória. */
+  const trySubmitEmbeddedSignupWhenReady = useCallback(() => {
+    const p = pendingSignup.current;
+    if (!p?.name || !p.waba_id || !p.phone_number_id || !p.code || !p.redirect_uri) return;
+    void submitPendingOfficial();
+  }, [submitPendingOfficial]);
 
+  const fbInitRef = useRef(false);
+
+  // O script do Facebook em index.html é async/defer: no primeiro paint window.FB pode ainda não existir.
+  // Se o useEffect rodar cedo e sair, FB.init nunca era chamado e FB.login dispara "init not called with valid version".
   useEffect(() => {
-    if (!META_APP_ID || typeof window.FB === 'undefined') return;
-    window.FB.init({
-      appId: META_APP_ID,
-      autoLogAppEvents: true,
-      xfbml: true,
-      version: 'v25.0',
-    });
+    if (!META_APP_ID) return;
+
+    const init = () => {
+      if (fbInitRef.current || typeof window.FB === 'undefined') return false;
+      window.FB!.init({
+        appId: META_APP_ID,
+        autoLogAppEvents: true,
+        xfbml: true,
+        version: 'v25.0',
+      });
+      fbInitRef.current = true;
+      return true;
+    };
+
+    if (init()) return;
+
+    const interval = window.setInterval(() => {
+      if (init()) window.clearInterval(interval);
+    }, 50);
+
+    const timeout = window.setTimeout(() => {
+      window.clearInterval(interval);
+    }, 20000);
+
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+    };
   }, []);
 
   useEffect(() => {
@@ -479,8 +618,7 @@ const WhatsAppOfficialInstances: React.FC = () => {
           pendingSignup.current.waba_id = data.data.waba_id;
           pendingSignup.current.phone_number_id = data.data.phone_number_id;
           if (isCoexFinish) pendingSignup.current.isCoex = true;
-          // Pequeno atraso para o callback do FB.login (code + redirect_uri) rodar antes de criar a instância; evita salvar sem meta_access_token.
-          setTimeout(() => submitPendingOfficial(), 300);
+          trySubmitEmbeddedSignupWhenReady();
         } else if (data.event === 'ERROR') {
           setError(data.data?.error_message || 'Erro no cadastro incorporado');
         }
@@ -490,41 +628,49 @@ const WhatsAppOfficialInstances: React.FC = () => {
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [submitPendingOfficial]);
+  }, [trySubmitEmbeddedSignupWhenReady]);
 
   const launchEmbeddedSignup = () => {
     const name = createName.trim() || 'WhatsApp Oficial';
     pendingSignup.current = { name };
+    if (!META_APP_ID) {
+      setError('App Meta (REACT_APP_META_APP_ID) não configurado no build.');
+      return;
+    }
+    if (!META_CONFIG_ID) {
+      setError(
+        'Configuration ID do cadastro incorporado ausente. Defina REACT_APP_META_EMBEDDED_SIGNUP_CONFIG_ID no .env do frontend, faça novo build (produção) ou reinicie npm start (local).'
+      );
+      return;
+    }
     if (typeof window.FB === 'undefined') {
       setError('SDK do Facebook não carregado. Recarregue a página.');
       return;
     }
-    // Garante que o navegador permita popup no gesto do clique
-    const probe = window.open(
-      '',
-      'onlyflow_meta_popup_probe',
-      'popup,width=640,height=760,left=120,top=80'
-    );
-    if (!probe) {
-      setError('Seu navegador bloqueou o popup. Permita popups para este site e tente novamente.');
+    if (!fbInitRef.current) {
+      setError('SDK do Facebook ainda inicializando. Aguarde um instante e tente de novo.');
       return;
     }
-    probe.close();
+
+    // Não abrir outro window.open antes do FB.login: o Chrome consome o "user activation" no primeiro
+    // open; o diálogo da Meta acaba abrindo em nova guia em vez de popup.
 
     window.FB.login(
       (response) => {
         if (response.authResponse?.code && pendingSignup.current) {
           pendingSignup.current.code = response.authResponse.code;
           pendingSignup.current.redirect_uri = OAUTH_CALLBACK_URL;
+          trySubmitEmbeddedSignupWhenReady();
         }
       },
       {
         config_id: META_CONFIG_ID,
         response_type: 'code',
         override_default_response_type: true,
+        // Documentação Embedded Signup não passa redirect_uri aqui; o SDK pode usar URI interna/vazia — a troca no backend tenta fallback.
         display: 'popup',
         extras: {
-          version: 'v3',
+          version: 'v4',
           setup: {},
           featureType: 'whatsapp_business_app_onboarding',
           sessionInfoVersion: '3',
@@ -587,11 +733,10 @@ const WhatsAppOfficialInstances: React.FC = () => {
     }
   };
 
-  const officialButtonDisabled = isNonAdmin || atOfficialLimit || isStartPlan;
-  const officialButtonTitle = isNonAdmin
-    ? 'Em breve'
-    : isStartPlan
-    ? 'Disponível apenas para os planos Advanced, Pro ou Enterprise'
+  const noOfficialSlots = maxOfficialWhatsApp === 0;
+  const officialButtonDisabled = noOfficialSlots || atOfficialLimit;
+  const officialButtonTitle = noOfficialSlots
+    ? 'Disponível nos planos Advance (1 número) e Pro (2 números) da API Oficial.'
     : atOfficialLimit
       ? `Limite de números da API Oficial do plano atingido (${maxOfficialWhatsApp} número(s)). Faça upgrade para adicionar mais.`
       : undefined;
@@ -641,9 +786,22 @@ const WhatsAppOfficialInstances: React.FC = () => {
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Ao clicar em Conectar, será aberta a janela do Facebook para vincular seu número ao OnlyFlow.
             </p>
+            {!HAS_META_EMBEDDED_CONFIG && (
+              <p className="text-sm p-3 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-100">
+                <strong>Configuração incompleta:</strong> falta{' '}
+                <code className="text-xs">REACT_APP_META_EMBEDDED_SIGNUP_CONFIG_ID</code> no build do frontend. Sem
+                isso a Meta exibe &quot;config_id é obrigatório&quot;. Ajuste o .env, reinicie o dev server ou gere novo
+                deploy.
+              </p>
+            )}
             <div className="flex gap-2 justify-end">
               <Button variant="secondary" onClick={() => setShowCreateModal(false)}>Cancelar</Button>
-              <Button type="button" variant="primary" onClick={launchEmbeddedSignup} disabled={isCreating}>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={launchEmbeddedSignup}
+                disabled={isCreating || !HAS_META_EMBEDDED_CONFIG}
+              >
                 {isCreating ? 'Conectando...' : 'Conectar'}
               </Button>
             </div>
@@ -722,9 +880,11 @@ const WhatsAppOfficialInstances: React.FC = () => {
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" size="sm" onClick={() => { setSelectedInstance(instance); setShowSettingsModal(true); }}>
-                  Configurações
-                </Button>
+                {!instance.is_coex && (
+                  <Button variant="secondary" size="sm" onClick={() => { setSelectedInstance(instance); setShowSettingsModal(true); }}>
+                    Configurações
+                  </Button>
+                )}
                 <Button variant="danger" size="sm" onClick={() => handleDeleteInstance(instance.id)}>
                   Excluir
                 </Button>
@@ -754,8 +914,23 @@ const WhatsAppOfficialInstances: React.FC = () => {
                       <div><dt className="text-gray-500 dark:text-gray-400">Número</dt><dd className="font-medium">{settingsPhone.display_phone_number}</dd></div>
                     )}
                     {settingsPhone.verified_name && (
-                      <div><dt className="text-gray-500 dark:text-gray-400">Nome verificado</dt><dd className="font-medium">{settingsPhone.verified_name}</dd></div>
+                      <div><dt className="text-gray-500 dark:text-gray-400">Nome verificado (atual)</dt><dd className="font-medium">{settingsPhone.verified_name}</dd></div>
                     )}
+                    {settingsPhone.name_status && (
+                      <div>
+                        <dt className="text-gray-500 dark:text-gray-400">Status do nome</dt>
+                        <dd className="font-medium text-xs">{settingsPhone.name_status}</dd>
+                      </div>
+                    )}
+                    {settingsPhone.new_display_name &&
+                      settingsPhone.new_name_status &&
+                      settingsPhone.new_name_status !== 'NONE' && (
+                        <div>
+                          <dt className="text-gray-500 dark:text-gray-400">Nome em análise</dt>
+                          <dd className="font-medium">{settingsPhone.new_display_name}</dd>
+                          <dd className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{settingsPhone.new_name_status}</dd>
+                        </div>
+                      )}
                     {settingsPhone.quality_rating && (
                       <div>
                         <dt className="text-gray-500 dark:text-gray-400">Qualidade</dt>
@@ -817,6 +992,11 @@ const WhatsAppOfficialInstances: React.FC = () => {
               )}
               <SettingsProfileForm
                 profile={settingsProfile}
+                verifiedDisplayNameSeed={
+                  settingsPhone
+                    ? settingsPhone.verified_name || settingsPhone.new_display_name || ''
+                    : ''
+                }
                 verticalOptions={VERTICAL_OPTIONS}
                 instanceId={selectedInstance?.id}
                 onUploadPicture={async (file) => {
@@ -840,7 +1020,12 @@ const WhatsAppOfficialInstances: React.FC = () => {
                   setSettingsProfileError(null);
                   try {
                     await instanceAPI.patchWhatsAppProfile(selectedInstance.id, data);
-                    setSettingsProfile((prev) => (prev ? { ...prev, ...data } : data));
+                    const [profileRes, settingsRes] = await Promise.all([
+                      instanceAPI.getWhatsAppProfile(selectedInstance.id),
+                      instanceAPI.getWhatsAppSettings(selectedInstance.id),
+                    ]);
+                    setSettingsProfile(profileRes.data ?? null);
+                    setSettingsPhone(settingsRes.data ?? null);
                   } catch (err: unknown) {
                     setSettingsProfileError(getErrorMessage(err, 'Erro ao salvar perfil'));
                   } finally {

@@ -13,7 +13,7 @@ type TabKey = 'whatsapp' | 'whatsapp-official' | 'instagram';
 const Instances: React.FC = () => {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const isAdmin = user?.admin === true;
+  const canUseOfficialWhatsApp = (user?.maxOfficialWhatsAppInstances ?? 0) > 0;
 
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -58,15 +58,15 @@ const Instances: React.FC = () => {
               type="button"
               onClick={() => setActiveTab('whatsapp-official')}
               title={
-                !isAdmin
-                  ? `${t('instances.officialComingSoonPanelTitle')}: ${t('instances.officialComingSoonPanelBody')}`
+                !canUseOfficialWhatsApp
+                  ? `${t('instances.officialPlanRequiredTitle')}: ${t('instances.officialPlanRequiredBody')}`
                   : undefined
               }
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'whatsapp-official'
                   ? 'border-clerky-backendButton text-clerky-backendButton'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-              } ${!isAdmin ? 'opacity-50 hover:opacity-70' : ''}`}
+              } ${!canUseOfficialWhatsApp ? 'opacity-60 hover:opacity-80' : ''}`}
             >
               WhatsApp Oficial
             </button>
@@ -100,16 +100,16 @@ const Instances: React.FC = () => {
                 : 'opacity-0 absolute inset-0 pointer-events-none translate-x-4'
             }`}
           >
-            {!isAdmin ? (
+            {!canUseOfficialWhatsApp ? (
               <div
                 className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/90 dark:bg-gray-800/50 px-6 py-14 text-center opacity-95"
                 role="status"
               >
                 <p className="text-lg font-semibold text-clerky-backendText dark:text-gray-200">
-                  {t('instances.officialComingSoonPanelTitle')}
+                  {t('instances.officialPlanRequiredTitle')}
                 </p>
                 <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-                  {t('instances.officialComingSoonPanelBody')}
+                  {t('instances.officialPlanRequiredBody')}
                 </p>
               </div>
             ) : (
