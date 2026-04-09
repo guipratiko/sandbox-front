@@ -848,6 +848,8 @@ const translations = {
     'mindFlow.nodeSettings.configureResponse': 'Configure a resposta',
     'mindFlow.nodeSettings.webhookVariablesSection': 'Variáveis do webhook',
     'mindFlow.nodeSettings.webhookVariablesHint': 'Campos escolhidos no nó Webhook deste fluxo. Use no texto como $nomeDoCampo.',
+    'mindFlow.nodeSettings.webhookVariablesEmpty':
+      'Nenhum campo ainda. Adicione um nó Webhook ao fluxo e selecione os campos do body para ver os atalhos aqui.',
     'mindFlow.nodeSettings.webhookUrl': 'URL do Webhook',
     'mindFlow.nodeSettings.webhookUrlDescription': 'Use esta URL no Typebot para enviar dados ao workflow',
     'mindFlow.nodeSettings.webhookUrlCopied': 'URL copiada para a área de transferência!',
@@ -2580,6 +2582,8 @@ const translations = {
     'mindFlow.nodeSettings.configureResponse': 'Configure the response',
     'mindFlow.nodeSettings.webhookVariablesSection': 'Webhook variables',
     'mindFlow.nodeSettings.webhookVariablesHint': 'Fields selected in the Webhook node of this flow. Use in text as $fieldName.',
+    'mindFlow.nodeSettings.webhookVariablesEmpty':
+      'No fields yet. Add a Webhook node to the flow and select body fields to see shortcuts here.',
     'mindFlow.nodeSettings.webhookUrl': 'Webhook URL',
     'mindFlow.nodeSettings.webhookUrlDescription': 'Use this URL in Typebot to send data to the workflow',
     'mindFlow.nodeSettings.webhookUrlCopied': 'URL copied to clipboard!',

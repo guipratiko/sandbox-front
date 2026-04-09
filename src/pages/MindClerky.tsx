@@ -767,16 +767,19 @@ const NodeSettingsPanel: React.FC<NodeSettingsPanelProps> = ({ node, instances, 
     onUpdate({ [field]: currentValue + variable });
   };
 
-  const renderWebhookVariableButtons = (targetField: 'content' | 'caption' | 'mediaUrl' | 'fileName') => {
-    if (webhookFieldKeys.length === 0) return null;
-    return (
-      <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
-        <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-          {t('mindFlow.nodeSettings.webhookVariablesSection')}
+  const renderWebhookVariableButtons = (targetField: 'content' | 'caption' | 'mediaUrl' | 'fileName') => (
+    <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+      <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+        {t('mindFlow.nodeSettings.webhookVariablesSection')}
+      </p>
+      <p className="text-xs text-gray-500 dark:text-gray-500 mb-2">
+        {t('mindFlow.nodeSettings.webhookVariablesHint')}
+      </p>
+      {webhookFieldKeys.length === 0 ? (
+        <p className="text-xs text-gray-400 dark:text-gray-500 italic">
+          {t('mindFlow.nodeSettings.webhookVariablesEmpty')}
         </p>
-        <p className="text-xs text-gray-500 dark:text-gray-500 mb-2">
-          {t('mindFlow.nodeSettings.webhookVariablesHint')}
-        </p>
+      ) : (
         <div className="flex flex-wrap gap-2">
           {webhookFieldKeys.map((key) => {
             const token = `$${key}`;
@@ -793,9 +796,9 @@ const NodeSettingsPanel: React.FC<NodeSettingsPanelProps> = ({ node, instances, 
             );
           })}
         </div>
-      </div>
-    );
-  };
+      )}
+    </div>
+  );
 
   if (node.type === 'whatsappTrigger') {
     const triggerData = node.data as { instanceId?: string };
