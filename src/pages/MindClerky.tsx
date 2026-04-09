@@ -3,7 +3,16 @@ import { AppLayout } from '../components/Layout';
 import { Card, Button, Modal, Input, HelpIcon } from '../components/UI';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
-import { workflowAPI, instanceAPI, Workflow, WorkflowNode, WorkflowEdge, WorkflowContact, Instance } from '../services/api';
+import {
+  workflowAPI,
+  instanceAPI,
+  Workflow,
+  WorkflowNode,
+  WorkflowEdge,
+  WorkflowContact,
+  Instance,
+  MINDLERKY_API_URL,
+} from '../services/api';
 import { FlowEditor } from '../components/MindClerky/FlowEditor';
 import { NodePalette } from '../components/MindClerky/NodePalette';
 import { ContactList } from '../components/MindClerky/ContactList';
@@ -778,8 +787,7 @@ const NodeSettingsPanel: React.FC<NodeSettingsPanelProps> = ({ node, instances, 
 
   if (node.type === 'typebotTrigger') {
     const typebotData = node.data as { webhookUrl?: string; workflowId?: string };
-    const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4331/api';
-    const webhookUrl = typebotData.webhookUrl || `${API_URL}/workflows/webhook/typebot/${node.id}`;
+    const webhookUrl = typebotData.webhookUrl || `${MINDLERKY_API_URL}/workflows/webhook/typebot/${node.id}`;
     
     return (
       <div className="space-y-4">

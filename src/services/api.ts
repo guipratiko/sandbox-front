@@ -22,7 +22,8 @@ function upgradeHttpToHttpsWhenPageIsSecure(url: string): string {
 const API_URL = upgradeHttpToHttpsWhenPageIsSecure(
   process.env.REACT_APP_API_URL || 'http://localhost:4331/api'
 );
-const MINDLERKY_API_URL = upgradeHttpToHttpsWhenPageIsSecure(
+/** Base pública da API MindClerky (workflows / webhooks). Configure `REACT_APP_MINDLERKY_URL` no build. */
+export const MINDLERKY_API_URL = upgradeHttpToHttpsWhenPageIsSecure(
   process.env.REACT_APP_MINDLERKY_URL || 'http://localhost:4333/api'
 );
 

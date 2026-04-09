@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button, Input } from '../UI';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { workflowAPI } from '../../services/api';
+import { workflowAPI, MINDLERKY_API_URL } from '../../services/api';
 import { WorkflowNode } from '../../services/api';
 import { Node } from '@xyflow/react';
 
@@ -30,8 +30,7 @@ export const WebhookTriggerSettings: React.FC<WebhookTriggerSettingsProps> = ({
     listenExpiresAt?: string;
   };
 
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4331/api';
-  const webhookUrl = webhookData.webhookUrl || `${API_URL}/workflows/webhook/${workflowNode.id}`;
+  const webhookUrl = webhookData.webhookUrl || `${MINDLERKY_API_URL}/workflows/webhook/${workflowNode.id}`;
 
   const [isListening, setIsListening] = useState(webhookData.listening || false);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
