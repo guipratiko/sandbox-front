@@ -661,6 +661,26 @@ const MindClerky: React.FC = () => {
   );
 };
 
+/** União ordenada dos `selectedFields` de todos os nós webhookTrigger do workflow. */
+function collectWebhookSelectedFields(nodes: WorkflowNode[] | undefined): string[] {
+  if (!nodes?.length) return [];
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const n of nodes) {
+    if (n.type !== 'webhookTrigger') continue;
+    const fields = n.data?.selectedFields;
+    if (!fields?.length) continue;
+    for (const f of fields) {
+      const key = typeof f === 'string' ? f.trim() : '';
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        ordered.push(key);
+      }
+    }
+  }
+  return ordered;
+}
+
 // Componente de painel de configuração de nó
 interface NodeSettingsPanelProps {
   node: Node;
@@ -736,10 +756,45 @@ const NodeSettingsPanel: React.FC<NodeSettingsPanelProps> = ({ node, instances, 
     }
   }, [node.type, node.data, loadSpreadsheets]);
 
+  const webhookFieldKeys = collectWebhookSelectedFields(selectedWorkflow?.nodes);
+
   // Função para inserir variável em um campo
-  const handleInsertVariable = (variable: string, field: 'content' | 'caption') => {
+  const handleInsertVariable = (
+    variable: string,
+    field: 'content' | 'caption' | 'mediaUrl' | 'fileName'
+  ) => {
     const currentValue = (node.data as any)?.[field] || '';
     onUpdate({ [field]: currentValue + variable });
+  };
+
+  const renderWebhookVariableButtons = (targetField: 'content' | 'caption' | 'mediaUrl' | 'fileName') => {
+    if (webhookFieldKeys.length === 0) return null;
+    return (
+      <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+        <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+          {t('mindFlow.nodeSettings.webhookVariablesSection')}
+        </p>
+        <p className="text-xs text-gray-500 dark:text-gray-500 mb-2">
+          {t('mindFlow.nodeSettings.webhookVariablesHint')}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {webhookFieldKeys.map((key) => {
+            const token = `$${key}`;
+            return (
+              <button
+                key={`wh-${targetField}-${key}`}
+                type="button"
+                onClick={() => handleInsertVariable(token, targetField)}
+                className="px-2 py-1 text-xs bg-violet-100 dark:bg-violet-900/40 text-violet-800 dark:text-violet-200 rounded hover:bg-violet-200 dark:hover:bg-violet-900/70 font-mono"
+                title={token}
+              >
+                {token}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   if (node.type === 'whatsappTrigger') {
@@ -1071,6 +1126,7 @@ const NodeSettingsPanel: React.FC<NodeSettingsPanelProps> = ({ node, instances, 
                   </button>
                 ))}
               </div>
+              {renderWebhookVariableButtons('content')}
               <textarea
                 value={responseData.content || ''}
                 onChange={(e) => onUpdate({ content: e.target.value })}
@@ -1093,6 +1149,7 @@ const NodeSettingsPanel: React.FC<NodeSettingsPanelProps> = ({ node, instances, 
                 ? t('templateBuilder.audioUrl')
                 : t('templateBuilder.fileUrl')}
             </label>
+            {renderWebhookVariableButtons('mediaUrl')}
             <Input
               value={responseData.mediaUrl || ''}
               onChange={(e) => onUpdate({ mediaUrl: e.target.value })}
@@ -1128,6 +1185,7 @@ const NodeSettingsPanel: React.FC<NodeSettingsPanelProps> = ({ node, instances, 
                   </button>
                 ))}
               </div>
+              {renderWebhookVariableButtons('caption')}
               <textarea
                 value={responseData.caption || ''}
                 onChange={(e) => onUpdate({ caption: e.target.value })}
@@ -1144,6 +1202,7 @@ const NodeSettingsPanel: React.FC<NodeSettingsPanelProps> = ({ node, instances, 
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {t('templateBuilder.fileName')}
             </label>
+            {renderWebhookVariableButtons('fileName')}
             <Input
               value={responseData.fileName || ''}
               onChange={(e) => onUpdate({ fileName: e.target.value })}
