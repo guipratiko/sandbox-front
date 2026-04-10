@@ -690,18 +690,20 @@ const ChatModal: React.FC<ChatModalProps> = ({
     scrollToBottomAfterPaint();
   }, [contact, isOpen, scrollToBottomAfterPaint]);
 
-  // WhatsApp: contact-updated pode exigir recarga da thread. Instagram: usar só new-message (append).
+  // Recarrega a thread quando o backend avisa (WhatsApp e Instagram).
+  // Instagram: fallback quando new-message não chega (ex.: socket do Insta-Clerky em produção).
   const handleContactUpdate = useCallback(
     (payload?: ContactUpdatedPayload) => {
       if (!contact || !isOpen) return;
-      if (contact.channel === 'instagram' || payload?.channel === 'instagram') {
-        return;
-      }
       if (
         payload?.instanceId != null &&
         String(payload.instanceId).trim() !== '' &&
         String(payload.instanceId) !== String(contact.instanceId)
       ) {
+        return;
+      }
+      const ch = payload?.channel;
+      if (ch != null && ch !== contact.channel) {
         return;
       }
       loadMessages({ silent: true });
@@ -1979,10 +1981,6 @@ const CRM: React.FC = () => {
 
   const handleContactUpdate = useCallback((payload?: ContactUpdatedPayload) => {
     if (selectedInstances.length === 0) return;
-
-    if (payload?.channel === 'instagram') {
-      return;
-    }
 
     const pid = payload?.instanceId;
     if (pid != null && String(pid).trim() !== '') {
