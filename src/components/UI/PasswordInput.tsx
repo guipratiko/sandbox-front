@@ -28,14 +28,15 @@ const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
               error 
                 ? 'border-red-500 focus:border-red-500 focus:ring-red-500/50' 
                 : 'border-gray-300 dark:border-gray-600 focus:border-clerky-backendButton focus:ring-clerky-backendButton/50'
-            } text-clerky-backendText dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 transition-smooth pr-12 ${className}`}
+            } text-base text-clerky-backendText dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 transition-smooth pr-12 ${className}`}
             {...props}
           />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-clerky-backendButton transition-smooth"
+            className="absolute right-1 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:text-clerky-backendButton active:bg-gray-100 dark:active:bg-gray-800 transition-smooth"
             tabIndex={-1}
+            aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
           >
             {showPassword ? (
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

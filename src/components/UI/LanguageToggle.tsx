@@ -1,7 +1,11 @@
 import React from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
-const LanguageToggle: React.FC = () => {
+interface LanguageToggleProps {
+  className?: string;
+}
+
+const LanguageToggle: React.FC<LanguageToggleProps> = ({ className = '' }) => {
   const { language, setLanguage } = useLanguage();
 
   const toggleLanguage = () => {
@@ -10,8 +14,9 @@ const LanguageToggle: React.FC = () => {
 
   return (
     <button
+      type="button"
       onClick={toggleLanguage}
-      className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-white dark:bg-[#091D41] border border-gray-300 dark:border-gray-700 text-clerky-backendText dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-clerky-backendButton dark:hover:border-clerky-backendButton transition-smooth shadow-sm hover:shadow-md flex-1"
+      className={`flex items-center justify-center gap-2 min-h-[44px] px-3 sm:px-4 py-2.5 rounded-lg bg-white dark:bg-[#091D41] border border-gray-300 dark:border-gray-700 text-clerky-backendText dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-clerky-backendButton dark:hover:border-clerky-backendButton transition-smooth shadow-sm hover:shadow-md flex-1 ${className}`}
       aria-label="Toggle language"
       title={language === 'pt' ? 'Mudar para inglês' : 'Change to Portuguese'}
     >

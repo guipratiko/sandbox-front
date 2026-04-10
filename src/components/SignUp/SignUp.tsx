@@ -90,28 +90,36 @@ const SignUp: React.FC = () => {
       {/* Botão de Idioma - Fixo no canto superior direito */}
       <FloatingLanguageToggle />
 
-      <div className="min-h-screen flex items-center justify-center px-4 py-12">
-        <Container maxWidth="sm" className="w-full">
-          <div className="animate-fadeIn">
+      <div
+        className="flex flex-1 flex-col justify-start sm:justify-center min-h-0 w-full
+          px-3 sm:px-4
+          pt-[calc(env(safe-area-inset-top,0px)+5.75rem)] sm:pt-10
+          pb-[max(1rem,env(safe-area-inset-bottom,0px)+0.5rem)] sm:pb-10"
+      >
+        <Container maxWidth="sm" className="w-full !px-0 sm:!px-4 lg:!px-4">
+          <div className="animate-fadeIn mx-auto max-w-md">
             {/* Logo */}
-            <div className="flex justify-center mb-8">
-              <img 
-                src={logoSrc} 
-                alt="OnlyFlow Logo" 
-                className="h-12 w-auto"
+            <div className="flex justify-center mb-5 sm:mb-8">
+              <img
+                src={logoSrc}
+                alt="OnlyFlow Logo"
+                className="h-16 w-auto max-h-[22vw] sm:h-24 md:h-[100px]"
+                width={280}
+                height={100}
+                decoding="async"
               />
             </div>
 
             {/* Card de Registro */}
-            <Card padding="lg" shadow="lg" hover>
-              <h1 className="text-3xl font-bold text-center mb-2 text-clerky-backendText dark:text-gray-200">
+            <Card padding="none" shadow="lg" hover className="p-5 sm:p-8">
+              <h1 className="text-2xl sm:text-3xl font-bold text-center mb-1.5 sm:mb-2 text-clerky-backendText dark:text-gray-200">
                 {t('signup.title')}
               </h1>
-              <p className="text-gray-600 dark:text-gray-300 text-center mb-8">
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 text-center mb-6 sm:mb-8 leading-relaxed">
                 {t('signup.subtitle')}
               </p>
 
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
                 {/* Erro geral */}
                 {errors.general && (
                   <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm animate-slideIn">
@@ -185,15 +193,15 @@ const SignUp: React.FC = () => {
 
                 {/* Checkbox Termos */}
                 <div>
-                  <label className="flex items-start gap-3 cursor-pointer">
+                  <label className="flex items-start gap-3 cursor-pointer rounded-lg py-2 -my-1 -mx-1 px-1 sm:py-0 sm:-my-0 sm:-mx-0 sm:px-0">
                     <input
                       type="checkbox"
                       name="acceptTerms"
                       checked={values.acceptTerms}
                       onChange={handleChange}
-                      className="mt-1 w-4 h-4 text-clerky-backendButton border-gray-300 rounded focus:ring-clerky-backendButton/50"
+                      className="mt-0.5 sm:mt-1 h-5 w-5 min-h-[1.25rem] min-w-[1.25rem] shrink-0 text-clerky-backendButton border-gray-300 rounded focus:ring-clerky-backendButton/50"
                     />
-                    <span className="text-sm text-gray-600 dark:text-gray-300">
+                    <span className="text-sm leading-relaxed text-gray-600 dark:text-gray-300 break-words [overflow-wrap:anywhere]">
                       {t('signup.terms')}{' '}
                       <a
                         href="https://onlyflow.com.br/termos"
@@ -249,7 +257,7 @@ const SignUp: React.FC = () => {
                   variant="primary"
                   size="lg"
                   isLoading={isLoading}
-                  className="w-full"
+                  className="w-full min-h-[48px] touch-manipulation"
                 >
                   {isLoading ? t('signup.submitting') : t('signup.submit')}
                 </Button>
