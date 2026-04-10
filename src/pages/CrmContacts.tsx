@@ -5,6 +5,9 @@ import { Card, Button, Input } from '../components/UI';
 import { useLanguage } from '../contexts/LanguageContext';
 import { crmAPI, CRMColumn, instanceAPI, Instance } from '../services/api';
 
+/** CRM contatos / VCF usam apenas WhatsApp não oficial (Baileys etc.), não Cloud API. */
+const isNonOfficialWhatsapp = (i: Instance) => i.integration !== 'WHATSAPP-CLOUD';
+
 const CrmContacts: React.FC = () => {
   const { t } = useLanguage();
   const [instances, setInstances] = useState<Instance[]>([]);
@@ -28,7 +31,7 @@ const CrmContacts: React.FC = () => {
         instanceAPI.getAll(),
         crmAPI.getColumns(),
       ]);
-      setInstances(waRes.instances || []);
+      setInstances((waRes.instances || []).filter(isNonOfficialWhatsapp));
       const sorted = [...colRes.columns].sort((a, b) => a.order - b.order);
       setColumns(sorted);
       setColumnId((prev) =>
@@ -44,6 +47,12 @@ const CrmContacts: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (instanceId && !instances.some((i) => i.id === instanceId)) {
+      setInstanceId('');
+    }
+  }, [instances, instanceId]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
