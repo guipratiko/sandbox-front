@@ -34,13 +34,39 @@
   box-sizing: border-box;
 }
 
+html {
+  min-height: 100%;
+  background-color: var(--clerky-backend-bg);
+  /* Evita “borracha” no fim da rolagem mostrando cor errada (iOS / mobile) */
+  overscroll-behavior-y: none;
+}
+
+html.dark {
+  background-color: #020617;
+}
+
 body {
+  min-height: 100%;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--clerky-backend-bg);
   color: var(--clerky-backend-text);
   line-height: 1.6;
+  overscroll-behavior-y: none;
+}
+
+html.dark body {
+  background-color: #020617;
+}
+
+#root {
+  min-height: 100%;
+  background-color: transparent;
+}
+
+html.dark #root {
+  background-color: #020617;
 }
 
 /* Classes de Transição Globais */

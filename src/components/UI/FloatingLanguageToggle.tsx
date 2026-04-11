@@ -11,7 +11,7 @@ import ThemeToggle from './ThemeToggle';
 const FloatingLanguageToggle: React.FC = () => {
   return (
     <div
-      className="fixed z-50 flex flex-col items-end gap-2 sm:flex-row sm:items-center
+      className="fixed z-50 flex flex-row flex-nowrap items-center gap-1.5 sm:gap-2
         top-[max(0.75rem,env(safe-area-inset-top))]
         right-[max(0.75rem,env(safe-area-inset-right))]"
       role="toolbar"

@@ -50,38 +50,38 @@ const Login: React.FC = () => {
       <FloatingLanguageToggle />
 
       <div
-        className="flex flex-1 flex-col justify-start sm:justify-center min-h-0 w-full
+        className="flex flex-1 flex-col justify-start sm:justify-center min-h-0 w-full max-w-full overflow-x-hidden
           px-3 sm:px-4
-          pt-[calc(env(safe-area-inset-top,0px)+5.75rem)] sm:pt-10
-          pb-[max(1rem,env(safe-area-inset-bottom,0px)+0.5rem)] sm:pb-10"
+          pt-[calc(env(safe-area-inset-top,0px)+3.5rem)] sm:pt-8
+          pb-[max(0.75rem,env(safe-area-inset-bottom,0px)+0.25rem)] sm:pb-8"
       >
         <Container maxWidth="sm" className="w-full !px-0 sm:!px-4 lg:!px-4">
-          <div className="animate-fadeIn mx-auto max-w-md">
-            {/* Logo */}
-            <div className="flex justify-center mb-5 sm:mb-8">
+          <div className="animate-fadeIn mx-auto w-full max-w-[22.5rem]">
+            {/* Logo e card ~20% mais compactos (largura máx., paddings, tipografia) */}
+            <div className="flex justify-center mb-4 sm:mb-6">
               <img
                 src={logoSrc}
                 alt="OnlyFlow Logo"
-                className="h-16 w-auto max-h-[22vw] sm:h-24 md:h-[100px]"
-                width={280}
-                height={100}
+                className="h-14 w-auto max-h-[18vw] sm:h-[4.8rem] md:h-20"
+                width={224}
+                height={80}
                 decoding="async"
               />
             </div>
 
             {/* Card de Login */}
-            <Card padding="none" shadow="lg" hover className="p-5 sm:p-8">
-              <h1 className="text-2xl sm:text-3xl font-bold text-center mb-1.5 sm:mb-2 text-clerky-backendText dark:text-gray-200">
+            <Card padding="none" shadow="lg" hover className="p-4 sm:p-6">
+              <h1 className="text-xl sm:text-2xl font-bold text-center mb-1 sm:mb-1.5 text-clerky-backendText dark:text-gray-200">
                 {t('login.welcome')}
               </h1>
-              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 text-center mb-6 sm:mb-8 leading-relaxed">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 text-center mb-5 sm:mb-6 leading-relaxed">
                 {t('login.subtitle')}
               </p>
 
-              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-5">
                 {/* Erro geral */}
                 {errors.general && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm animate-slideIn">
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-xs sm:text-sm animate-slideIn">
                     {errors.general}
                   </div>
                 )}
@@ -97,6 +97,7 @@ const Login: React.FC = () => {
                   placeholder={t('login.emailPlaceholder')}
                   autoComplete="email"
                   error={errors.email}
+                  className="!py-2.5"
                 />
 
                 {/* Campo Senha */}
@@ -109,13 +110,14 @@ const Login: React.FC = () => {
                   placeholder={t('login.passwordPlaceholder')}
                   autoComplete="current-password"
                   error={errors.password}
+                  className="!py-2.5"
                 />
 
                 {/* Esqueci minha senha */}
                 <div className="flex justify-end">
                   <Link 
                     to="/forgot-password"
-                    className="text-sm text-clerky-backendButton hover:opacity-80 transition-smooth"
+                    className="text-xs sm:text-sm text-clerky-backendButton hover:opacity-80 transition-smooth"
                   >
                     {t('login.forgotPassword')}
                   </Link>
@@ -127,15 +129,15 @@ const Login: React.FC = () => {
                   variant="primary"
                   size="lg"
                   isLoading={isLoading}
-                  className="w-full min-h-[48px] touch-manipulation"
+                  className="w-full min-h-[40px] !py-2.5 !text-base sm:!text-lg touch-manipulation"
                 >
                   {isLoading ? t('login.submitting') : t('login.submit')}
                 </Button>
               </form>
 
               {/* Link para cadastro */}
-              <div className="mt-6 text-center">
-                <p className="text-sm text-gray-600 dark:text-gray-300">
+              <div className="mt-4 sm:mt-5 text-center">
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
                   {t('login.noAccount')}{' '}
                   <Link 
                     to="/signup"
