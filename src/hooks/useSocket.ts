@@ -290,6 +290,7 @@ export const useSocket = (
         socket.off('dispatch-updated');
         socket.off('workflow-contact-updated');
         socket.off('groups-updated');
+        socket.off('group-participants-updated');
         socket.off('group-info-response');
         socket.off('scraping-credits-updated');
         socket.off('instagram-instance-updated');
@@ -345,6 +346,19 @@ export const useSocket = (
           }
         });
       });
+
+      socket.on(
+        'group-participants-updated',
+        (data: { instanceId?: string; groupId?: string }) => {
+          const instanceId = data?.instanceId;
+          if (!instanceId) return;
+          callbacks.forEach((cb) => {
+            if (cb.onGroupsUpdate) {
+              cb.onGroupsUpdate({ instanceId });
+            }
+          });
+        }
+      );
 
       socket.on('group-info-response', (data: GroupInfoResponseData) => {
         callbacks.forEach((cb) => {

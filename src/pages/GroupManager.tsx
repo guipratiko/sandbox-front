@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { instanceAPI, Instance } from '../services/api';
 import { groupAPI, Group, campaignAPI } from '../services/api';
 import { getErrorMessage, logError } from '../utils/errorHandler';
+import { useSocket } from '../hooks/useSocket';
 import NewCampaignWizard, { NewCampaignData } from '../components/Groups/NewCampaignWizard';
 import EditCampaignModal, { CampaignEditData } from '../components/Groups/EditCampaignModal';
 import ConfigureGroupModal from '../components/Groups/ConfigureGroupModal';
@@ -487,8 +488,30 @@ const GroupManager: React.FC = () => {
   const closeMessagesView = useCallback(() => {
     const next = new URLSearchParams(searchParams);
     next.delete('messages');
+    next.delete('template');
+    next.delete('schedule');
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
+
+  const handleGroupsSocketUpdate = useCallback(
+    (data: { instanceId: string }) => {
+      void loadCampaigns();
+      if (selectedCampaign?.instanceId === data.instanceId) {
+        void loadCampaignGroups();
+      }
+    },
+    [loadCampaigns, loadCampaignGroups, selectedCampaign]
+  );
+
+  useSocket(
+    token,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    handleGroupsSocketUpdate
+  );
 
   const handleMentionEveryoneSubmit = useCallback(
     async (text: string) => {

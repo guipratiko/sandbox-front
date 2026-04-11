@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, Button } from '../UI';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useSocket } from '../../hooks/useSocket';
 import {
   groupAPI,
   groupMessageAPI,
@@ -76,6 +79,11 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   campaigns = [],
 }) => {
   const { t } = useLanguage();
+  const { token } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const templateCreateFromUrl = searchParams.get('template') === 'create';
+  const schedFormOpen = searchParams.get('schedule') === '1';
+
   const [templates, setTemplates] = useState<GroupMessageTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [scheduled, setScheduled] = useState<GroupScheduledMessage[]>([]);
@@ -91,7 +99,8 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   const audioChunksRef = useRef<Blob[]>([]);
   const applyContentPatchRef = useRef<(p: Record<string, unknown>) => void>(() => {});
 
-  const [templateModal, setTemplateModal] = useState<'create' | 'edit' | null>(null);
+  const [templateModal, setTemplateModal] = useState<'edit' | null>(null);
+  const showTemplateModal = templateCreateFromUrl || templateModal === 'edit';
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [tplName, setTplName] = useState('');
   const [tplDesc, setTplDesc] = useState('');
@@ -100,7 +109,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
 
   const [tplContactJson, setTplContactJson] = useState('[{"fullName":"","phoneNumber":""}]');
 
-  const [schedFormOpen, setSchedFormOpen] = useState(false);
   const [schedTplPick, setSchedTplPick] = useState('');
   const [schedScope, setSchedScope] = useState<'campaign_all' | 'campaign_partial'>('campaign_all');
   const [schedCampaignAllId, setSchedCampaignAllId] = useState('');
@@ -169,6 +177,88 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     }
   }, [instanceId, isEvolutionInstance]);
 
+  const dismissTemplateModal = useCallback(() => {
+    setSearchParams(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        n.delete('template');
+        return n;
+      },
+      { replace: true }
+    );
+    setTemplateModal(null);
+  }, [setSearchParams]);
+
+  const prevInstanceIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevInstanceIdRef.current !== null && prevInstanceIdRef.current !== instanceId) {
+      setSearchParams(
+        (prev) => {
+          const n = new URLSearchParams(prev);
+          n.delete('template');
+          n.delete('schedule');
+          return n;
+        },
+        { replace: true }
+      );
+    }
+    prevInstanceIdRef.current = instanceId;
+
+    setSchedTplPick('');
+    setSchedScope('campaign_all');
+    setSchedCampaignAllId('');
+    setSchedCampaignPartialId('');
+    setSchedPartialGroups([]);
+    setSchedSelectedGroupIds([]);
+    setSchedScheduledAt('');
+    setSchedRepeatType('none');
+  }, [instanceId, setSearchParams]);
+
+  const prevTemplateCreateRef = useRef(false);
+  useEffect(() => {
+    const create = searchParams.get('template') === 'create';
+    if (create && !prevTemplateCreateRef.current) {
+      setEditingTemplateId(null);
+      setTplName('');
+      setTplDesc('');
+      setTplType('text');
+      setTplContent(emptyContent('text'));
+      setTplContactJson('[{"fullName":"","phoneNumber":""}]');
+      setTemplateModal(null);
+    }
+    prevTemplateCreateRef.current = create;
+  }, [searchParams]);
+
+  const toggleScheduleForm = useCallback(() => {
+    setSearchParams(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        if (n.get('schedule') === '1') n.delete('schedule');
+        else n.set('schedule', '1');
+        return n;
+      },
+      { replace: true }
+    );
+  }, [setSearchParams]);
+
+  const refreshFromSocket = useCallback(() => {
+    if (!instanceId || !isEvolutionInstance) return;
+    void loadTemplates();
+    void loadScheduled();
+  }, [instanceId, isEvolutionInstance, loadTemplates, loadScheduled]);
+
+  useSocket(
+    token,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    (data) => {
+      if (data.instanceId === instanceId) refreshFromSocket();
+    }
+  );
+
   useEffect(() => {
     if (instanceReady) {
       loadTemplates();
@@ -178,18 +268,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
       setScheduled([]);
     }
   }, [loadTemplates, loadScheduled, instanceReady]);
-
-  useEffect(() => {
-    setSchedFormOpen(false);
-    setSchedTplPick('');
-    setSchedScope('campaign_all');
-    setSchedCampaignAllId('');
-    setSchedCampaignPartialId('');
-    setSchedPartialGroups([]);
-    setSchedSelectedGroupIds([]);
-    setSchedScheduledAt('');
-    setSchedRepeatType('none');
-  }, [instanceId]);
 
   useEffect(() => {
     if (!schedCampaignPartialId || !selectedSchedPartialCampaign || !instanceId) {
@@ -233,10 +311,26 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     setTplType('text');
     setTplContent(emptyContent('text'));
     setTplContactJson('[{"fullName":"","phoneNumber":""}]');
-    setTemplateModal('create');
+    setTemplateModal(null);
+    setSearchParams(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        n.set('template', 'create');
+        return n;
+      },
+      { replace: true }
+    );
   };
 
   const openEditTemplate = (tpl: GroupMessageTemplate) => {
+    setSearchParams(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        n.delete('template');
+        return n;
+      },
+      { replace: true }
+    );
     setEditingTemplateId(tpl.id);
     setTplName(tpl.name);
     setTplDesc(tpl.description ?? '');
@@ -306,7 +400,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
         });
         setSuccess(t('groupManager.templates.createdToast'));
       }
-      setTemplateModal(null);
+      dismissTemplateModal();
       await loadTemplates();
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Erro ao salvar'));
@@ -949,7 +1043,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
               <Button
                 size="sm"
                 variant={schedFormOpen ? 'outline' : 'primary'}
-                onClick={() => setSchedFormOpen((open) => !open)}
+                onClick={toggleScheduleForm}
               >
                 {schedFormOpen
                   ? t('groupManager.sendMessages.hideScheduleForm')
@@ -1226,7 +1320,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
         )}
       </section>
 
-      {templateModal && (
+      {showTemplateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <Card className="max-w-lg w-full max-h-[90vh] overflow-y-auto p-4">
             <h3 className="font-semibold mb-3">
@@ -1276,7 +1370,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
               )}
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <Button variant="outline" onClick={() => setTemplateModal(null)}>
+              <Button variant="outline" onClick={dismissTemplateModal}>
                 {t('groupManager.sendMessages.cancel')}
               </Button>
               <Button variant="primary" onClick={saveTemplate} disabled={busy}>
