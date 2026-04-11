@@ -78,8 +78,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   const { t } = useLanguage();
   const [templates, setTemplates] = useState<GroupMessageTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loadingGroups, setLoadingGroups] = useState(false);
   const [scheduled, setScheduled] = useState<GroupScheduledMessage[]>([]);
   const [loadingScheduled, setLoadingScheduled] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,21 +98,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   const [tplType, setTplType] = useState<GroupMessageType>('text');
   const [tplContent, setTplContent] = useState<Record<string, unknown>>(emptyContent('text'));
 
-  const [sendType, setSendType] = useState<GroupMessageType>('text');
-  const [sendContent, setSendContent] = useState<Record<string, unknown>>(emptyContent('text'));
-  const [templatePick, setTemplatePick] = useState<string>('');
-  const [targetMode, setTargetMode] = useState<'instance_groups' | 'campaign_all' | 'campaign_partial'>(
-    'campaign_partial'
-  );
-  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
-  const [campaignId, setCampaignId] = useState<string>('');
-  const [campaignPartialId, setCampaignPartialId] = useState<string>('');
-  const [campaignPartialGroups, setCampaignPartialGroups] = useState<Group[]>([]);
-  const [loadingCampaignPartialGroups, setLoadingCampaignPartialGroups] = useState(false);
-  const [selectedCampaignPartialIds, setSelectedCampaignPartialIds] = useState<string[]>([]);
-  const [scheduledAt, setScheduledAt] = useState('');
-  const [repeatType, setRepeatType] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
-  const [sendContactJson, setSendContactJson] = useState('[{"fullName":"","phoneNumber":""}]');
   const [tplContactJson, setTplContactJson] = useState('[{"fullName":"","phoneNumber":""}]');
 
   const [schedFormOpen, setSchedFormOpen] = useState(false);
@@ -152,11 +135,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     [campaigns, instanceId]
   );
 
-  const selectedPartialCampaign = useMemo(
-    () => eligibleCampaignsPartial.find((c) => c.id === campaignPartialId) ?? null,
-    [eligibleCampaignsPartial, campaignPartialId]
-  );
-
   const selectedSchedPartialCampaign = useMemo(
     () => eligibleCampaignsPartial.find((c) => c.id === schedCampaignPartialId) ?? null,
     [eligibleCampaignsPartial, schedCampaignPartialId]
@@ -177,20 +155,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
       setError(getErrorMessage(e, 'Erro ao carregar templates'));
     } finally {
       setLoadingTemplates(false);
-    }
-  }, [instanceId, isEvolutionInstance]);
-
-  const loadGroups = useCallback(async () => {
-    if (!instanceId || !isEvolutionInstance) return;
-    setLoadingGroups(true);
-    try {
-      const res = await groupAPI.getAll(instanceId);
-      setGroups(res.groups ?? []);
-    } catch (e: unknown) {
-      logError('GroupMessagesSection.loadGroups', e);
-      setError(getErrorMessage(e, 'Erro ao carregar grupos'));
-    } finally {
-      setLoadingGroups(false);
     }
   }, [instanceId, isEvolutionInstance]);
 
@@ -219,19 +183,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   }, [loadTemplates, loadScheduled, instanceReady]);
 
   useEffect(() => {
-    if (targetMode === 'instance_groups' && instanceReady) loadGroups();
-  }, [targetMode, loadGroups, instanceReady]);
-
-  useEffect(() => {
-    setTemplatePick('');
-    setSendType('text');
-    setSendContent(emptyContent('text'));
-    setSendContactJson('[{"fullName":"","phoneNumber":""}]');
-    setSelectedGroupIds([]);
-    setCampaignId('');
-    setCampaignPartialId('');
-    setSelectedCampaignPartialIds([]);
-    setCampaignPartialGroups([]);
     setSchedFormOpen(false);
     setSchedTplPick('');
     setSchedSendType('text');
@@ -245,41 +196,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     setSchedScheduledAt('');
     setSchedRepeatType('none');
   }, [instanceId]);
-
-  useEffect(() => {
-    if (!campaignPartialId || !selectedPartialCampaign || !instanceId) {
-      setCampaignPartialGroups([]);
-      setSelectedCampaignPartialIds([]);
-      return;
-    }
-    const c = selectedPartialCampaign;
-    let cancelled = false;
-    (async () => {
-      setLoadingCampaignPartialGroups(true);
-      try {
-        if (c.importGroups === 'all') {
-          const res = await groupAPI.getAll(instanceId);
-          if (!cancelled) {
-            setCampaignPartialGroups(res.groups ?? []);
-            setSelectedCampaignPartialIds([]);
-          }
-        } else if (Array.isArray(c.importGroups)) {
-          const res = await groupAPI.getGroupsByIds(instanceId, c.importGroups);
-          if (!cancelled) {
-            setCampaignPartialGroups(res.groups ?? []);
-            setSelectedCampaignPartialIds([]);
-          }
-        }
-      } catch {
-        if (!cancelled) setCampaignPartialGroups([]);
-      } finally {
-        if (!cancelled) setLoadingCampaignPartialGroups(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [campaignPartialId, selectedPartialCampaign, instanceId]);
 
   useEffect(() => {
     if (!schedCampaignPartialId || !selectedSchedPartialCampaign || !instanceId) {
@@ -317,19 +233,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   }, [schedCampaignPartialId, selectedSchedPartialCampaign, instanceId]);
 
   useEffect(() => {
-    if (templatePick) {
-      const tpl = templates.find((x) => x.id === templatePick);
-      if (tpl) {
-        setSendType(tpl.messageType);
-        setSendContent(normalizeContent(tpl.messageType, tpl.contentJson));
-        if (tpl.messageType === 'contact') {
-          setSendContactJson(JSON.stringify(tpl.contentJson.contact ?? [], null, 2));
-        }
-      }
-    }
-  }, [templatePick, templates]);
-
-  useEffect(() => {
     if (schedTplPick) {
       const tpl = templates.find((x) => x.id === schedTplPick);
       if (tpl) {
@@ -341,12 +244,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
       }
     }
   }, [schedTplPick, templates]);
-
-  useEffect(() => {
-    if (sendType === 'contact' && !templatePick) {
-      setSendContactJson(JSON.stringify(sendContent.contact ?? [{ fullName: '', phoneNumber: '' }], null, 2));
-    }
-  }, [sendType, templatePick]);
 
   useEffect(() => {
     if (schedSendType === 'contact' && !schedTplPick) {
@@ -495,8 +392,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     return content;
   };
 
-  const getSendPayloadContent = () => buildMessagePayload(sendType, sendContent, sendContactJson);
-
   const validateMessageBody = (type: GroupMessageType, payload: Record<string, unknown> | null): boolean => {
     if (payload === null) return false;
     if (type === 'contact') return true;
@@ -529,136 +424,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
       }
     }
     return true;
-  };
-
-  const validateSend = (): boolean => {
-    if (!instanceId) {
-      setError(t('groupManager.messages.selectInstanceBeforeMessages'));
-      return false;
-    }
-    if (!isEvolutionInstance) {
-      setError(t('groupManager.messages.evolutionInstanceRequired'));
-      return false;
-    }
-    const payload = getSendPayloadContent();
-    if (payload === null) return false;
-    if (!validateMessageBody(sendType, payload)) return false;
-    if (targetMode === 'instance_groups' && selectedGroupIds.length === 0) {
-      setError(t('groupManager.sendMessages.pickGroups'));
-      return false;
-    }
-    if (targetMode === 'campaign_all' && !campaignId) {
-      setError(t('groupManager.sendMessages.pickCampaign'));
-      return false;
-    }
-    if (targetMode === 'campaign_partial') {
-      if (!campaignPartialId) {
-        setError(t('groupManager.sendMessages.pickCampaign'));
-        return false;
-      }
-      if (selectedCampaignPartialIds.length === 0) {
-        setError(t('groupManager.sendMessages.pickCampaignGroups'));
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const handleSendNow = async () => {
-    if (!validateSend()) return;
-    const contentJson = getSendPayloadContent();
-    if (!contentJson) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await groupMessageAPI.sendNow({
-        instanceId,
-        messageType: sendType,
-        contentJson,
-        targetType:
-          targetMode === 'instance_groups'
-            ? 'groups'
-            : targetMode === 'campaign_all'
-              ? 'campaign'
-              : 'campaign_groups',
-        groupIds:
-          targetMode === 'instance_groups'
-            ? selectedGroupIds
-            : targetMode === 'campaign_partial'
-              ? selectedCampaignPartialIds
-              : undefined,
-        campaignId:
-          targetMode === 'campaign_all'
-            ? campaignId
-            : targetMode === 'campaign_partial'
-              ? campaignPartialId
-              : undefined,
-        templateId: templatePick || undefined,
-      });
-      const ok = res.data.results.filter((r) => r.success).length;
-      const fail = res.data.results.length - ok;
-      setSuccess(
-        fail
-          ? t('groupManager.sendMessages.partialResult', { ok: String(ok), fail: String(fail) })
-          : t('groupManager.sendMessages.allSent', { n: String(ok) })
-      );
-    } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Erro ao enviar'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleSchedule = async () => {
-    if (!validateSend()) return;
-    const contentJson = getSendPayloadContent();
-    if (!contentJson) return;
-    if (!scheduledAt) {
-      setError(t('groupManager.sendMessages.scheduledAtRequired'));
-      return;
-    }
-    const d = new Date(scheduledAt);
-    if (d.getTime() < Date.now() - 30_000) {
-      setError(t('groupManager.sendMessages.futureOnly'));
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      await groupMessageAPI.schedule({
-        instanceId,
-        messageType: sendType,
-        contentJson,
-        targetType:
-          targetMode === 'instance_groups'
-            ? 'groups'
-            : targetMode === 'campaign_all'
-              ? 'campaign'
-              : 'campaign_groups',
-        groupIds:
-          targetMode === 'instance_groups'
-            ? selectedGroupIds
-            : targetMode === 'campaign_partial'
-              ? selectedCampaignPartialIds
-              : undefined,
-        campaignId:
-          targetMode === 'campaign_all'
-            ? campaignId
-            : targetMode === 'campaign_partial'
-              ? campaignPartialId
-              : undefined,
-        templateId: templatePick || undefined,
-        scheduledAt: d.toISOString(),
-        repeat: { type: repeatType },
-      });
-      setSuccess(t('groupManager.sendMessages.scheduledOk'));
-      setScheduledAt('');
-      await loadScheduled();
-    } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Erro ao agendar'));
-    } finally {
-      setBusy(false);
-    }
   };
 
   const handleSchedCreateSubmit = async () => {
@@ -732,10 +497,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     } finally {
       setBusy(false);
     }
-  };
-
-  const toggleGroup = (id: string) => {
-    setSelectedGroupIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   const stopMicStream = useCallback(() => {
@@ -1112,275 +873,8 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
         </div>
       )}
 
+
       <section className="space-y-4">
-        <h3 className="text-base font-semibold text-clerky-backendText dark:text-gray-200">
-          {t('groupManager.messages.sectionSendTitle')}
-        </h3>
-        {!instanceReady ? (
-          <p className="text-gray-500 text-sm py-6 text-center border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
-            {!instanceId
-              ? t('groupManager.messages.selectInstanceBeforeMessages')
-              : t('groupManager.messages.evolutionInstanceRequired')}
-          </p>
-        ) : (
-          <>
-          <div>
-            <label className="text-sm font-medium block mb-1">{t('groupManager.sendMessages.selectTemplate')}</label>
-            <select
-              className="w-full max-w-md rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm disabled:opacity-50"
-              value={templatePick}
-              disabled={!instanceReady}
-              onChange={(e) => {
-                setTemplatePick(e.target.value);
-                if (!e.target.value) {
-                  setSendType('text');
-                  setSendContent(emptyContent('text'));
-                }
-              }}
-            >
-              <option value="">{t('groupManager.sendMessages.noTemplate')}</option>
-              {(templates ?? []).map((tpl) => (
-                <option key={tpl.id} value={tpl.id}>
-                  {tpl.name} ({tpl.messageType})
-                </option>
-              ))}
-            </select>
-          </div>
-          {!templatePick && (
-            <div>
-              <label className="text-sm font-medium block mb-1">{t('groupManager.sendMessages.messageType')}</label>
-              <select
-                className="w-full max-w-md rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
-                value={sendType}
-                onChange={(ev) => {
-                  const nt = ev.target.value as GroupMessageType;
-                  setSendType(nt);
-                  setSendContent(emptyContent(nt));
-                }}
-              >
-                {MESSAGE_TYPES.map((mt) => (
-                  <option key={mt} value={mt}>
-                    {t(`groupManager.templates.types.${mt}`)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          <div>
-            {sendType === 'contact' ? (
-              <label className="block">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {t('groupManager.templates.types.contact')} (JSON)
-                </span>
-                <textarea
-                  className="mt-1 w-full font-mono text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 min-h-[140px]"
-                  value={sendContactJson}
-                  onChange={(e) => setSendContactJson(e.target.value)}
-                />
-              </label>
-            ) : (
-              renderContentFields(sendType, sendContent, setSendContent, false, 'send')
-            )}
-          </div>
-
-          <div>
-            <span className="text-sm font-medium block mb-2">{t('groupManager.sendMessages.targetType')}</span>
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="radio"
-                  checked={targetMode === 'campaign_partial'}
-                  onChange={() => setTargetMode('campaign_partial')}
-                />
-                {t('groupManager.sendMessages.destCampaignPick')}
-              </label>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="radio"
-                  checked={targetMode === 'campaign_all'}
-                  onChange={() => setTargetMode('campaign_all')}
-                />
-                {t('groupManager.sendMessages.destCampaignAll')}
-              </label>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="radio"
-                  checked={targetMode === 'instance_groups'}
-                  onChange={() => setTargetMode('instance_groups')}
-                />
-                {t('groupManager.sendMessages.destInstanceGroups')}
-              </label>
-            </div>
-          </div>
-
-          {targetMode === 'instance_groups' && (
-            <div>
-              <div className="flex gap-2 mb-2">
-                <Button
-                  size="xs"
-                  variant="outline"
-                  onClick={() => setSelectedGroupIds((groups ?? []).map((g) => g.id))}
-                >
-                  {t('groupManager.sendMessages.selectAll')}
-                </Button>
-                <Button size="xs" variant="outline" onClick={() => setSelectedGroupIds([])}>
-                  {t('groupManager.sendMessages.deselectAll')}
-                </Button>
-              </div>
-              <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2 space-y-1">
-                {loadingGroups ? (
-                  <p className="text-sm text-gray-500">…</p>
-                ) : (groups ?? []).length === 0 ? (
-                  <p className="text-sm text-gray-500">{t('groupManager.noGroups')}</p>
-                ) : (
-                  (groups ?? []).map((g) => (
-                    <label key={g.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedGroupIds.includes(g.id)}
-                        onChange={() => toggleGroup(g.id)}
-                      />
-                      <span className="truncate">{g.name || g.id}</span>
-                    </label>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
-          {targetMode === 'campaign_all' && (
-            <div>
-              <label className="text-sm font-medium block mb-1">{t('groupManager.sendMessages.selectCampaign')}</label>
-              <select
-                className="w-full max-w-md rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
-                value={campaignId}
-                onChange={(e) => setCampaignId(e.target.value)}
-              >
-                <option value="">{t('groupManager.sendMessages.chooseCampaign')}</option>
-                {eligibleCampaignsAll.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.campaignName} (
-                    {Array.isArray(c.importGroups) ? c.importGroups.length : 0} grupos)
-                  </option>
-                ))}
-              </select>
-              {eligibleCampaignsAll.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">{t('groupManager.sendMessages.noEligibleCampaign')}</p>
-              )}
-            </div>
-          )}
-
-          {targetMode === 'campaign_partial' && (
-            <div className="space-y-3">
-              <div>
-                <label className="text-sm font-medium block mb-1">
-                  {t('groupManager.sendMessages.selectCampaignPartial')}
-                </label>
-                <select
-                  className="w-full max-w-md rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
-                  value={campaignPartialId}
-                  onChange={(e) => setCampaignPartialId(e.target.value)}
-                >
-                  <option value="">{t('groupManager.sendMessages.chooseCampaign')}</option>
-                  {eligibleCampaignsPartial.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.campaignName}
-                      {c.importGroups === 'all'
-                        ? ` (${t('groupManager.campaign.importAll')})`
-                        : ` (${Array.isArray(c.importGroups) ? c.importGroups.length : 0} grupos)`}
-                    </option>
-                  ))}
-                </select>
-                {eligibleCampaignsPartial.length === 0 && (
-                  <p className="text-xs text-amber-600 mt-1">{t('groupManager.sendMessages.noCampaignForPartial')}</p>
-                )}
-              </div>
-              {campaignPartialId && (
-                <div>
-                  <div className="flex gap-2 mb-2">
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      onClick={() =>
-                        setSelectedCampaignPartialIds(campaignPartialGroups.map((g) => g.id))
-                      }
-                    >
-                      {t('groupManager.sendMessages.selectAll')}
-                    </Button>
-                    <Button size="xs" variant="outline" onClick={() => setSelectedCampaignPartialIds([])}>
-                      {t('groupManager.sendMessages.deselectAll')}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-gray-500 mb-2">{t('groupManager.sendMessages.pickCampaignGroupsHint')}</p>
-                  <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2 space-y-1">
-                    {loadingCampaignPartialGroups ? (
-                      <p className="text-sm text-gray-500">…</p>
-                    ) : campaignPartialGroups.length === 0 ? (
-                      <p className="text-sm text-gray-500">{t('groupManager.noGroups')}</p>
-                    ) : (
-                      campaignPartialGroups.map((g) => (
-                        <label key={g.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={selectedCampaignPartialIds.includes(g.id)}
-                            onChange={() =>
-                              setSelectedCampaignPartialIds((prev) =>
-                                prev.includes(g.id)
-                                  ? prev.filter((x) => x !== g.id)
-                                  : [...prev, g.id]
-                              )
-                            }
-                          />
-                          <span className="truncate">{g.name || g.id}</span>
-                        </label>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-3">
-            <p className="text-sm font-medium">{t('groupManager.sendMessages.scheduleTitle')}</p>
-            <div className="flex flex-wrap gap-4 items-end">
-              <label className="block">
-                <span className="text-xs text-gray-500 block">{t('groupManager.sendMessages.scheduledAt')}</span>
-                <input
-                  type="datetime-local"
-                  className="rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
-                  value={scheduledAt}
-                  onChange={(e) => setScheduledAt(e.target.value)}
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs text-gray-500 block">{t('groupManager.sendMessages.repeat')}</span>
-                <select
-                  className="rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
-                  value={repeatType}
-                  onChange={(e) => setRepeatType(e.target.value as typeof repeatType)}
-                >
-                  <option value="none">{t('groupManager.sendMessages.repeatNone')}</option>
-                  <option value="daily">{t('groupManager.sendMessages.repeatDaily')}</option>
-                  <option value="weekly">{t('groupManager.sendMessages.repeatWeekly')}</option>
-                  <option value="monthly">{t('groupManager.sendMessages.repeatMonthly')}</option>
-                </select>
-              </label>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="primary" onClick={handleSendNow} disabled={busy}>
-                {busy ? t('groupManager.sendMessages.sending') : t('groupManager.sendMessages.sendNow')}
-              </Button>
-              <Button variant="outline" onClick={handleSchedule} disabled={busy}>
-                {t('groupManager.sendMessages.schedule')}
-              </Button>
-            </div>
-          </div>
-          </>
-        )}
-      </section>
-
-      <section className="border-t border-gray-200 dark:border-gray-700 pt-8 mt-8 space-y-4">
         <h3 className="text-base font-semibold text-clerky-backendText dark:text-gray-200">
           {t('groupManager.messages.sectionTemplatesTitle')}
         </h3>
@@ -1443,7 +937,14 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
           </p>
         ) : (
           <>
-            <div className="flex flex-wrap gap-2 mb-3">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {loadingScheduled
+                  ? '…'
+                  : t('groupManager.sendMessages.scheduledEntriesCount', {
+                      n: String(scheduled.length),
+                    })}
+              </span>
               <Button
                 size="sm"
                 variant={schedFormOpen ? 'outline' : 'primary'}
@@ -1452,9 +953,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
                 {schedFormOpen
                   ? t('groupManager.sendMessages.hideScheduleForm')
                   : t('groupManager.sendMessages.createSchedule')}
-              </Button>
-              <Button size="sm" variant="outline" onClick={loadScheduled}>
-                {t('groupManager.refreshCampaigns')}
               </Button>
             </div>
 
