@@ -245,14 +245,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     }
   }, [schedTplPick, templates]);
 
-  useEffect(() => {
-    if (schedSendType === 'contact' && !schedTplPick) {
-      setSchedContactJson(
-        JSON.stringify(schedSendContent.contact ?? [{ fullName: '', phoneNumber: '' }], null, 2)
-      );
-    }
-  }, [schedSendType, schedTplPick]);
-
   const openCreateTemplate = () => {
     setEditingTemplateId(null);
     setTplName('');
@@ -435,9 +427,10 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
       setError(t('groupManager.messages.evolutionInstanceRequired'));
       return;
     }
-    const contentJson = buildMessagePayload(schedSendType, schedSendContent, schedContactJson);
+    const schedMessageType = schedTplPick ? schedSendType : 'text';
+    const contentJson = buildMessagePayload(schedMessageType, schedSendContent, schedContactJson);
     if (contentJson === null) return;
-    if (!validateMessageBody(schedSendType, contentJson)) return;
+    if (!validateMessageBody(schedMessageType, contentJson)) return;
     if (schedScope === 'campaign_all') {
       if (!schedCampaignAllId) {
         setError(t('groupManager.sendMessages.pickCampaign'));
@@ -467,7 +460,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     try {
       await groupMessageAPI.schedule({
         instanceId,
-        messageType: schedSendType,
+        messageType: schedMessageType,
         contentJson,
         targetType: schedScope === 'campaign_all' ? 'campaign' : 'campaign_groups',
         groupIds: schedScope === 'campaign_partial' ? schedSelectedGroupIds : undefined,
@@ -981,30 +974,8 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
                     ))}
                   </select>
                 </div>
-                {!schedTplPick && (
-                  <div>
-                    <label className="text-sm font-medium block mb-1">
-                      {t('groupManager.sendMessages.messageType')}
-                    </label>
-                    <select
-                      className="w-full max-w-md rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
-                      value={schedSendType}
-                      onChange={(ev) => {
-                        const nt = ev.target.value as GroupMessageType;
-                        setSchedSendType(nt);
-                        setSchedSendContent(emptyContent(nt));
-                      }}
-                    >
-                      {MESSAGE_TYPES.map((mt) => (
-                        <option key={mt} value={mt}>
-                          {t(`groupManager.templates.types.${mt}`)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
                 <div>
-                  {schedSendType === 'contact' ? (
+                  {schedTplPick && schedSendType === 'contact' ? (
                     <label className="block">
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         {t('groupManager.templates.types.contact')} (JSON)
@@ -1017,7 +988,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
                     </label>
                   ) : (
                     renderContentFields(
-                      schedSendType,
+                      schedTplPick ? schedSendType : 'text',
                       schedSendContent,
                       setSchedSendContent,
                       false,
