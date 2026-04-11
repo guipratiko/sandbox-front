@@ -119,6 +119,15 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   const [schedScheduledAt, setSchedScheduledAt] = useState('');
   const [schedRepeatType, setSchedRepeatType] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
 
+  const [immediateFormOpen, setImmediateFormOpen] = useState(false);
+  const [immedTplPick, setImmedTplPick] = useState('');
+  const [immedScope, setImmedScope] = useState<'campaign_all' | 'campaign_partial'>('campaign_all');
+  const [immedCampaignAllId, setImmedCampaignAllId] = useState('');
+  const [immedCampaignPartialId, setImmedCampaignPartialId] = useState('');
+  const [immedPartialGroups, setImmedPartialGroups] = useState<Group[]>([]);
+  const [immedLoadingPartialGroups, setImmedLoadingPartialGroups] = useState(false);
+  const [immedSelectedGroupIds, setImmedSelectedGroupIds] = useState<string[]>([]);
+
   const eligibleCampaignsAll = useMemo(
     () =>
       campaigns.filter(
@@ -143,6 +152,11 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   const selectedSchedPartialCampaign = useMemo(
     () => eligibleCampaignsPartial.find((c) => c.id === schedCampaignPartialId) ?? null,
     [eligibleCampaignsPartial, schedCampaignPartialId]
+  );
+
+  const selectedImmedPartialCampaign = useMemo(
+    () => eligibleCampaignsPartial.find((c) => c.id === immedCampaignPartialId) ?? null,
+    [eligibleCampaignsPartial, immedCampaignPartialId]
   );
 
   const isEvolutionInstance = integration !== 'WHATSAPP-CLOUD';
@@ -212,6 +226,13 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     setSchedSelectedGroupIds([]);
     setSchedScheduledAt('');
     setSchedRepeatType('none');
+    setImmediateFormOpen(false);
+    setImmedTplPick('');
+    setImmedScope('campaign_all');
+    setImmedCampaignAllId('');
+    setImmedCampaignPartialId('');
+    setImmedPartialGroups([]);
+    setImmedSelectedGroupIds([]);
   }, [instanceId, setSearchParams]);
 
   const prevTemplateCreateRef = useRef(false);
@@ -303,6 +324,41 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
       cancelled = true;
     };
   }, [schedCampaignPartialId, selectedSchedPartialCampaign, instanceId]);
+
+  useEffect(() => {
+    if (!immedCampaignPartialId || !selectedImmedPartialCampaign || !instanceId) {
+      setImmedPartialGroups([]);
+      setImmedSelectedGroupIds([]);
+      return;
+    }
+    const c = selectedImmedPartialCampaign;
+    let cancelled = false;
+    (async () => {
+      setImmedLoadingPartialGroups(true);
+      try {
+        if (c.importGroups === 'all') {
+          const res = await groupAPI.getAll(instanceId);
+          if (!cancelled) {
+            setImmedPartialGroups(res.groups ?? []);
+            setImmedSelectedGroupIds([]);
+          }
+        } else if (Array.isArray(c.importGroups)) {
+          const res = await groupAPI.getGroupsByIds(instanceId, c.importGroups);
+          if (!cancelled) {
+            setImmedPartialGroups(res.groups ?? []);
+            setImmedSelectedGroupIds([]);
+          }
+        }
+      } catch {
+        if (!cancelled) setImmedPartialGroups([]);
+      } finally {
+        if (!cancelled) setImmedLoadingPartialGroups(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [immedCampaignPartialId, selectedImmedPartialCampaign, instanceId]);
 
   const openCreateTemplate = () => {
     setEditingTemplateId(null);
@@ -562,6 +618,80 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
       await loadScheduled();
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Erro ao agendar'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleImmediateSubmit = async () => {
+    if (!instanceId) {
+      setError(t('groupManager.messages.selectInstanceBeforeMessages'));
+      return;
+    }
+    if (!isEvolutionInstance) {
+      setError(t('groupManager.messages.evolutionInstanceRequired'));
+      return;
+    }
+    if (!immedTplPick) {
+      setError(t('groupManager.sendMessages.scheduleTemplateRequired'));
+      return;
+    }
+    const tpl = templates.find((x) => x.id === immedTplPick);
+    if (!tpl) {
+      setError(t('groupManager.sendMessages.scheduleTemplateRequired'));
+      return;
+    }
+    const normalized = normalizeContent(tpl.messageType, tpl.contentJson);
+    const contactJsonStr =
+      tpl.messageType === 'contact'
+        ? JSON.stringify((normalized.contact as unknown[]) ?? tpl.contentJson.contact ?? [], null, 2)
+        : '[{"fullName":"","phoneNumber":""}]';
+    const contentJson = buildMessagePayload(tpl.messageType, normalized, contactJsonStr);
+    if (contentJson === null) return;
+    if (!validateMessageBody(tpl.messageType, contentJson)) return;
+    if (immedScope === 'campaign_all') {
+      if (!immedCampaignAllId) {
+        setError(t('groupManager.sendMessages.pickCampaign'));
+        return;
+      }
+    } else {
+      if (!immedCampaignPartialId) {
+        setError(t('groupManager.sendMessages.pickCampaign'));
+        return;
+      }
+      if (immedSelectedGroupIds.length === 0) {
+        setError(t('groupManager.sendMessages.pickCampaignGroups'));
+        return;
+      }
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await groupMessageAPI.sendNow({
+        instanceId,
+        messageType: tpl.messageType,
+        contentJson,
+        targetType: immedScope === 'campaign_all' ? 'campaign' : 'campaign_groups',
+        groupIds: immedScope === 'campaign_partial' ? immedSelectedGroupIds : undefined,
+        campaignId: immedScope === 'campaign_all' ? immedCampaignAllId : immedCampaignPartialId,
+        templateId: immedTplPick,
+      });
+      const results = res.data?.results ?? [];
+      const ok = results.filter((r) => r.success).length;
+      const fail = results.length - ok;
+      if (results.length === 0) {
+        setSuccess(t('groupManager.sendMessages.immediateOk'));
+      } else if (fail === 0) {
+        setSuccess(t('groupManager.sendMessages.allSent').replace('{n}', String(ok)));
+      } else {
+        setSuccess(
+          `${t('groupManager.sendMessages.immediateOk')} ${t('groupManager.sendMessages.partialResult')
+            .replace('{ok}', String(ok))
+            .replace('{fail}', String(fail))}`
+        );
+      }
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Erro ao enviar'));
     } finally {
       setBusy(false);
     }
@@ -1316,6 +1446,194 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
                 })}
               </ul>
             )}
+          </>
+        )}
+      </section>
+
+      <section className="border-t border-gray-200 dark:border-gray-700 pt-8 mt-8 space-y-4">
+        <h3 className="text-base font-semibold text-clerky-backendText dark:text-gray-200">
+          {t('groupManager.messages.sectionImmediateTitle')}
+        </h3>
+        {!instanceReady ? (
+          <p className="text-gray-500 text-sm py-8 text-center border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
+            {!instanceId
+              ? t('groupManager.messages.selectInstanceBeforeMessages')
+              : t('groupManager.messages.evolutionInstanceRequired')}
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{t('groupManager.sendMessages.immediateHint')}</p>
+            <div className="flex justify-end mb-3">
+              <Button
+                size="sm"
+                variant={immediateFormOpen ? 'outline' : 'primary'}
+                onClick={() => setImmediateFormOpen((o) => !o)}
+              >
+                {immediateFormOpen
+                  ? t('groupManager.sendMessages.hideImmediateForm')
+                  : t('groupManager.sendMessages.createImmediate')}
+              </Button>
+            </div>
+
+            {immediateFormOpen ? (
+              <div className="mb-2 p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-4 bg-gray-50/80 dark:bg-gray-800/30">
+                <div>
+                  <label className="text-sm font-medium block mb-1">
+                    {t('groupManager.sendMessages.selectTemplate')}
+                  </label>
+                  <select
+                    className="w-full max-w-md rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+                    value={immedTplPick}
+                    onChange={(e) => setImmedTplPick(e.target.value)}
+                  >
+                    <option value="">{t('groupManager.sendMessages.scheduleChooseTemplate')}</option>
+                    {(templates ?? []).map((tpl) => (
+                      <option key={tpl.id} value={tpl.id}>
+                        {tpl.name} ({tpl.messageType})
+                      </option>
+                    ))}
+                  </select>
+                  {templates.length === 0 && !loadingTemplates ? (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                      {t('groupManager.sendMessages.scheduleNoTemplatesHint')}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div>
+                  <span className="text-sm font-medium block mb-2">
+                    {t('groupManager.sendMessages.scheduleTargetLabel')}
+                  </span>
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={immedScope === 'campaign_all'}
+                        onChange={() => setImmedScope('campaign_all')}
+                      />
+                      {t('groupManager.sendMessages.scheduleTargetAllCampaign')}
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={immedScope === 'campaign_partial'}
+                        onChange={() => setImmedScope('campaign_partial')}
+                      />
+                      {t('groupManager.sendMessages.scheduleTargetPickGroups')}
+                    </label>
+                  </div>
+                </div>
+
+                {immedScope === 'campaign_all' && (
+                  <div>
+                    <label className="text-sm font-medium block mb-1">
+                      {t('groupManager.sendMessages.selectCampaign')}
+                    </label>
+                    <select
+                      className="w-full max-w-md rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
+                      value={immedCampaignAllId}
+                      onChange={(e) => setImmedCampaignAllId(e.target.value)}
+                    >
+                      <option value="">{t('groupManager.sendMessages.chooseCampaign')}</option>
+                      {eligibleCampaignsAll.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.campaignName} (
+                          {Array.isArray(c.importGroups) ? c.importGroups.length : 0} grupos)
+                        </option>
+                      ))}
+                    </select>
+                    {eligibleCampaignsAll.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        {t('groupManager.sendMessages.noEligibleCampaign')}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {immedScope === 'campaign_partial' && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium block mb-1">
+                        {t('groupManager.sendMessages.selectCampaign')}
+                      </label>
+                      <select
+                        className="w-full max-w-md rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
+                        value={immedCampaignPartialId}
+                        onChange={(e) => setImmedCampaignPartialId(e.target.value)}
+                      >
+                        <option value="">{t('groupManager.sendMessages.chooseCampaign')}</option>
+                        {eligibleCampaignsPartial.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.campaignName}
+                            {c.importGroups === 'all'
+                              ? ` (${t('groupManager.campaign.importAll')})`
+                              : ` (${Array.isArray(c.importGroups) ? c.importGroups.length : 0} grupos)`}
+                          </option>
+                        ))}
+                      </select>
+                      {eligibleCampaignsPartial.length === 0 && (
+                        <p className="text-xs text-amber-600 mt-1">
+                          {t('groupManager.sendMessages.noCampaignForPartial')}
+                        </p>
+                      )}
+                    </div>
+                    {immedCampaignPartialId ? (
+                      <div>
+                        <div className="flex gap-2 mb-2">
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            onClick={() =>
+                              setImmedSelectedGroupIds(immedPartialGroups.map((g) => g.id))
+                            }
+                          >
+                            {t('groupManager.sendMessages.selectAll')}
+                          </Button>
+                          <Button size="xs" variant="outline" onClick={() => setImmedSelectedGroupIds([])}>
+                            {t('groupManager.sendMessages.deselectAll')}
+                          </Button>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-2">
+                          {t('groupManager.sendMessages.pickCampaignGroupsHint')}
+                        </p>
+                        <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2 space-y-1">
+                          {immedLoadingPartialGroups ? (
+                            <p className="text-sm text-gray-500">…</p>
+                          ) : immedPartialGroups.length === 0 ? (
+                            <p className="text-sm text-gray-500">{t('groupManager.noGroups')}</p>
+                          ) : (
+                            immedPartialGroups.map((g) => (
+                              <label key={g.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={immedSelectedGroupIds.includes(g.id)}
+                                  onChange={() =>
+                                    setImmedSelectedGroupIds((prev) =>
+                                      prev.includes(g.id)
+                                        ? prev.filter((x) => x !== g.id)
+                                        : [...prev, g.id]
+                                    )
+                                  }
+                                />
+                                <span className="truncate">{g.name || g.id}</span>
+                              </label>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
+                <Button
+                  variant="primary"
+                  onClick={handleImmediateSubmit}
+                  disabled={busy || templates.length === 0}
+                >
+                  {busy ? t('groupManager.sendMessages.sending') : t('groupManager.sendMessages.immediateFormSubmit')}
+                </Button>
+              </div>
+            ) : null}
           </>
         )}
       </section>
