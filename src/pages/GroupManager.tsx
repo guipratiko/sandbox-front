@@ -534,11 +534,11 @@ const GroupManager: React.FC = () => {
             </Button>
           </div>
           <GroupMessagesSection
-            instances={instances.map((i) => ({
-              id: i.id,
-              name: i.name,
-              integration: i.integration,
-            }))}
+            instanceId={selectedInstance}
+            instanceDisplayName={
+              selectedInstance ? getInstanceName(selectedInstance) : undefined
+            }
+            integration={instances.find((i) => i.id === selectedInstance)?.integration}
             campaigns={campaignsForGroupMessages}
           />
         </div>
@@ -948,8 +948,19 @@ const GroupManager: React.FC = () => {
           </h2>
           <Card
             padding="sm"
-            className="rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer hover:border-clerky-backendButton transition-colors max-w-md"
-            onClick={() => setShowMessagesPage(true)}
+            className={`rounded-xl border border-gray-200 dark:border-gray-700 max-w-md transition-colors ${
+              selectedInstance
+                ? 'cursor-pointer hover:border-clerky-backendButton'
+                : 'opacity-60 cursor-not-allowed'
+            }`}
+            onClick={() => {
+              if (!selectedInstance) {
+                setError(t('groupManager.messages.selectInstanceBeforeMessages'));
+                setTimeout(() => setError(null), 6000);
+                return;
+              }
+              setShowMessagesPage(true);
+            }}
           >
             <div className="flex items-start gap-3">
               <div className="w-12 h-12 rounded-lg bg-clerky-backendButton/15 dark:bg-clerky-backendButton/25 flex items-center justify-center text-xl shrink-0">

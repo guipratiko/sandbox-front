@@ -1593,6 +1593,14 @@ const translations = {
     'groupManager.messages.templateAfterInstance': 'Templates são filtrados pela instância selecionada.',
     'groupManager.messages.openMessagesPage': 'Abrir mensagens para grupos',
     'groupManager.messages.cardHint': 'Templates, envio imediato, agendamento e repetição.',
+    'groupManager.messages.selectInstanceBeforeMessages':
+      'Selecione uma instância WhatsApp (não oficial) no topo do gerenciador antes de abrir mensagens para grupos.',
+    'groupManager.messages.activeInstance': 'Instância ativa: {name}',
+    'groupManager.messages.evolutionInstanceRequired':
+      'Mensagens para grupos usam a instância já selecionada no topo. Troque para uma instância Evolution (não oficial); a API oficial do WhatsApp não suporte este fluxo.',
+    'groupManager.messages.sectionSendTitle': 'Enviar Mensagem',
+    'groupManager.messages.sectionTemplatesTitle': 'Templates de Mensagens',
+    'groupManager.messages.sectionScheduledTitle': 'Mensagens Agendadas',
     'groupManager.templates.save': 'Salvar',
     'groupManager.templates.createdToast': 'Template criado.',
     'groupManager.templates.updatedToast': 'Template atualizado.',
@@ -3297,6 +3305,14 @@ const translations = {
     'groupManager.messages.templateAfterInstance': 'Templates are scoped to the selected instance.',
     'groupManager.messages.openMessagesPage': 'Open group messages',
     'groupManager.messages.cardHint': 'Templates, instant send, scheduling and repeat.',
+    'groupManager.messages.selectInstanceBeforeMessages':
+      'Select a WhatsApp (non-official) instance at the top of the manager before opening group messages.',
+    'groupManager.messages.activeInstance': 'Active instance: {name}',
+    'groupManager.messages.evolutionInstanceRequired':
+      'Group messages use the instance already selected at the top. Switch to an Evolution (non-official) instance; the official WhatsApp API does not support this flow.',
+    'groupManager.messages.sectionSendTitle': 'Send message',
+    'groupManager.messages.sectionTemplatesTitle': 'Message templates',
+    'groupManager.messages.sectionScheduledTitle': 'Scheduled messages',
     'groupManager.templates.save': 'Save',
     'groupManager.templates.createdToast': 'Template created.',
     'groupManager.templates.updatedToast': 'Template updated.',

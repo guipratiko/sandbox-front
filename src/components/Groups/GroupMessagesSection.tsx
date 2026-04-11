@@ -18,8 +18,6 @@ type CampaignLite = {
   importGroups: 'all' | string[] | null;
 };
 
-type Tab = 'templates' | 'send' | 'scheduled';
-
 function emptyContent(type: GroupMessageType): Record<string, unknown> {
   switch (type) {
     case 'text':
@@ -66,17 +64,20 @@ function normalizeContent(type: GroupMessageType, raw: Record<string, unknown>):
 const MESSAGE_TYPES: GroupMessageType[] = ['text', 'media', 'poll', 'contact', 'location', 'audio'];
 
 export interface GroupMessagesSectionProps {
-  instances: Array<{ id: string; name: string; integration?: string }>;
+  /** Instância já escolhida no Gerenciador de Grupos (obrigatória). */
+  instanceId: string;
+  instanceDisplayName?: string;
+  integration?: string | null;
   campaigns: CampaignLite[];
 }
 
 const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
-  instances = [],
+  instanceId,
+  instanceDisplayName,
+  integration,
   campaigns = [],
 }) => {
   const { t } = useLanguage();
-  const [messagesInstanceId, setMessagesInstanceId] = useState('');
-  const [tab, setTab] = useState<Tab>('send');
   const [templates, setTemplates] = useState<GroupMessageTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -118,30 +119,25 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   const [sendContactJson, setSendContactJson] = useState('[{"fullName":"","phoneNumber":""}]');
   const [tplContactJson, setTplContactJson] = useState('[{"fullName":"","phoneNumber":""}]');
 
-  const evolutionInstances = useMemo(
-    () => instances.filter((i) => i.integration !== 'WHATSAPP-CLOUD'),
-    [instances]
-  );
-
   const eligibleCampaignsAll = useMemo(
     () =>
       campaigns.filter(
         (c) =>
-          c.instanceId === messagesInstanceId &&
+          c.instanceId === instanceId &&
           Array.isArray(c.importGroups) &&
           c.importGroups.length > 0
       ),
-    [campaigns, messagesInstanceId]
+    [campaigns, instanceId]
   );
 
   const eligibleCampaignsPartial = useMemo(
     () =>
       campaigns.filter((c) => {
-        if (c.instanceId !== messagesInstanceId) return false;
+        if (c.instanceId !== instanceId) return false;
         if (c.importGroups === 'all') return true;
         return Array.isArray(c.importGroups) && c.importGroups.length > 0;
       }),
-    [campaigns, messagesInstanceId]
+    [campaigns, instanceId]
   );
 
   const selectedPartialCampaign = useMemo(
@@ -149,14 +145,15 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     [eligibleCampaignsPartial, campaignPartialId]
   );
 
-  const instanceReady = Boolean(messagesInstanceId);
+  const isEvolutionInstance = integration !== 'WHATSAPP-CLOUD';
+  const instanceReady = Boolean(instanceId && isEvolutionInstance);
 
   const loadTemplates = useCallback(async () => {
-    if (!messagesInstanceId) return;
+    if (!instanceId || !isEvolutionInstance) return;
     setLoadingTemplates(true);
     setError(null);
     try {
-      const res = await groupMessageAPI.getTemplates(messagesInstanceId);
+      const res = await groupMessageAPI.getTemplates(instanceId);
       setTemplates(Array.isArray(res.data) ? res.data : []);
     } catch (e: unknown) {
       logError('GroupMessagesSection.loadTemplates', e);
@@ -164,13 +161,13 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     } finally {
       setLoadingTemplates(false);
     }
-  }, [messagesInstanceId]);
+  }, [instanceId, isEvolutionInstance]);
 
   const loadGroups = useCallback(async () => {
-    if (!messagesInstanceId) return;
+    if (!instanceId || !isEvolutionInstance) return;
     setLoadingGroups(true);
     try {
-      const res = await groupAPI.getAll(messagesInstanceId);
+      const res = await groupAPI.getAll(instanceId);
       setGroups(res.groups ?? []);
     } catch (e: unknown) {
       logError('GroupMessagesSection.loadGroups', e);
@@ -178,13 +175,13 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     } finally {
       setLoadingGroups(false);
     }
-  }, [messagesInstanceId]);
+  }, [instanceId, isEvolutionInstance]);
 
   const loadScheduled = useCallback(async () => {
-    if (!messagesInstanceId) return;
+    if (!instanceId || !isEvolutionInstance) return;
     setLoadingScheduled(true);
     try {
-      const res = await groupMessageAPI.getScheduled(messagesInstanceId);
+      const res = await groupMessageAPI.getScheduled(instanceId);
       setScheduled(Array.isArray(res.data) ? res.data : []);
     } catch (e: unknown) {
       logError('GroupMessagesSection.loadScheduled', e);
@@ -192,7 +189,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     } finally {
       setLoadingScheduled(false);
     }
-  }, [messagesInstanceId]);
+  }, [instanceId, isEvolutionInstance]);
 
   useEffect(() => {
     if (instanceReady) {
@@ -205,11 +202,23 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   }, [loadTemplates, loadScheduled, instanceReady]);
 
   useEffect(() => {
-    if (tab === 'send' && targetMode === 'instance_groups' && instanceReady) loadGroups();
-  }, [tab, targetMode, loadGroups, instanceReady]);
+    if (targetMode === 'instance_groups' && instanceReady) loadGroups();
+  }, [targetMode, loadGroups, instanceReady]);
 
   useEffect(() => {
-    if (!campaignPartialId || !selectedPartialCampaign || !messagesInstanceId) {
+    setTemplatePick('');
+    setSendType('text');
+    setSendContent(emptyContent('text'));
+    setSendContactJson('[{"fullName":"","phoneNumber":""}]');
+    setSelectedGroupIds([]);
+    setCampaignId('');
+    setCampaignPartialId('');
+    setSelectedCampaignPartialIds([]);
+    setCampaignPartialGroups([]);
+  }, [instanceId]);
+
+  useEffect(() => {
+    if (!campaignPartialId || !selectedPartialCampaign || !instanceId) {
       setCampaignPartialGroups([]);
       setSelectedCampaignPartialIds([]);
       return;
@@ -220,13 +229,13 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
       setLoadingCampaignPartialGroups(true);
       try {
         if (c.importGroups === 'all') {
-          const res = await groupAPI.getAll(messagesInstanceId);
+          const res = await groupAPI.getAll(instanceId);
           if (!cancelled) {
             setCampaignPartialGroups(res.groups ?? []);
             setSelectedCampaignPartialIds([]);
           }
         } else if (Array.isArray(c.importGroups)) {
-          const res = await groupAPI.getGroupsByIds(messagesInstanceId, c.importGroups);
+          const res = await groupAPI.getGroupsByIds(instanceId, c.importGroups);
           if (!cancelled) {
             setCampaignPartialGroups(res.groups ?? []);
             setSelectedCampaignPartialIds([]);
@@ -241,19 +250,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [campaignPartialId, selectedPartialCampaign, messagesInstanceId]);
-
-  const handleInstanceChange = (id: string) => {
-    setMessagesInstanceId(id);
-    setTemplatePick('');
-    setSendType('text');
-    setSendContent(emptyContent('text'));
-    setSelectedGroupIds([]);
-    setCampaignId('');
-    setCampaignPartialId('');
-    setSelectedCampaignPartialIds([]);
-    setCampaignPartialGroups([]);
-  };
+  }, [campaignPartialId, selectedPartialCampaign, instanceId]);
 
   useEffect(() => {
     if (templatePick) {
@@ -330,8 +327,8 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
         address: String(tplContent.address ?? ''),
       };
     }
-    if (!messagesInstanceId) {
-      setError(t('groupManager.messages.selectInstanceFirst'));
+    if (!instanceId || !isEvolutionInstance) {
+      setError(t('groupManager.messages.evolutionInstanceRequired'));
       return;
     }
     setBusy(true);
@@ -346,7 +343,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
         setSuccess(t('groupManager.templates.updatedToast'));
       } else {
         await groupMessageAPI.createTemplate({
-          instanceId: messagesInstanceId,
+          instanceId,
           name: tplName.trim(),
           description: tplDesc || null,
           messageType: tplType,
@@ -410,8 +407,12 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   };
 
   const validateSend = (): boolean => {
-    if (!instanceReady) {
-      setError(t('groupManager.messages.selectInstanceFirst'));
+    if (!instanceId) {
+      setError(t('groupManager.messages.selectInstanceBeforeMessages'));
+      return false;
+    }
+    if (!isEvolutionInstance) {
+      setError(t('groupManager.messages.evolutionInstanceRequired'));
       return false;
     }
     const payload = getSendPayloadContent();
@@ -474,7 +475,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     setError(null);
     try {
       const res = await groupMessageAPI.sendNow({
-        instanceId: messagesInstanceId,
+        instanceId,
         messageType: sendType,
         contentJson,
         targetType:
@@ -528,7 +529,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     setError(null);
     try {
       await groupMessageAPI.schedule({
-        instanceId: messagesInstanceId,
+        instanceId,
         messageType: sendType,
         contentJson,
         targetType:
@@ -649,16 +650,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
       }
     };
   }, [stopMicStream]);
-
-  useEffect(() => {
-    if (
-      messagesInstanceId &&
-      evolutionInstances.length > 0 &&
-      !evolutionInstances.some((i) => i.id === messagesInstanceId)
-    ) {
-      handleInstanceChange('');
-    }
-  }, [messagesInstanceId, evolutionInstances]);
 
   const filterCoordInput = (raw: string) => {
     let v = raw.replace(/[^\d.\-]/g, '').replace(/,/g, '.');
@@ -945,48 +936,23 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
       <h2 className="text-lg font-semibold text-clerky-backendText dark:text-gray-200 mb-1">
         {t('groupManager.messages.sectionTitle')}
       </h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
         {t('groupManager.messages.sectionHint')}
       </p>
-
-      <div className="mb-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800">
-        <label className="text-sm font-semibold text-clerky-backendText dark:text-gray-200 block mb-2">
-          {t('groupManager.messages.instanceStep')}
-        </label>
-        {evolutionInstances.length === 0 ? (
+      {instanceId ? (
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          {t('groupManager.messages.activeInstance', {
+            name: (instanceDisplayName && instanceDisplayName.trim()) || instanceId,
+          })}
+        </p>
+      ) : null}
+      {instanceId && !isEvolutionInstance ? (
+        <div className="mb-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800">
           <p className="text-sm text-amber-800 dark:text-amber-200">
-            {t('groupManager.messages.noEvolutionInstances')}
+            {t('groupManager.messages.evolutionInstanceRequired')}
           </p>
-        ) : (
-          <select
-            className="w-full max-w-md rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
-            value={messagesInstanceId}
-            onChange={(e) => handleInstanceChange(e.target.value)}
-          >
-            <option value="">{t('groupManager.messages.chooseInstance')}</option>
-            {evolutionInstances.map((inst) => (
-              <option key={inst.id} value={inst.id}>
-                {inst.name}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-2 mb-4">
-        {(['send', 'templates', 'scheduled'] as Tab[]).map((k) => (
-          <Button
-            key={k}
-            variant={tab === k ? 'primary' : 'outline'}
-            size="sm"
-            onClick={() => setTab(k)}
-          >
-            {k === 'send' && t('groupManager.sendMessages.sendNowTitle')}
-            {k === 'templates' && t('groupManager.templates.title')}
-            {k === 'scheduled' && t('groupManager.sendMessages.scheduledTitle')}
-          </Button>
-        ))}
-      </div>
+        </div>
+      ) : null}
 
       {error && (
         <div className="mb-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
@@ -1002,62 +968,18 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
         </div>
       )}
 
-      {tab === 'templates' && (
-        <div>
-          {!instanceReady ? (
-            <p className="text-gray-500 text-sm py-8 text-center border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
-              {t('groupManager.messages.selectInstanceForTemplates')}
-            </p>
-          ) : (
-            <>
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  {loadingTemplates ? '…' : `${templates.length} templates`}
-                </span>
-                <Button size="sm" variant="primary" onClick={openCreateTemplate}>
-                  {t('groupManager.templates.create')}
-                </Button>
-              </div>
-              {templates.length === 0 && !loadingTemplates ? (
-                <p className="text-gray-500 text-sm py-6 text-center">{t('groupManager.templates.noTemplates')}</p>
-              ) : (
-                <ul className="space-y-2 max-h-72 overflow-y-auto">
-                  {(templates ?? []).map((tpl) => (
-                    <li
-                      key={tpl.id}
-                      className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700"
-                    >
-                      <div>
-                        <div className="font-medium text-sm">{tpl.name}</div>
-                        <div className="text-xs text-gray-500">
-                          {t(`groupManager.templates.types.${tpl.messageType}`)}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="xs" variant="outline" onClick={() => openEditTemplate(tpl)}>
-                          {t('groupManager.templates.edit')}
-                        </Button>
-                        <Button size="xs" variant="outline" onClick={() => deleteTpl(tpl.id)} disabled={busy}>
-                          {t('groupManager.templates.delete')}
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {tab === 'send' && (
-        <div className="space-y-4">
-          {!instanceReady ? (
-            <p className="text-gray-500 text-sm py-6 text-center border border-dashed rounded-lg">
-              {t('groupManager.messages.selectInstanceForSend')}
-            </p>
-          ) : (
-            <>
+      <section className="space-y-4">
+        <h3 className="text-base font-semibold text-clerky-backendText dark:text-gray-200">
+          {t('groupManager.messages.sectionSendTitle')}
+        </h3>
+        {!instanceReady ? (
+          <p className="text-gray-500 text-sm py-6 text-center border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
+            {!instanceId
+              ? t('groupManager.messages.selectInstanceBeforeMessages')
+              : t('groupManager.messages.evolutionInstanceRequired')}
+          </p>
+        ) : (
+          <>
           <div>
             <label className="text-sm font-medium block mb-1">{t('groupManager.sendMessages.selectTemplate')}</label>
             <select
@@ -1079,7 +1001,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
                 </option>
               ))}
             </select>
-            <p className="text-xs text-gray-500 mt-1">{t('groupManager.messages.templateAfterInstance')}</p>
           </div>
           {!templatePick && (
             <div>
@@ -1311,55 +1232,108 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
               </Button>
             </div>
           </div>
-            </>
-          )}
-        </div>
-      )}
+          </>
+        )}
+      </section>
 
-      {tab === 'scheduled' && (
-        <div>
-          {!instanceReady ? (
-            <p className="text-gray-500 text-sm py-8 text-center border border-dashed rounded-lg">
-              {t('groupManager.messages.selectInstanceForScheduled')}
-            </p>
-          ) : (
-            <>
-          <Button size="sm" variant="outline" className="mb-3" onClick={loadScheduled}>
-            {t('groupManager.refreshCampaigns')}
-          </Button>
-          {loadingScheduled ? (
-            <p className="text-sm text-gray-500">…</p>
-          ) : scheduled.length === 0 ? (
-            <p className="text-sm text-gray-500 py-6 text-center">{t('groupManager.sendMessages.noScheduled')}</p>
-          ) : (
-            <ul className="space-y-2">
-              {scheduled.map((s, idx) => (
-                <li
-                  key={s.id ?? `sched-${idx}`}
-                  className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 text-sm flex flex-wrap justify-between gap-2"
-                >
-                  <div>
-                    <div className="font-medium">{s.label || s.messageType}</div>
-                    <div className="text-xs text-gray-500">
-                      {t('groupManager.sendMessages.scheduledFor')}:{' '}
-                      {new Date(s.nextRunAt).toLocaleString()}
+      <section className="border-t border-gray-200 dark:border-gray-700 pt-8 mt-8 space-y-4">
+        <h3 className="text-base font-semibold text-clerky-backendText dark:text-gray-200">
+          {t('groupManager.messages.sectionTemplatesTitle')}
+        </h3>
+        {!instanceReady ? (
+          <p className="text-gray-500 text-sm py-8 text-center border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
+            {!instanceId
+              ? t('groupManager.messages.selectInstanceBeforeMessages')
+              : t('groupManager.messages.evolutionInstanceRequired')}
+          </p>
+        ) : (
+          <>
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {loadingTemplates ? '…' : `${templates.length} templates`}
+              </span>
+              <Button size="sm" variant="primary" onClick={openCreateTemplate}>
+                {t('groupManager.templates.create')}
+              </Button>
+            </div>
+            {templates.length === 0 && !loadingTemplates ? (
+              <p className="text-gray-500 text-sm py-6 text-center">{t('groupManager.templates.noTemplates')}</p>
+            ) : (
+              <ul className="space-y-2 max-h-72 overflow-y-auto">
+                {(templates ?? []).map((tpl) => (
+                  <li
+                    key={tpl.id}
+                    className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700"
+                  >
+                    <div>
+                      <div className="font-medium text-sm">{tpl.name}</div>
+                      <div className="text-xs text-gray-500">
+                        {t(`groupManager.templates.types.${tpl.messageType}`)}
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500">
-                      {(Array.isArray(s.groupJids) ? s.groupJids.length : 0)} grupos ·{' '}
-                      {s.repeat?.type ?? '—'}
+                    <div className="flex gap-2">
+                      <Button size="xs" variant="outline" onClick={() => openEditTemplate(tpl)}>
+                        {t('groupManager.templates.edit')}
+                      </Button>
+                      <Button size="xs" variant="outline" onClick={() => deleteTpl(tpl.id)} disabled={busy}>
+                        {t('groupManager.templates.delete')}
+                      </Button>
                     </div>
-                  </div>
-                  <Button size="xs" variant="outline" onClick={() => handleCancelSchedule(s.id)} disabled={busy}>
-                    {t('groupManager.sendMessages.cancel')}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-            </>
-          )}
-        </div>
-      )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </section>
+
+      <section className="border-t border-gray-200 dark:border-gray-700 pt-8 mt-8 space-y-4">
+        <h3 className="text-base font-semibold text-clerky-backendText dark:text-gray-200">
+          {t('groupManager.messages.sectionScheduledTitle')}
+        </h3>
+        {!instanceReady ? (
+          <p className="text-gray-500 text-sm py-8 text-center border border-dashed rounded-lg border-gray-300 dark:border-gray-600">
+            {!instanceId
+              ? t('groupManager.messages.selectInstanceBeforeMessages')
+              : t('groupManager.messages.evolutionInstanceRequired')}
+          </p>
+        ) : (
+          <>
+            <Button size="sm" variant="outline" className="mb-3" onClick={loadScheduled}>
+              {t('groupManager.refreshCampaigns')}
+            </Button>
+            {loadingScheduled ? (
+              <p className="text-sm text-gray-500">…</p>
+            ) : scheduled.length === 0 ? (
+              <p className="text-sm text-gray-500 py-6 text-center">{t('groupManager.sendMessages.noScheduled')}</p>
+            ) : (
+              <ul className="space-y-2">
+                {scheduled.map((s, idx) => (
+                  <li
+                    key={s.id ?? `sched-${idx}`}
+                    className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 text-sm flex flex-wrap justify-between gap-2"
+                  >
+                    <div>
+                      <div className="font-medium">{s.label || s.messageType}</div>
+                      <div className="text-xs text-gray-500">
+                        {t('groupManager.sendMessages.scheduledFor')}:{' '}
+                        {new Date(s.nextRunAt).toLocaleString()}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {(Array.isArray(s.groupJids) ? s.groupJids.length : 0)} grupos ·{' '}
+                        {s.repeat?.type ?? '—'}
+                      </div>
+                    </div>
+                    <Button size="xs" variant="outline" onClick={() => handleCancelSchedule(s.id)} disabled={busy}>
+                      {t('groupManager.sendMessages.cancel')}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </section>
 
       {templateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
