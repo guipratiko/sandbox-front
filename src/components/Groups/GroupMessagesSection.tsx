@@ -66,14 +66,12 @@ const MESSAGE_TYPES: GroupMessageType[] = ['text', 'media', 'poll', 'contact', '
 export interface GroupMessagesSectionProps {
   /** Instância já escolhida no Gerenciador de Grupos (obrigatória). */
   instanceId: string;
-  instanceDisplayName?: string;
   integration?: string | null;
   campaigns: CampaignLite[];
 }
 
 const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   instanceId,
-  instanceDisplayName,
   integration,
   campaigns = [],
 }) => {
@@ -119,6 +117,20 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   const [sendContactJson, setSendContactJson] = useState('[{"fullName":"","phoneNumber":""}]');
   const [tplContactJson, setTplContactJson] = useState('[{"fullName":"","phoneNumber":""}]');
 
+  const [schedFormOpen, setSchedFormOpen] = useState(false);
+  const [schedTplPick, setSchedTplPick] = useState('');
+  const [schedSendType, setSchedSendType] = useState<GroupMessageType>('text');
+  const [schedSendContent, setSchedSendContent] = useState<Record<string, unknown>>(emptyContent('text'));
+  const [schedContactJson, setSchedContactJson] = useState('[{"fullName":"","phoneNumber":""}]');
+  const [schedScope, setSchedScope] = useState<'campaign_all' | 'campaign_partial'>('campaign_all');
+  const [schedCampaignAllId, setSchedCampaignAllId] = useState('');
+  const [schedCampaignPartialId, setSchedCampaignPartialId] = useState('');
+  const [schedPartialGroups, setSchedPartialGroups] = useState<Group[]>([]);
+  const [schedLoadingPartialGroups, setSchedLoadingPartialGroups] = useState(false);
+  const [schedSelectedGroupIds, setSchedSelectedGroupIds] = useState<string[]>([]);
+  const [schedScheduledAt, setSchedScheduledAt] = useState('');
+  const [schedRepeatType, setSchedRepeatType] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
+
   const eligibleCampaignsAll = useMemo(
     () =>
       campaigns.filter(
@@ -143,6 +155,11 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   const selectedPartialCampaign = useMemo(
     () => eligibleCampaignsPartial.find((c) => c.id === campaignPartialId) ?? null,
     [eligibleCampaignsPartial, campaignPartialId]
+  );
+
+  const selectedSchedPartialCampaign = useMemo(
+    () => eligibleCampaignsPartial.find((c) => c.id === schedCampaignPartialId) ?? null,
+    [eligibleCampaignsPartial, schedCampaignPartialId]
   );
 
   const isEvolutionInstance = integration !== 'WHATSAPP-CLOUD';
@@ -215,6 +232,18 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     setCampaignPartialId('');
     setSelectedCampaignPartialIds([]);
     setCampaignPartialGroups([]);
+    setSchedFormOpen(false);
+    setSchedTplPick('');
+    setSchedSendType('text');
+    setSchedSendContent(emptyContent('text'));
+    setSchedContactJson('[{"fullName":"","phoneNumber":""}]');
+    setSchedScope('campaign_all');
+    setSchedCampaignAllId('');
+    setSchedCampaignPartialId('');
+    setSchedPartialGroups([]);
+    setSchedSelectedGroupIds([]);
+    setSchedScheduledAt('');
+    setSchedRepeatType('none');
   }, [instanceId]);
 
   useEffect(() => {
@@ -253,6 +282,41 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   }, [campaignPartialId, selectedPartialCampaign, instanceId]);
 
   useEffect(() => {
+    if (!schedCampaignPartialId || !selectedSchedPartialCampaign || !instanceId) {
+      setSchedPartialGroups([]);
+      setSchedSelectedGroupIds([]);
+      return;
+    }
+    const c = selectedSchedPartialCampaign;
+    let cancelled = false;
+    (async () => {
+      setSchedLoadingPartialGroups(true);
+      try {
+        if (c.importGroups === 'all') {
+          const res = await groupAPI.getAll(instanceId);
+          if (!cancelled) {
+            setSchedPartialGroups(res.groups ?? []);
+            setSchedSelectedGroupIds([]);
+          }
+        } else if (Array.isArray(c.importGroups)) {
+          const res = await groupAPI.getGroupsByIds(instanceId, c.importGroups);
+          if (!cancelled) {
+            setSchedPartialGroups(res.groups ?? []);
+            setSchedSelectedGroupIds([]);
+          }
+        }
+      } catch {
+        if (!cancelled) setSchedPartialGroups([]);
+      } finally {
+        if (!cancelled) setSchedLoadingPartialGroups(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [schedCampaignPartialId, selectedSchedPartialCampaign, instanceId]);
+
+  useEffect(() => {
     if (templatePick) {
       const tpl = templates.find((x) => x.id === templatePick);
       if (tpl) {
@@ -266,10 +330,31 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
   }, [templatePick, templates]);
 
   useEffect(() => {
+    if (schedTplPick) {
+      const tpl = templates.find((x) => x.id === schedTplPick);
+      if (tpl) {
+        setSchedSendType(tpl.messageType);
+        setSchedSendContent(normalizeContent(tpl.messageType, tpl.contentJson));
+        if (tpl.messageType === 'contact') {
+          setSchedContactJson(JSON.stringify(tpl.contentJson.contact ?? [], null, 2));
+        }
+      }
+    }
+  }, [schedTplPick, templates]);
+
+  useEffect(() => {
     if (sendType === 'contact' && !templatePick) {
       setSendContactJson(JSON.stringify(sendContent.contact ?? [{ fullName: '', phoneNumber: '' }], null, 2));
     }
-  }, [sendType]);
+  }, [sendType, templatePick]);
+
+  useEffect(() => {
+    if (schedSendType === 'contact' && !schedTplPick) {
+      setSchedContactJson(
+        JSON.stringify(schedSendContent.contact ?? [{ fullName: '', phoneNumber: '' }], null, 2)
+      );
+    }
+  }, [schedSendType, schedTplPick]);
 
   const openCreateTemplate = () => {
     setEditingTemplateId(null);
@@ -374,10 +459,14 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     }
   };
 
-  const getSendPayloadContent = (): Record<string, unknown> | null => {
-    if (sendType === 'contact') {
+  const buildMessagePayload = (
+    type: GroupMessageType,
+    content: Record<string, unknown>,
+    contactJson: string
+  ): Record<string, unknown> | null => {
+    if (type === 'contact') {
       try {
-        const arr = JSON.parse(sendContactJson) as unknown;
+        const arr = JSON.parse(contactJson) as unknown;
         if (!Array.isArray(arr) || arr.length === 0) {
           setError(t('groupManager.templates.contactJsonInvalid'));
           return null;
@@ -388,22 +477,58 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
         return null;
       }
     }
-    if (sendType === 'location') {
-      const lat = parseFloat(String(sendContent.latitude).replace(',', '.'));
-      const lng = parseFloat(String(sendContent.longitude).replace(',', '.'));
+    if (type === 'location') {
+      const lat = parseFloat(String(content.latitude).replace(',', '.'));
+      const lng = parseFloat(String(content.longitude).replace(',', '.'));
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         setError(t('groupManager.templates.fields.latLngRequired'));
         return null;
       }
       return {
-        ...sendContent,
+        ...content,
         latitude: lat,
         longitude: lng,
-        name: String(sendContent.name ?? ''),
-        address: String(sendContent.address ?? ''),
+        name: String(content.name ?? ''),
+        address: String(content.address ?? ''),
       };
     }
-    return sendContent;
+    return content;
+  };
+
+  const getSendPayloadContent = () => buildMessagePayload(sendType, sendContent, sendContactJson);
+
+  const validateMessageBody = (type: GroupMessageType, payload: Record<string, unknown> | null): boolean => {
+    if (payload === null) return false;
+    if (type === 'contact') return true;
+    const text = String(payload.text ?? '').trim();
+    if (type === 'text' && !text) {
+      setError(t('groupManager.templates.fields.textRequired'));
+      return false;
+    }
+    if (type === 'media' && !String(payload.media ?? '').trim()) {
+      setError(t('groupManager.templates.fields.mediaUrlRequired'));
+      return false;
+    }
+    if (type === 'poll') {
+      const vals = (payload.values as string[])?.filter((v) => v.trim()) ?? [];
+      if (!String(payload.name ?? '').trim() || vals.length < 2) {
+        setError(t('groupManager.templates.fields.pollInvalid'));
+        return false;
+      }
+    }
+    if (type === 'audio' && !String(payload.audio ?? '').trim()) {
+      setError(t('groupManager.templates.fields.audioRequired'));
+      return false;
+    }
+    if (type === 'location' && payload) {
+      const lat = Number((payload as { latitude?: number }).latitude);
+      const lng = Number((payload as { longitude?: number }).longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        setError(t('groupManager.templates.fields.latLngRequired'));
+        return false;
+      }
+    }
+    return true;
   };
 
   const validateSend = (): boolean => {
@@ -417,6 +542,7 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     }
     const payload = getSendPayloadContent();
     if (payload === null) return false;
+    if (!validateMessageBody(sendType, payload)) return false;
     if (targetMode === 'instance_groups' && selectedGroupIds.length === 0) {
       setError(t('groupManager.sendMessages.pickGroups'));
       return false;
@@ -432,35 +558,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
       }
       if (selectedCampaignPartialIds.length === 0) {
         setError(t('groupManager.sendMessages.pickCampaignGroups'));
-        return false;
-      }
-    }
-    if (sendType === 'contact') return true;
-    const text = String(payload.text ?? '').trim();
-    if (sendType === 'text' && !text) {
-      setError(t('groupManager.templates.fields.textRequired'));
-      return false;
-    }
-    if (sendType === 'media' && !String(payload.media ?? '').trim()) {
-      setError(t('groupManager.templates.fields.mediaUrlRequired'));
-      return false;
-    }
-    if (sendType === 'poll') {
-      const vals = (payload.values as string[])?.filter((v) => v.trim()) ?? [];
-      if (!String(payload.name ?? '').trim() || vals.length < 2) {
-        setError(t('groupManager.templates.fields.pollInvalid'));
-        return false;
-      }
-    }
-    if (sendType === 'audio' && !String(payload.audio ?? '').trim()) {
-      setError(t('groupManager.templates.fields.audioRequired'));
-      return false;
-    }
-    if (sendType === 'location' && payload) {
-      const lat = Number((payload as { latitude?: number }).latitude);
-      const lng = Number((payload as { longitude?: number }).longitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        setError(t('groupManager.templates.fields.latLngRequired'));
         return false;
       }
     }
@@ -556,6 +653,66 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
       });
       setSuccess(t('groupManager.sendMessages.scheduledOk'));
       setScheduledAt('');
+      await loadScheduled();
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Erro ao agendar'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSchedCreateSubmit = async () => {
+    if (!instanceId) {
+      setError(t('groupManager.messages.selectInstanceBeforeMessages'));
+      return;
+    }
+    if (!isEvolutionInstance) {
+      setError(t('groupManager.messages.evolutionInstanceRequired'));
+      return;
+    }
+    const contentJson = buildMessagePayload(schedSendType, schedSendContent, schedContactJson);
+    if (contentJson === null) return;
+    if (!validateMessageBody(schedSendType, contentJson)) return;
+    if (schedScope === 'campaign_all') {
+      if (!schedCampaignAllId) {
+        setError(t('groupManager.sendMessages.pickCampaign'));
+        return;
+      }
+    } else {
+      if (!schedCampaignPartialId) {
+        setError(t('groupManager.sendMessages.pickCampaign'));
+        return;
+      }
+      if (schedSelectedGroupIds.length === 0) {
+        setError(t('groupManager.sendMessages.pickCampaignGroups'));
+        return;
+      }
+    }
+    if (!schedScheduledAt) {
+      setError(t('groupManager.sendMessages.scheduledAtRequired'));
+      return;
+    }
+    const d = new Date(schedScheduledAt);
+    if (d.getTime() < Date.now() - 30_000) {
+      setError(t('groupManager.sendMessages.futureOnly'));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await groupMessageAPI.schedule({
+        instanceId,
+        messageType: schedSendType,
+        contentJson,
+        targetType: schedScope === 'campaign_all' ? 'campaign' : 'campaign_groups',
+        groupIds: schedScope === 'campaign_partial' ? schedSelectedGroupIds : undefined,
+        campaignId: schedScope === 'campaign_all' ? schedCampaignAllId : schedCampaignPartialId,
+        templateId: schedTplPick || undefined,
+        scheduledAt: d.toISOString(),
+        repeat: { type: schedRepeatType },
+      });
+      setSuccess(t('groupManager.sendMessages.scheduledOk'));
+      setSchedScheduledAt('');
       await loadScheduled();
     } catch (e: unknown) {
       setError(getErrorMessage(e, 'Erro ao agendar'));
@@ -933,19 +1090,6 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
 
   return (
     <Card padding="md" className="rounded-xl border border-gray-200 dark:border-gray-700">
-      <h2 className="text-lg font-semibold text-clerky-backendText dark:text-gray-200 mb-1">
-        {t('groupManager.messages.sectionTitle')}
-      </h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-        {t('groupManager.messages.sectionHint')}
-      </p>
-      {instanceId ? (
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-          {t('groupManager.messages.activeInstance', {
-            name: (instanceDisplayName && instanceDisplayName.trim()) || instanceId,
-          })}
-        </p>
-      ) : null}
       {instanceId && !isEvolutionInstance ? (
         <div className="mb-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800">
           <p className="text-sm text-amber-800 dark:text-amber-200">
@@ -1299,9 +1443,253 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
           </p>
         ) : (
           <>
-            <Button size="sm" variant="outline" className="mb-3" onClick={loadScheduled}>
-              {t('groupManager.refreshCampaigns')}
-            </Button>
+            <div className="flex flex-wrap gap-2 mb-3">
+              <Button
+                size="sm"
+                variant={schedFormOpen ? 'outline' : 'primary'}
+                onClick={() => setSchedFormOpen((open) => !open)}
+              >
+                {schedFormOpen
+                  ? t('groupManager.sendMessages.hideScheduleForm')
+                  : t('groupManager.sendMessages.createSchedule')}
+              </Button>
+              <Button size="sm" variant="outline" onClick={loadScheduled}>
+                {t('groupManager.refreshCampaigns')}
+              </Button>
+            </div>
+
+            {schedFormOpen ? (
+              <div className="mb-6 p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-4 bg-gray-50/80 dark:bg-gray-800/30">
+                <div>
+                  <label className="text-sm font-medium block mb-1">
+                    {t('groupManager.sendMessages.selectTemplate')}
+                  </label>
+                  <select
+                    className="w-full max-w-md rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+                    value={schedTplPick}
+                    onChange={(e) => {
+                      setSchedTplPick(e.target.value);
+                      if (!e.target.value) {
+                        setSchedSendType('text');
+                        setSchedSendContent(emptyContent('text'));
+                      }
+                    }}
+                  >
+                    <option value="">{t('groupManager.sendMessages.noTemplate')}</option>
+                    {(templates ?? []).map((tpl) => (
+                      <option key={tpl.id} value={tpl.id}>
+                        {tpl.name} ({tpl.messageType})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {!schedTplPick && (
+                  <div>
+                    <label className="text-sm font-medium block mb-1">
+                      {t('groupManager.sendMessages.messageType')}
+                    </label>
+                    <select
+                      className="w-full max-w-md rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
+                      value={schedSendType}
+                      onChange={(ev) => {
+                        const nt = ev.target.value as GroupMessageType;
+                        setSchedSendType(nt);
+                        setSchedSendContent(emptyContent(nt));
+                      }}
+                    >
+                      {MESSAGE_TYPES.map((mt) => (
+                        <option key={mt} value={mt}>
+                          {t(`groupManager.templates.types.${mt}`)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div>
+                  {schedSendType === 'contact' ? (
+                    <label className="block">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {t('groupManager.templates.types.contact')} (JSON)
+                      </span>
+                      <textarea
+                        className="mt-1 w-full font-mono text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 min-h-[140px]"
+                        value={schedContactJson}
+                        onChange={(e) => setSchedContactJson(e.target.value)}
+                      />
+                    </label>
+                  ) : (
+                    renderContentFields(
+                      schedSendType,
+                      schedSendContent,
+                      setSchedSendContent,
+                      false,
+                      'sched-create'
+                    )
+                  )}
+                </div>
+
+                <div>
+                  <span className="text-sm font-medium block mb-2">
+                    {t('groupManager.sendMessages.scheduleTargetLabel')}
+                  </span>
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={schedScope === 'campaign_all'}
+                        onChange={() => setSchedScope('campaign_all')}
+                      />
+                      {t('groupManager.sendMessages.scheduleTargetAllCampaign')}
+                    </label>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={schedScope === 'campaign_partial'}
+                        onChange={() => setSchedScope('campaign_partial')}
+                      />
+                      {t('groupManager.sendMessages.scheduleTargetPickGroups')}
+                    </label>
+                  </div>
+                </div>
+
+                {schedScope === 'campaign_all' && (
+                  <div>
+                    <label className="text-sm font-medium block mb-1">
+                      {t('groupManager.sendMessages.selectCampaign')}
+                    </label>
+                    <select
+                      className="w-full max-w-md rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
+                      value={schedCampaignAllId}
+                      onChange={(e) => setSchedCampaignAllId(e.target.value)}
+                    >
+                      <option value="">{t('groupManager.sendMessages.chooseCampaign')}</option>
+                      {eligibleCampaignsAll.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.campaignName} (
+                          {Array.isArray(c.importGroups) ? c.importGroups.length : 0} grupos)
+                        </option>
+                      ))}
+                    </select>
+                    {eligibleCampaignsAll.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        {t('groupManager.sendMessages.noEligibleCampaign')}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {schedScope === 'campaign_partial' && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium block mb-1">
+                        {t('groupManager.sendMessages.selectCampaign')}
+                      </label>
+                      <select
+                        className="w-full max-w-md rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
+                        value={schedCampaignPartialId}
+                        onChange={(e) => setSchedCampaignPartialId(e.target.value)}
+                      >
+                        <option value="">{t('groupManager.sendMessages.chooseCampaign')}</option>
+                        {eligibleCampaignsPartial.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.campaignName}
+                            {c.importGroups === 'all'
+                              ? ` (${t('groupManager.campaign.importAll')})`
+                              : ` (${Array.isArray(c.importGroups) ? c.importGroups.length : 0} grupos)`}
+                          </option>
+                        ))}
+                      </select>
+                      {eligibleCampaignsPartial.length === 0 && (
+                        <p className="text-xs text-amber-600 mt-1">
+                          {t('groupManager.sendMessages.noCampaignForPartial')}
+                        </p>
+                      )}
+                    </div>
+                    {schedCampaignPartialId ? (
+                      <div>
+                        <div className="flex gap-2 mb-2">
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            onClick={() =>
+                              setSchedSelectedGroupIds(schedPartialGroups.map((g) => g.id))
+                            }
+                          >
+                            {t('groupManager.sendMessages.selectAll')}
+                          </Button>
+                          <Button size="xs" variant="outline" onClick={() => setSchedSelectedGroupIds([])}>
+                            {t('groupManager.sendMessages.deselectAll')}
+                          </Button>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-2">
+                          {t('groupManager.sendMessages.pickCampaignGroupsHint')}
+                        </p>
+                        <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2 space-y-1">
+                          {schedLoadingPartialGroups ? (
+                            <p className="text-sm text-gray-500">…</p>
+                          ) : schedPartialGroups.length === 0 ? (
+                            <p className="text-sm text-gray-500">{t('groupManager.noGroups')}</p>
+                          ) : (
+                            schedPartialGroups.map((g) => (
+                              <label key={g.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={schedSelectedGroupIds.includes(g.id)}
+                                  onChange={() =>
+                                    setSchedSelectedGroupIds((prev) =>
+                                      prev.includes(g.id)
+                                        ? prev.filter((x) => x !== g.id)
+                                        : [...prev, g.id]
+                                    )
+                                  }
+                                />
+                                <span className="truncate">{g.name || g.id}</span>
+                              </label>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-3">
+                  <p className="text-sm font-medium">{t('groupManager.sendMessages.scheduleTitle')}</p>
+                  <div className="flex flex-wrap gap-4 items-end">
+                    <label className="block">
+                      <span className="text-xs text-gray-500 block">
+                        {t('groupManager.sendMessages.scheduledAt')}
+                      </span>
+                      <input
+                        type="datetime-local"
+                        className="rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
+                        value={schedScheduledAt}
+                        onChange={(e) => setSchedScheduledAt(e.target.value)}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500 block">{t('groupManager.sendMessages.repeat')}</span>
+                      <select
+                        className="rounded-lg border px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-600"
+                        value={schedRepeatType}
+                        onChange={(e) =>
+                          setSchedRepeatType(e.target.value as typeof schedRepeatType)
+                        }
+                      >
+                        <option value="none">{t('groupManager.sendMessages.repeatNone')}</option>
+                        <option value="daily">{t('groupManager.sendMessages.repeatDaily')}</option>
+                        <option value="weekly">{t('groupManager.sendMessages.repeatWeekly')}</option>
+                        <option value="monthly">{t('groupManager.sendMessages.repeatMonthly')}</option>
+                      </select>
+                    </label>
+                  </div>
+                  <Button variant="primary" onClick={handleSchedCreateSubmit} disabled={busy}>
+                    {t('groupManager.sendMessages.scheduleFormSubmit')}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
             {loadingScheduled ? (
               <p className="text-sm text-gray-500">…</p>
             ) : scheduled.length === 0 ? (

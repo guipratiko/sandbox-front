@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AppLayout } from '../components/Layout';
 import { Card, Button, HelpIcon } from '../components/UI';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -26,6 +27,8 @@ export type Campaign = NewCampaignData & {
 const GroupManager: React.FC = () => {
   const { t } = useLanguage();
   const { token } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const messagesView = searchParams.get('messages') === '1';
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(true);
   const [instances, setInstances] = useState<Instance[]>([]);
@@ -51,7 +54,6 @@ const GroupManager: React.FC = () => {
   const [mentionModalGroup, setMentionModalGroup] = useState<Group | null>(null);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [showAddGroupsModal, setShowAddGroupsModal] = useState(false);
-  const [showMessagesPage, setShowMessagesPage] = useState(false);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
   const initialGroupIdsRef = useRef<string[]>([]);
@@ -476,6 +478,18 @@ const GroupManager: React.FC = () => {
     return instances.find((i) => i.id === instanceId)?.name ?? instanceId;
   };
 
+  const openMessagesView = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.set('messages', '1');
+    setSearchParams(next, { replace: false });
+  }, [searchParams, setSearchParams]);
+
+  const closeMessagesView = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('messages');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   const handleMentionEveryoneSubmit = useCallback(
     async (text: string) => {
       if (!selectedCampaign) return;
@@ -524,20 +538,17 @@ const GroupManager: React.FC = () => {
     );
   }
 
-  if (showMessagesPage) {
+  if (messagesView) {
     return (
       <AppLayout>
         <div className="animate-fadeIn space-y-4 md:space-y-5 max-w-6xl">
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="xs" onClick={() => setShowMessagesPage(false)} className="shrink-0">
+            <Button variant="outline" size="xs" onClick={closeMessagesView} className="shrink-0">
               ← {t('groupManager.messages.backToManager')}
             </Button>
           </div>
           <GroupMessagesSection
             instanceId={selectedInstance}
-            instanceDisplayName={
-              selectedInstance ? getInstanceName(selectedInstance) : undefined
-            }
             integration={instances.find((i) => i.id === selectedInstance)?.integration}
             campaigns={campaignsForGroupMessages}
           />
@@ -959,7 +970,7 @@ const GroupManager: React.FC = () => {
                 setTimeout(() => setError(null), 6000);
                 return;
               }
-              setShowMessagesPage(true);
+              openMessagesView();
             }}
           >
             <div className="flex items-start gap-3">
