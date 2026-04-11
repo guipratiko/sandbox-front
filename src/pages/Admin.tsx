@@ -7,6 +7,25 @@ import { getErrorMessage, logError } from '../utils/errorHandler';
 
 type TabType = 'notifications' | 'banners' | 'news';
 
+/** Identificadores salvos em `tool` nas novidades (dashboard / API). */
+const NEWS_TOOL_PRESETS: { value: string; label: string }[] = [
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'crm', label: 'CRM' },
+  { value: 'dispatches', label: 'Disparos' },
+  { value: 'workflows', label: 'Workflows' },
+  { value: 'ai_agent', label: 'Agente de IA' },
+  { value: 'groups', label: 'Grupos' },
+  { value: 'scrapingflow', label: 'Scraping Flow' },
+];
+const NEWS_TOOL_PRESET_SET = new Set(NEWS_TOOL_PRESETS.map((p) => p.value));
+
+function labelForNewsTool(tool: string | null | undefined): string {
+  if (!tool) return '';
+  const preset = NEWS_TOOL_PRESETS.find((p) => p.value === tool);
+  return preset ? preset.label : tool;
+}
+
 const Admin: React.FC = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('notifications');
@@ -57,6 +76,8 @@ const Admin: React.FC = () => {
     isActive: true,
     priority: 5,
   });
+  /** true = opção "Outro (texto livre)" no select de ferramenta */
+  const [newsToolUseCustom, setNewsToolUseCustom] = useState(false);
 
   // Carregar banners
   const loadBanners = useCallback(async () => {
@@ -202,9 +223,11 @@ const Admin: React.FC = () => {
   const handleOpenNewsModal = (newsItem?: SystemNews) => {
     if (newsItem) {
       setEditingNews(newsItem);
+      const t = newsItem.tool || null;
+      setNewsToolUseCustom(Boolean(t && !NEWS_TOOL_PRESET_SET.has(t)));
       setNewsFormData({
         type: newsItem.type,
-        tool: newsItem.tool || null,
+        tool: t,
         title: newsItem.title,
         description: newsItem.description,
         fullContent: newsItem.fullContent || null,
@@ -215,6 +238,7 @@ const Admin: React.FC = () => {
       });
     } else {
       setEditingNews(null);
+      setNewsToolUseCustom(false);
       setNewsFormData({
         type: 'system_update',
         tool: null,
@@ -232,6 +256,7 @@ const Admin: React.FC = () => {
   const handleCloseNewsModal = () => {
     setShowNewsModal(false);
     setEditingNews(null);
+    setNewsToolUseCustom(false);
     setNewsFormData({
       type: 'system_update',
       tool: null,
@@ -247,10 +272,17 @@ const Admin: React.FC = () => {
   const handleSaveNews = async () => {
     try {
       setError(null);
+      const toolNormalized =
+        newsToolUseCustom
+          ? newsFormData.tool && String(newsFormData.tool).trim()
+            ? String(newsFormData.tool).trim()
+            : null
+          : newsFormData.tool ?? null;
+      const payload: CreateNewsData = { ...newsFormData, tool: toolNormalized };
       if (editingNews) {
-        await adminAPI.updateNews(editingNews.id, newsFormData);
+        await adminAPI.updateNews(editingNews.id, payload);
       } else {
-        await adminAPI.createNews(newsFormData);
+        await adminAPI.createNews(payload);
       }
       handleCloseNewsModal();
       loadNews();
@@ -683,7 +715,7 @@ const Admin: React.FC = () => {
                             </span>
                             {newsItem.tool && (
                               <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-300">
-                                {newsItem.tool}
+                                {labelForNewsTool(newsItem.tool)}
                               </span>
                             )}
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -892,15 +924,59 @@ const Admin: React.FC = () => {
               <label className="block text-sm font-medium text-clerky-backendText dark:text-gray-200 mb-2">
                 Ferramenta (opcional)
               </label>
-              <Input
-                type="text"
-                value={newsFormData.tool || ''}
-                onChange={(e) => setNewsFormData({ ...newsFormData, tool: e.target.value || null })}
-                placeholder="Ex: whatsapp, instagram, crm, dispatches, workflows, ai_agent, groups"
-                className="w-full"
-              />
+              <select
+                value={
+                  newsToolUseCustom
+                    ? '__custom__'
+                    : newsFormData.tool && NEWS_TOOL_PRESET_SET.has(newsFormData.tool)
+                      ? newsFormData.tool
+                      : ''
+                }
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '') {
+                    setNewsToolUseCustom(false);
+                    setNewsFormData({ ...newsFormData, tool: null });
+                  } else if (v === '__custom__') {
+                    setNewsToolUseCustom(true);
+                    setNewsFormData({
+                      ...newsFormData,
+                      tool:
+                        newsFormData.tool && !NEWS_TOOL_PRESET_SET.has(newsFormData.tool)
+                          ? newsFormData.tool
+                          : null,
+                    });
+                  } else {
+                    setNewsToolUseCustom(false);
+                    setNewsFormData({ ...newsFormData, tool: v });
+                  }
+                }}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-[#091D41] text-clerky-backendText dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-clerky-backendButton"
+              >
+                <option value="">Nenhuma (atualização geral)</option>
+                {NEWS_TOOL_PRESETS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+                <option value="__custom__">Outro (texto livre)</option>
+              </select>
+              {newsToolUseCustom && (
+                <Input
+                  type="text"
+                  value={newsFormData.tool || ''}
+                  onChange={(e) =>
+                    setNewsFormData({
+                      ...newsFormData,
+                      tool: e.target.value ? e.target.value : null,
+                    })
+                  }
+                  placeholder="Identificador (ex.: nome interno da ferramenta)"
+                  className="w-full mt-2"
+                />
+              )}
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Deixe em branco se for uma atualização geral do sistema
+                Inclui Scraping Flow (<code className="text-[11px]">scrapingflow</code>). Deixe em branco para novidade geral.
               </p>
             </div>
 
