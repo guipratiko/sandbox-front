@@ -2045,12 +2045,15 @@ export interface GroupScheduledMessage {
   userId: string;
   instanceName: string;
   instanceId: string;
-  groupJids: string[];
+  groupJids?: string[];
+  /** Quando a API não envia groupJids (versões antigas). */
+  groupCount?: number;
   messageType: string;
-  contentJson: Record<string, unknown>;
+  contentJson?: Record<string, unknown>;
   nextRunAt: string;
   repeat: { type: 'none' | 'daily' | 'weekly' | 'monthly' };
-  status: string;
+  /** active = pendente; completed = envio único já executado (ou fim de série). */
+  status?: 'active' | 'cancelled' | 'completed' | string;
   createdAt: string;
   lastSentAt?: string;
   label?: string;
@@ -2114,6 +2117,9 @@ export const groupMessageAPI = {
   },
   cancelScheduled: async (id: string): Promise<{ status: string }> => {
     return request(`/groups/messages/scheduled/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
+  },
+  deleteScheduled: async (id: string): Promise<{ status: string }> => {
+    return request(`/groups/messages/scheduled/${encodeURIComponent(id)}/delete`, { method: 'POST' });
   },
 };
 

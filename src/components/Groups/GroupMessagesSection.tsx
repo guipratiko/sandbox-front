@@ -486,6 +486,20 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     }
   };
 
+  const handleDeleteSchedule = async (id: string) => {
+    if (!window.confirm(t('groupManager.sendMessages.confirmDeleteSchedule'))) return;
+    setBusy(true);
+    try {
+      await groupMessageAPI.deleteScheduled(id);
+      setSuccess(t('groupManager.sendMessages.deleteScheduleOk'));
+      await loadScheduled();
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Erro ao excluir'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const stopMicStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
@@ -1140,27 +1154,72 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
               <p className="text-sm text-gray-500 py-6 text-center">{t('groupManager.sendMessages.noScheduled')}</p>
             ) : (
               <ul className="space-y-2">
-                {scheduled.map((s, idx) => (
-                  <li
-                    key={s.id ?? `sched-${idx}`}
-                    className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 text-sm flex flex-wrap justify-between gap-2"
-                  >
-                    <div>
-                      <div className="font-medium">{s.label || s.messageType}</div>
-                      <div className="text-xs text-gray-500">
-                        {t('groupManager.sendMessages.scheduledFor')}:{' '}
-                        {new Date(s.nextRunAt).toLocaleString()}
+                {scheduled.map((s, idx) => {
+                  const isCompleted = s.status === 'completed';
+                  const isPending = !isCompleted;
+                  const groupNum = Array.isArray(s.groupJids)
+                    ? s.groupJids.length
+                    : (s.groupCount ?? 0);
+                  return (
+                    <li
+                      key={s.id ?? `sched-${idx}`}
+                      className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 text-sm flex flex-wrap justify-between gap-3 items-start"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                              isCompleted
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
+                                : 'bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-100'
+                            }`}
+                          >
+                            {isCompleted
+                              ? t('groupManager.sendMessages.scheduleStatusCompleted')
+                              : t('groupManager.sendMessages.scheduleStatusPending')}
+                          </span>
+                          <span className="font-medium text-clerky-backendText dark:text-gray-200">
+                            {s.label || s.messageType}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {t('groupManager.sendMessages.scheduledFor')}:{' '}
+                          {new Date(s.nextRunAt).toLocaleString()}
+                        </div>
+                        {isCompleted && s.lastSentAt ? (
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {t('groupManager.sendMessages.sentAt')}:{' '}
+                            {new Date(s.lastSentAt).toLocaleString()}
+                          </div>
+                        ) : null}
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {groupNum} grupos · {s.repeat?.type ?? '—'}
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-500">
-                        {(Array.isArray(s.groupJids) ? s.groupJids.length : 0)} grupos ·{' '}
-                        {s.repeat?.type ?? '—'}
+                      <div className="flex flex-wrap gap-2 shrink-0">
+                        {isPending ? (
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            onClick={() => handleCancelSchedule(s.id)}
+                            disabled={busy}
+                          >
+                            {t('groupManager.sendMessages.cancel')}
+                          </Button>
+                        ) : null}
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => handleDeleteSchedule(s.id)}
+                          disabled={busy}
+                          className="text-red-700 border-red-200 hover:bg-red-50 dark:text-red-300 dark:border-red-800 dark:hover:bg-red-950/40"
+                        >
+                          {t('groupManager.sendMessages.deleteSchedule')}
+                        </Button>
                       </div>
-                    </div>
-                    <Button size="xs" variant="outline" onClick={() => handleCancelSchedule(s.id)} disabled={busy}>
-                      {t('groupManager.sendMessages.cancel')}
-                    </Button>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </>
