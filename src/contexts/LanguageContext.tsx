@@ -1608,6 +1608,10 @@ const translations = {
     'groupManager.sendMessages.scheduleTargetPickGroups': 'Apenas grupos selecionados da campanha',
     'groupManager.sendMessages.scheduleFormSubmit': 'Enviar Mensagem',
     'groupManager.sendMessages.scheduledEntriesCount': '{n} agendamentos',
+    'groupManager.sendMessages.scheduleChooseTemplate': 'Escolha um template',
+    'groupManager.sendMessages.scheduleTemplateRequired': 'Selecione um template para agendar.',
+    'groupManager.sendMessages.scheduleNoTemplatesHint':
+      'Crie um template na seção acima antes de agendar.',
     'groupManager.templates.save': 'Salvar',
     'groupManager.templates.createdToast': 'Template criado.',
     'groupManager.templates.updatedToast': 'Template atualizado.',
@@ -3327,6 +3331,10 @@ const translations = {
     'groupManager.sendMessages.scheduleTargetPickGroups': 'Selected groups from the campaign only',
     'groupManager.sendMessages.scheduleFormSubmit': 'Send message',
     'groupManager.sendMessages.scheduledEntriesCount': '{n} scheduled',
+    'groupManager.sendMessages.scheduleChooseTemplate': 'Choose a template',
+    'groupManager.sendMessages.scheduleTemplateRequired': 'Select a template to schedule.',
+    'groupManager.sendMessages.scheduleNoTemplatesHint':
+      'Create a template in the section above before scheduling.',
     'groupManager.templates.save': 'Save',
     'groupManager.templates.createdToast': 'Template created.',
     'groupManager.templates.updatedToast': 'Template updated.',
