@@ -3,6 +3,7 @@ import React, {
   useEffect,
   useLayoutEffect,
   useCallback,
+  useMemo,
   useRef,
   startTransition,
 } from 'react';
@@ -33,7 +34,12 @@ import { useSocket, NewMessageData, ContactUpdatedPayload } from '../hooks/useSo
 import { sortMessagesByTimestamp, formatLastMessageContent } from '../utils/messageUtils';
 import { userHasPremiumPlan } from '../utils/planAccess';
 import { getInitials } from '../utils/formatters';
-import { formatTime } from '../utils/dateFormatters';
+import {
+  formatTime,
+  resolveUserDisplayTimeZone,
+  formatChatDaySeparatorLabel,
+  groupCrmChatMessagesByUserCalendarDay,
+} from '../utils/dateFormatters';
 
 // @dnd-kit imports
 import {
@@ -554,6 +560,120 @@ function isCrmMediaPlaceholderContent(content: string | undefined): boolean {
   return placeholders.has(key);
 }
 
+interface CrmChatMessageBubbleProps {
+  msg: Message;
+  language: 'pt' | 'en';
+  newMessageIds: Set<string>;
+}
+
+const CrmChatMessageBubble: React.FC<CrmChatMessageBubbleProps> = ({ msg, language, newMessageIds }) => {
+  const effType = effectiveCrmMessageTypeForMedia(msg);
+  const isMedia =
+    !!msg.mediaUrl &&
+    ['imageMessage', 'stickerMessage', 'audioMessage', 'videoMessage', 'documentMessage'].includes(effType);
+  const isImage = isMedia && (effType === 'imageMessage' || effType === 'stickerMessage');
+  const isAudio = isMedia && effType === 'audioMessage';
+  const isVideo = isMedia && effType === 'videoMessage';
+  const isDocument = isMedia && effType === 'documentMessage';
+
+  const isNewMessage = newMessageIds.has(msg.id);
+  const isAutomationOutbound = msg.fromMe && msg.automatedOutbound === true;
+
+  return (
+    <div
+      className={`flex ${msg.fromMe ? 'justify-end' : 'justify-start'} ${
+        isNewMessage ? 'animate-message-appear' : ''
+      }`}
+    >
+      <div
+        className={`${isImage || isVideo ? 'w-fit' : 'max-w-[85%] sm:max-w-[75%]'} rounded-2xl ${isImage || isVideo ? 'p-1 overflow-hidden' : 'px-3 sm:px-4 py-2 sm:py-2.5'} shadow-sm ${
+          msg.fromMe
+            ? isAutomationOutbound
+              ? 'bg-[#5B9DFE] text-white rounded-br-md'
+              : 'bg-[#D9FCD2] text-[#0f1f1c] dark:bg-[#064640] dark:text-gray-100 rounded-br-md'
+            : 'bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200 rounded-bl-md'
+        }`}
+      >
+        {isMedia ? (
+          <div>
+            {isImage && (
+              <img
+                src={msg.mediaUrl!}
+                alt="Imagem"
+                className="max-w-[250px] h-auto rounded-lg block"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            )}
+            {isVideo && (
+              <video src={msg.mediaUrl!} controls className="max-w-[250px] h-auto rounded-lg block">
+                Seu navegador não suporta vídeo.
+              </video>
+            )}
+            {isAudio && (
+              <div className="flex items-center gap-2">
+                <audio src={msg.mediaUrl!} controls className="flex-1">
+                  Seu navegador não suporta áudio.
+                </audio>
+              </div>
+            )}
+            {isDocument && (
+              <div className="flex items-center gap-2">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                  />
+                </svg>
+                <a
+                  href={msg.mediaUrl!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm underline hover:opacity-80"
+                >
+                  Baixar documento
+                </a>
+              </div>
+            )}
+            {!isImage && !isVideo && !isAudio && !isDocument && (
+              <p className="text-sm">[Mídia não suportada]</p>
+            )}
+            {msg.content && !isCrmMediaPlaceholderContent(msg.content) && (
+              <p
+                className={`text-sm mt-2 whitespace-pre-wrap break-words ${
+                  msg.fromMe
+                    ? isAutomationOutbound
+                      ? 'text-white/95'
+                      : 'text-[#0f1f1c]/95 dark:text-gray-100'
+                    : 'text-clerky-backendText dark:text-gray-200'
+                }`}
+              >
+                {msg.content}
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+        )}
+        <p
+          className={`text-xs mt-1 ${
+            msg.fromMe
+              ? isAutomationOutbound
+                ? 'text-white/85'
+                : 'text-[#14532d]/65 dark:text-white/70'
+              : 'text-gray-500'
+          }`}
+        >
+          {formatTime(msg.timestamp, language)}
+        </p>
+      </div>
+    </div>
+  );
+};
+
 // Componente de Modal de Chat
 interface ChatModalProps {
   isOpen: boolean;
@@ -576,7 +696,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
   modalId,
   zIndex = 50,
 }) => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { language } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -601,6 +721,50 @@ const ChatModal: React.FC<ChatModalProps> = ({
   const [availableLabels, setAvailableLabels] = useState<Label[]>([]);
   const [contactLabels, setContactLabels] = useState<Set<string>>(new Set());
   const [isLoadingLabels, setIsLoadingLabels] = useState(false);
+
+  const chatTimeZone = useMemo(
+    () => resolveUserDisplayTimeZone(user?.timezone),
+    [user?.timezone]
+  );
+  const messageGroups = useMemo(
+    () => groupCrmChatMessagesByUserCalendarDay(messages, chatTimeZone),
+    [messages, chatTimeZone]
+  );
+  const [stickyDayLabel, setStickyDayLabel] = useState('');
+  const dayGroupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const handleMessagesScroll = useCallback(() => {
+    const root = messagesContainerRef.current;
+    if (!root || messageGroups.length === 0) {
+      return;
+    }
+    const rootRect = root.getBoundingClientRect();
+    const threshold = rootRect.top + 44;
+    let active = messageGroups[0];
+    for (const g of messageGroups) {
+      const el = dayGroupRefs.current[g.dayKey];
+      if (!el) continue;
+      if (el.getBoundingClientRect().top <= threshold) {
+        active = g;
+      }
+    }
+    const label = formatChatDaySeparatorLabel(
+      new Date(active.messages[0].timestamp),
+      chatTimeZone,
+      language as 'pt' | 'en'
+    );
+    setStickyDayLabel((prev) => (prev === label ? prev : label));
+  }, [messageGroups, chatTimeZone, language]);
+
+  useEffect(() => {
+    dayGroupRefs.current = {};
+  }, [contact?.id]);
+
+  useEffect(() => {
+    if (messageGroups.length === 0) {
+      setStickyDayLabel('');
+    }
+  }, [messageGroups.length]);
 
   const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -749,8 +913,11 @@ const ChatModal: React.FC<ChatModalProps> = ({
       const container = messagesContainerRef.current;
       container.scrollTop = container.scrollHeight;
       isInitialLoadRef.current = false;
+      queueMicrotask(() => {
+        handleMessagesScroll();
+      });
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, handleMessagesScroll]);
 
 
   const handleSendMessage = async () => {
@@ -1172,9 +1339,10 @@ const ChatModal: React.FC<ChatModalProps> = ({
       >
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Área de mensagens — único scroll (barra invisível) */}
-          <div 
+          <div
             ref={messagesContainerRef}
-            className="flex-1 min-h-0 overflow-y-auto scrollbar-hide p-3 sm:p-4 bg-gray-50/80 dark:bg-[#0d1f3c] rounded-2xl mb-3 sm:mb-4 overscroll-contain"
+            onScroll={handleMessagesScroll}
+            className="relative flex-1 min-h-0 overflow-y-auto scrollbar-hide p-3 sm:p-4 bg-gray-50/80 dark:bg-[#0d1f3c] rounded-2xl mb-3 sm:mb-4 overscroll-contain"
           >
           {isLoading ? (
             <div className="text-center py-8 sm:py-10">
@@ -1186,132 +1354,46 @@ const ChatModal: React.FC<ChatModalProps> = ({
               Nenhuma mensagem ainda. Inicie a conversa!
             </div>
           ) : (
-            <div className="space-y-3 sm:space-y-4">
-              {messages.map((msg) => {
-                const effType = effectiveCrmMessageTypeForMedia(msg);
-                const isMedia =
-                  !!msg.mediaUrl &&
-                  ['imageMessage', 'stickerMessage', 'audioMessage', 'videoMessage', 'documentMessage'].includes(
-                    effType
-                  );
-                const isImage = isMedia && (effType === 'imageMessage' || effType === 'stickerMessage');
-                const isAudio = isMedia && effType === 'audioMessage';
-                const isVideo = isMedia && effType === 'videoMessage';
-                const isDocument = isMedia && effType === 'documentMessage';
-
-                const isNewMessage = newMessageIds.has(msg.id);
-                const isAutomationOutbound = msg.fromMe && msg.automatedOutbound === true;
-
-                return (
+            <>
+              <div className="sticky top-0 z-10 flex justify-center pointer-events-none mb-2">
+                <span className="rounded-full px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 bg-white/95 dark:bg-gray-800/95 border border-gray-200/90 dark:border-gray-600/80 shadow-sm">
+                  {stickyDayLabel || '\u00a0'}
+                </span>
+              </div>
+              <div className="space-y-4 sm:space-y-5">
+                {messageGroups.map((group) => (
                   <div
-                    key={msg.id}
-                    className={`flex ${msg.fromMe ? 'justify-end' : 'justify-start'} ${
-                      isNewMessage ? 'animate-message-appear' : ''
-                    }`}
+                    key={group.dayKey}
+                    data-chat-day={group.dayKey}
+                    ref={(el) => {
+                      if (el) dayGroupRefs.current[group.dayKey] = el;
+                      else delete dayGroupRefs.current[group.dayKey];
+                    }}
                   >
-                    <div
-                      className={`${isImage || isVideo ? 'w-fit' : 'max-w-[85%] sm:max-w-[75%]'} rounded-2xl ${isImage || isVideo ? 'p-1 overflow-hidden' : 'px-3 sm:px-4 py-2 sm:py-2.5'} shadow-sm ${
-                        msg.fromMe
-                          ? isAutomationOutbound
-                            ? 'bg-[#5B9DFE] text-white rounded-br-md'
-                            : 'bg-[#D9FCD2] text-[#0f1f1c] dark:bg-[#064640] dark:text-gray-100 rounded-br-md'
-                          : 'bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200 rounded-bl-md'
-                      }`}
-                    >
-                        {isMedia ? (
-                          <div>
-                            {isImage && (
-                              <img
-                                src={msg.mediaUrl!}
-                                alt="Imagem"
-                                className="max-w-[250px] h-auto rounded-lg block"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
-                            )}
-                            {isVideo && (
-                              <video
-                                src={msg.mediaUrl!}
-                                controls
-                                className="max-w-[250px] h-auto rounded-lg block"
-                              >
-                                Seu navegador não suporta vídeo.
-                              </video>
-                            )}
-                          {isAudio && (
-                            <div className="flex items-center gap-2">
-                              <audio
-                                src={msg.mediaUrl!}
-                                controls
-                                className="flex-1"
-                              >
-                                Seu navegador não suporta áudio.
-                              </audio>
-                            </div>
-                          )}
-                          {isDocument && (
-                            <div className="flex items-center gap-2">
-                              <svg
-                                className="w-6 h-6"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                                />
-                              </svg>
-                              <a
-                                href={msg.mediaUrl!}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm underline hover:opacity-80"
-                              >
-                                Baixar documento
-                              </a>
-                            </div>
-                          )}
-                          {!isImage && !isVideo && !isAudio && !isDocument && (
-                            <p className="text-sm">[Mídia não suportada]</p>
-                          )}
-                          {msg.content && !isCrmMediaPlaceholderContent(msg.content) && (
-                            <p
-                              className={`text-sm mt-2 whitespace-pre-wrap break-words ${
-                                msg.fromMe
-                                  ? isAutomationOutbound
-                                    ? 'text-white/95'
-                                    : 'text-[#0f1f1c]/95 dark:text-gray-100'
-                                  : 'text-clerky-backendText dark:text-gray-200'
-                              }`}
-                            >
-                              {msg.content}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
-                      )}
-                      <p
-                        className={`text-xs mt-1 ${
-                          msg.fromMe
-                            ? isAutomationOutbound
-                              ? 'text-white/85'
-                              : 'text-[#14532d]/65 dark:text-white/70'
-                            : 'text-gray-500'
-                        }`}
-                      >
-                        {formatTime(msg.timestamp, language as 'pt' | 'en')}
-                      </p>
+                    <div className="flex justify-center py-1.5">
+                      <span className="rounded-full px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-200/90 dark:bg-gray-700/90">
+                        {formatChatDaySeparatorLabel(
+                          new Date(group.messages[0].timestamp),
+                          chatTimeZone,
+                          language as 'pt' | 'en'
+                        )}
+                      </span>
+                    </div>
+                    <div className="space-y-3 sm:space-y-4">
+                      {group.messages.map((msg) => (
+                        <CrmChatMessageBubble
+                          key={msg.id}
+                          msg={msg}
+                          language={language as 'pt' | 'en'}
+                          newMessageIds={newMessageIds}
+                        />
+                      ))}
                     </div>
                   </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+            </>
           )}
         </div>
 
