@@ -409,6 +409,17 @@ const translations = {
     'crmContacts.vcfError': 'Falha na importação.',
     'crmContacts.vcfResult':
       'Importação: {created} novos, {skipped} ignorados (duplicados ou número inválido). Cartões lidos no arquivo: {cards}.',
+    'crmContacts.deleteAllTitle': 'Apagar todos os contatos desta instância',
+    'crmContacts.deleteAllDescription':
+      'Remove todos os cards do CRM e o histórico de mensagens da instância selecionada em «Instância e coluna». Não pode ser desfeito.',
+    'crmContacts.deleteAllButton': 'Apagar todos os contatos',
+    'crmContacts.deleteAllSuccess': '{count} contato(s) removido(s).',
+    'crmContacts.deleteAllError': 'Não foi possível remover os contatos.',
+    'crmContacts.deleteAllNeedInstance': 'Selecione a instância WhatsApp acima.',
+    'crmContacts.deleteAllForbiddenHint':
+      'Para usar esta opção, ative em Configurações (aba Kanban) a permissão para excluir cards de conversa no CRM.',
+    'crmContacts.deleteAllConfirm':
+      'Apagar TODOS os contatos e o histórico de mensagens da instância «{instance}» no CRM? Esta ação é irreversível.',
     // Settings
     'settings.title': 'Configurações',
     'settings.subtitle': 'Gerencie seu perfil, senha e preferências do sistema',
@@ -2179,6 +2190,17 @@ const translations = {
     'crmContacts.vcfError': 'Import failed.',
     'crmContacts.vcfResult':
       'Import: {created} new, {skipped} skipped (duplicates or invalid). Cards parsed: {cards}.',
+    'crmContacts.deleteAllTitle': 'Delete all contacts for this instance',
+    'crmContacts.deleteAllDescription':
+      'Removes all CRM cards and message history for the instance selected under «Instance and column». This cannot be undone.',
+    'crmContacts.deleteAllButton': 'Delete all contacts',
+    'crmContacts.deleteAllSuccess': '{count} contact(s) removed.',
+    'crmContacts.deleteAllError': 'Could not remove contacts.',
+    'crmContacts.deleteAllNeedInstance': 'Select the WhatsApp instance above.',
+    'crmContacts.deleteAllForbiddenHint':
+      'To use this option, enable “Allow deleting conversation cards in the CRM” in Settings (Kanban tab).',
+    'crmContacts.deleteAllConfirm':
+      'Delete ALL contacts and message history for instance «{instance}» in the CRM? This is irreversible.',
     // Settings
     'settings.title': 'Settings',
     'settings.subtitle': 'Manage your profile, password and system preferences',

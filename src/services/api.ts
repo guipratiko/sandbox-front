@@ -860,6 +860,15 @@ export const crmAPI = {
     });
   },
 
+  deleteAllContactsInInstance: async (
+    instanceId: string
+  ): Promise<{ status: string; message: string; deletedCount: number }> => {
+    return request<{ status: string; message: string; deletedCount: number }>(
+      `/crm/contacts/instance/${encodeURIComponent(instanceId)}`,
+      { method: 'DELETE' }
+    );
+  },
+
   getColumns: async (): Promise<GetColumnsResponse> => {
     return request<GetColumnsResponse>('/crm/columns');
   },

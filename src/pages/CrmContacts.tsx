@@ -15,6 +15,8 @@ const CrmContacts: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
+  const [allowDeleteCard, setAllowDeleteCard] = useState(false);
 
   const [instanceId, setInstanceId] = useState('');
   const [columnId, setColumnId] = useState('');
@@ -27,10 +29,12 @@ const CrmContacts: React.FC = () => {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [waRes, colRes] = await Promise.all([
+      const [waRes, colRes, prefRes] = await Promise.all([
         instanceAPI.getAll(),
         crmAPI.getColumns(),
+        crmAPI.getPreferences(),
       ]);
+      setAllowDeleteCard(!!prefRes.preferences?.allowDeleteConversationCard);
       setInstances((waRes.instances || []).filter(isNonOfficialWhatsapp));
       const sorted = [...colRes.columns].sort((a, b) => a.order - b.order);
       setColumns(sorted);
@@ -108,6 +112,34 @@ const CrmContacts: React.FC = () => {
       setFormError(err.message || t('crmContacts.vcfError'));
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleDeleteAllInInstance = async () => {
+    setSuccessBanner(null);
+    setFormError(null);
+    if (!instanceId) {
+      setFormError(t('crmContacts.deleteAllNeedInstance'));
+      return;
+    }
+    if (!allowDeleteCard) {
+      return;
+    }
+    const instName = instances.find((i) => i.id === instanceId)?.name || instanceId;
+    if (!window.confirm(t('crmContacts.deleteAllConfirm', { instance: instName }))) {
+      return;
+    }
+    try {
+      setDeletingAll(true);
+      const res = await crmAPI.deleteAllContactsInInstance(instanceId);
+      setFormError(null);
+      setSuccessBanner(t('crmContacts.deleteAllSuccess', { count: String(res.deletedCount) }));
+      setTimeout(() => setSuccessBanner(null), 8000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      setFormError(msg || t('crmContacts.deleteAllError'));
+    } finally {
+      setDeletingAll(false);
     }
   };
 
@@ -245,6 +277,30 @@ const CrmContacts: React.FC = () => {
                   {t('crmContacts.vcfImportButton')}
                 </Button>
               </div>
+            </Card>
+
+            <Card padding="md" shadow="lg" className="p-4 md:p-8 border border-red-200 dark:border-red-900/40">
+              <h2 className="text-lg font-semibold text-red-800 dark:text-red-300 mb-2">
+                {t('crmContacts.deleteAllTitle')}
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{t('crmContacts.deleteAllDescription')}</p>
+              {!allowDeleteCard && (
+                <p className="text-xs text-amber-800 dark:text-amber-200/90 bg-amber-50 dark:bg-amber-950/40 rounded-lg px-3 py-2 mb-3">
+                  {t('crmContacts.deleteAllForbiddenHint')}{' '}
+                  <Link to="/configuracoes" className="underline font-medium text-amber-900 dark:text-amber-100">
+                    {t('settings.title')}
+                  </Link>
+                </p>
+              )}
+              <Button
+                type="button"
+                variant="danger"
+                onClick={handleDeleteAllInInstance}
+                isLoading={deletingAll}
+                disabled={!instanceId || !allowDeleteCard}
+              >
+                {t('crmContacts.deleteAllButton')}
+              </Button>
             </Card>
           </>
         )}
