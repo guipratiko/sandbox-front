@@ -329,101 +329,90 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
             ) : currentParticipants.length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-gray-400">{t('groupManager.configureGroup.noParticipants')}</p>
             ) : (
-              currentParticipants.map((p) => (
-                <label key={p.id} className="flex items-center gap-2 text-sm text-clerky-backendText dark:text-gray-200">
-                  <input
-                    type="checkbox"
-                    checked={participantsToRemove.has(p.id)}
-                    onChange={() => toggleRemoveParticipant(p.id)}
-                    className="rounded border-gray-300 dark:border-gray-600 text-clerky-backendButton"
-                  />
-                  <span>{(p as GroupParticipantEvolution).name ?? (p as GroupParticipantEvolution).phoneNumber ?? p.id}</span>
-                </label>
-              ))
-            )}
-          </div>
-        </div>
-
-        {!loadingParticipants && currentParticipants.length > 0 && (
-          <div>
-            <h4 className="text-sm font-medium text-clerky-backendText dark:text-gray-200 mb-1">
-              {t('groupManager.configureGroup.adminsSection')}
-            </h4>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-              {t('groupManager.configureGroup.adminsSectionHint')}
-            </p>
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
-              {currentParticipants.map((p) => {
-                const isAdmin = isParticipantAdminEvolution(p);
-                const phoneDigits = digitsForEvolutionAdminAction(p);
-                const canAdminAction = Boolean(phoneDigits);
-                const markedRemove = participantsToRemove.has(p.id);
-                const pendingPromote = participantsToPromote.has(p.id);
-                const pendingDemote = participantsToDemote.has(p.id);
-                return (
-                  <div
-                    key={`admin-${p.id}`}
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 text-sm text-clerky-backendText dark:text-gray-200"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium truncate">
-                          {(p as GroupParticipantEvolution).name ??
-                            (p as GroupParticipantEvolution).phoneNumber ??
-                            p.id}
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500 dark:text-gray-400 -mt-1">
+                  {t('groupManager.configureGroup.adminsSectionHint')}
+                </p>
+                {currentParticipants.map((p) => {
+                  const isAdmin = isParticipantAdminEvolution(p);
+                  const phoneDigits = digitsForEvolutionAdminAction(p);
+                  const canAdminAction = Boolean(phoneDigits);
+                  const markedRemove = participantsToRemove.has(p.id);
+                  const pendingPromote = participantsToPromote.has(p.id);
+                  const pendingDemote = participantsToDemote.has(p.id);
+                  return (
+                    <div
+                      key={p.id}
+                      className="rounded-lg border border-gray-100 dark:border-gray-600/80 bg-gray-50/50 dark:bg-gray-800/40 p-2.5 space-y-2"
+                    >
+                      <label className="flex items-center gap-2 text-sm text-clerky-backendText dark:text-gray-200 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={markedRemove}
+                          onChange={() => toggleRemoveParticipant(p.id)}
+                          className="rounded border-gray-300 dark:border-gray-600 text-clerky-backendButton shrink-0"
+                        />
+                        <span className="min-w-0 flex flex-wrap items-center gap-2">
+                          <span className="truncate">
+                            {(p as GroupParticipantEvolution).name ??
+                              (p as GroupParticipantEvolution).phoneNumber ??
+                              p.id}
+                          </span>
+                          {isAdmin && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200 shrink-0">
+                              {t('groupManager.admin')}
+                            </span>
+                          )}
+                          {pendingPromote && (
+                            <span className="text-xs text-clerky-backendButton shrink-0">
+                              {t('groupManager.configureGroup.pendingPromote')}
+                            </span>
+                          )}
+                          {pendingDemote && (
+                            <span className="text-xs text-orange-600 dark:text-orange-400 shrink-0">
+                              {t('groupManager.configureGroup.pendingDemote')}
+                            </span>
+                          )}
                         </span>
-                        {isAdmin && (
-                          <span className="text-xs px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200">
-                            {t('groupManager.admin')}
-                          </span>
-                        )}
-                        {pendingPromote && (
-                          <span className="text-xs text-clerky-backendButton">{t('groupManager.configureGroup.pendingPromote')}</span>
-                        )}
-                        {pendingDemote && (
-                          <span className="text-xs text-orange-600 dark:text-orange-400">
-                            {t('groupManager.configureGroup.pendingDemote')}
-                          </span>
-                        )}
-                      </div>
+                      </label>
                       {!canAdminAction && (
-                        <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                        <p className="text-xs text-amber-700 dark:text-amber-300 pl-7">
                           {t('groupManager.configureGroup.cannotResolvePhone')}
                         </p>
                       )}
+                      <div className="flex flex-wrap gap-2 pl-7">
+                        <button
+                          type="button"
+                          disabled={markedRemove || !canAdminAction || isAdmin}
+                          onClick={() => togglePromoteAdmin(p.id)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                            pendingPromote
+                              ? 'border-clerky-backendButton bg-clerky-backendButton/15 text-clerky-backendButton'
+                              : 'border-gray-300 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          {t('groupManager.configureGroup.promoteToAdmin')}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={markedRemove || !canAdminAction || !isAdmin}
+                          onClick={() => toggleDemoteAdmin(p.id)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                            pendingDemote
+                              ? 'border-orange-500 bg-orange-500/10 text-orange-700 dark:text-orange-300'
+                              : 'border-gray-300 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          {t('groupManager.configureGroup.demoteFromAdmin')}
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 shrink-0">
-                      <button
-                        type="button"
-                        disabled={markedRemove || !canAdminAction || isAdmin}
-                        onClick={() => togglePromoteAdmin(p.id)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                          pendingPromote
-                            ? 'border-clerky-backendButton bg-clerky-backendButton/15 text-clerky-backendButton'
-                            : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
-                        }`}
-                      >
-                        {t('groupManager.configureGroup.promoteToAdmin')}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={markedRemove || !canAdminAction || !isAdmin}
-                        onClick={() => toggleDemoteAdmin(p.id)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                          pendingDemote
-                            ? 'border-orange-500 bg-orange-500/10 text-orange-700 dark:text-orange-300'
-                            : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
-                        }`}
-                      >
-                        {t('groupManager.configureGroup.demoteFromAdmin')}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         <div>
           <h4 className="text-sm font-medium text-clerky-backendText dark:text-gray-200 mb-2">
