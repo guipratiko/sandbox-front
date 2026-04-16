@@ -2001,7 +2001,7 @@ export const groupAPI = {
   updateParticipant: async (
     instanceId: string,
     groupJid: string,
-    action: 'add' | 'remove',
+    action: 'add' | 'remove' | 'promote' | 'demote',
     participants: string[]
   ): Promise<{ status: string }> => {
     return request<{ status: string }>('/groups/updateParticipant', {

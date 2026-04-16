@@ -1276,6 +1276,15 @@ const translations = {
     'groupManager.configureGroup.noParticipants': 'Nenhum participante carregado',
     'groupManager.configureGroup.manualPlaceholder': 'Número ou número e nome (um por linha ou separados por vírgula)',
     'groupManager.configureGroup.scrollHint': 'Há mais conteúdo abaixo',
+    'groupManager.configureGroup.adminsSection': 'Administradores do grupo',
+    'groupManager.configureGroup.adminsSectionHint':
+      'Promover ou remover admin via WhatsApp (Evolution). Aplica ao clicar em Concluir.',
+    'groupManager.configureGroup.promoteToAdmin': 'Promover a admin',
+    'groupManager.configureGroup.demoteFromAdmin': 'Remover admin',
+    'groupManager.configureGroup.pendingPromote': 'Será promovido ao salvar',
+    'groupManager.configureGroup.pendingDemote': 'Será rebaixado ao salvar',
+    'groupManager.configureGroup.cannotResolvePhone':
+      'Não foi possível obter o número deste participante para a Evolution.',
     'groupManager.participants': 'Participantes',
     'groupManager.created': 'Criado em',
     'groupManager.viewDetails': 'Ver Detalhes',
@@ -3056,6 +3065,15 @@ const translations = {
     'groupManager.configureGroup.noParticipants': 'No participants loaded',
     'groupManager.configureGroup.manualPlaceholder': 'Phone or phone and name (one per line or comma-separated)',
     'groupManager.configureGroup.scrollHint': 'More content below',
+    'groupManager.configureGroup.adminsSection': 'Group admins',
+    'groupManager.configureGroup.adminsSectionHint':
+      'Promote or demote admins via WhatsApp (Evolution). Applied when you click Finish.',
+    'groupManager.configureGroup.promoteToAdmin': 'Promote to admin',
+    'groupManager.configureGroup.demoteFromAdmin': 'Demote from admin',
+    'groupManager.configureGroup.pendingPromote': 'Will be promoted on save',
+    'groupManager.configureGroup.pendingDemote': 'Will be demoted on save',
+    'groupManager.configureGroup.cannotResolvePhone':
+      'Could not resolve this participant phone for Evolution.',
     'groupManager.participants': 'Participants',
     'groupManager.created': 'Created on',
     'groupManager.viewDetails': 'View Details',
