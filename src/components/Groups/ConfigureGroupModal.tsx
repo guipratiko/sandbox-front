@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Modal, Button, Input } from '../UI';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Group, groupAPI, GroupParticipantEvolution } from '../../services/api';
+import { getGroupParticipantCardDisplay } from '../../utils/groupUtils';
 
 interface ConfigureGroupModalProps {
   isOpen: boolean;
@@ -35,13 +36,6 @@ function isEvolutionSuperAdmin(p: GroupParticipantEvolution): boolean {
   const a = p.admin;
   if (a == null || a === '') return false;
   return String(a).toLowerCase() === 'superadmin';
-}
-
-function participantInitial(label: string): string {
-  const t = label.trim();
-  if (!t) return '?';
-  const c = t[0];
-  return c && /[a-zA-ZÀ-ÿ0-9]/.test(c) ? c.toUpperCase() : '?';
 }
 
 const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
@@ -350,11 +344,10 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
             ) : (
               currentParticipants.map((p) => {
                 const pe = p as GroupParticipantEvolution;
-                const label = pe.name ?? pe.phoneNumber ?? pe.id;
+                const { title: cardTitle, subtitle: cardSubtitle, avatarInitial } = getGroupParticipantCardDisplay(pe);
                 const isAdmin = isEvolutionGroupAdmin(pe);
                 const isSuper = isEvolutionSuperAdmin(pe);
                 const busy = adminMutationParticipantId === p.id;
-                const initial = participantInitial(label);
                 return (
                   <div
                     key={p.id}
@@ -373,12 +366,12 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
                         }`}
                         aria-hidden
                       >
-                        {initial}
+                        {avatarInitial}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium text-sm text-clerky-backendText dark:text-gray-100 truncate">
-                            {label}
+                            {cardTitle}
                           </span>
                           {isSuper && (
                             <span className="shrink-0 text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-md bg-violet-200 text-violet-900 dark:bg-violet-900/60 dark:text-violet-100">
@@ -391,8 +384,10 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
                             </span>
                           )}
                         </div>
-                        {pe.phoneNumber && pe.name && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{pe.phoneNumber}</p>
+                        {cardSubtitle && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5 tabular-nums">
+                            {cardSubtitle}
+                          </p>
                         )}
                       </div>
                     </div>
