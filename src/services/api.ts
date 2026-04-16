@@ -47,7 +47,7 @@ export interface User {
   companyName?: string | null;
   phone?: string | null;
   timezone?: string;
-  premiumPlan?: 'free' | 'start' | 'advance' | 'pro';
+  premiumPlan?: 'free' | 'start' | 'advance' | 'pro' | 'enterprise';
   maxWhatsAppInstances?: number;
   maxOfficialWhatsAppInstances?: number;
   maxInstagramInstances?: number;
