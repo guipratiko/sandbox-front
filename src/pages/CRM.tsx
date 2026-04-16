@@ -1361,7 +1361,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
                 </span>
               </div>
               <div className="space-y-4 sm:space-y-5">
-                {messageGroups.map((group, groupIdx) => (
+                {messageGroups.map((group) => (
                   <div
                     key={group.dayKey}
                     data-chat-day={group.dayKey}
@@ -1370,17 +1370,15 @@ const ChatModal: React.FC<ChatModalProps> = ({
                       else delete dayGroupRefs.current[group.dayKey];
                     }}
                   >
-                    {groupIdx > 0 ? (
-                      <div className="flex justify-center py-1.5">
-                        <span className="rounded-full px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-200/90 dark:bg-gray-700/90">
-                          {formatChatDaySeparatorLabel(
-                            new Date(group.messages[0].timestamp),
-                            chatTimeZone,
-                            language as 'pt' | 'en'
-                          )}
-                        </span>
-                      </div>
-                    ) : null}
+                    <div className="flex justify-center py-1.5">
+                      <span className="rounded-full px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-200/90 dark:bg-gray-700/90">
+                        {formatChatDaySeparatorLabel(
+                          new Date(group.messages[0].timestamp),
+                          chatTimeZone,
+                          language as 'pt' | 'en'
+                        )}
+                      </span>
+                    </div>
                     <div className="space-y-3 sm:space-y-4">
                       {group.messages.map((msg) => (
                         <CrmChatMessageBubble
