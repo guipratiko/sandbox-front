@@ -711,6 +711,9 @@ const translations = {
     'dispatchCreator.timezoneHint': 'Deixe em branco para usar o timezone do seu perfil',
     'dispatchCreator.useProfileTimezone': 'Usar timezone do perfil',
     'dispatchCreator.autoDelete': 'Excluir mensagem automaticamente para todos',
+    'dispatchCreator.mirrorDispatchToCrm': 'Mostrar mensagens deste disparo no CRM',
+    'dispatchCreator.mirrorDispatchToCrmHint':
+      'Aplica-se a instâncias Evolution. Cada envio (e todas as etapas em sequência) aparece no histórico do contacto. Requer DISPATCH_CLERKY_INTERNAL_KEY no Backend e no Disparo-Clerky.',
     'dispatchCreator.deleteDelay': 'Delay',
     'dispatchCreator.deleteDelayUnit': 'Unidade',
     'dispatchCreator.seconds': 'Segundos',
@@ -2477,6 +2480,9 @@ const translations = {
     'dispatchCreator.timezoneHint': 'Deixe em branco para usar o timezone do seu perfil',
     'dispatchCreator.useProfileTimezone': 'Usar timezone do perfil',
     'dispatchCreator.autoDelete': 'Automatically delete message for everyone',
+    'dispatchCreator.mirrorDispatchToCrm': 'Show this campaign’s messages in the CRM',
+    'dispatchCreator.mirrorDispatchToCrmHint':
+      'Evolution instances only. Each send (and every step in a sequence) appears in the contact thread. Requires DISPATCH_CLERKY_INTERNAL_KEY on Backend and Disparo-Clerky.',
     'dispatchCreator.deleteDelay': 'Delay',
     'dispatchCreator.deleteDelayUnit': 'Unit',
     'dispatchCreator.seconds': 'Seconds',
