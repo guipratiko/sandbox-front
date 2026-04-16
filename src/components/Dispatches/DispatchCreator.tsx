@@ -28,10 +28,10 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
   const [selectedColumnIds, setSelectedColumnIds] = useState<string[]>([]);
   const [speed, setSpeed] = useState<'fast' | 'normal' | 'slow' | 'randomized'>('normal');
   const [autoDelete, setAutoDelete] = useState(false);
+  /** Quando false, mensagens deste disparo não são gravadas no chat do CRM. */
+  const [showMessagesInCrmChat, setShowMessagesInCrmChat] = useState(true);
   const [deleteDelay, setDeleteDelay] = useState(0);
   const [deleteDelayUnit, setDeleteDelayUnit] = useState<'seconds' | 'minutes' | 'hours'>('seconds');
-  /** Quando true, o Disparo-Clerky espelha cada envio em contacts/messages (chat CRM). */
-  const [showDispatchInChat, setShowDispatchInChat] = useState(false);
   const [defaultName, setDefaultName] = useState('Cliente');
   const [hasSchedule, setHasSchedule] = useState(false);
   const [startDate, setStartDate] = useState('');
@@ -67,7 +67,7 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
           setAutoDelete(initialData.settings.autoDelete || false);
           setDeleteDelay(initialData.settings.deleteDelay || 0);
           setDeleteDelayUnit(initialData.settings.deleteDelayUnit || 'seconds');
-          setShowDispatchInChat(initialData.settings.showInChat === true);
+          setShowMessagesInCrmChat(initialData.settings.showMessagesInCrmChat !== false);
         }
         if (initialData.defaultName) setDefaultName(initialData.defaultName);
         if (initialData.schedule) {
@@ -84,9 +84,9 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
         setSelectedTemplateId('');
         setSpeed('normal');
         setAutoDelete(false);
+        setShowMessagesInCrmChat(true);
         setDeleteDelay(0);
         setDeleteDelayUnit('seconds');
-        setShowDispatchInChat(false);
         setDefaultName('Cliente');
         setHasSchedule(false);
         setStartDate('');
@@ -300,7 +300,7 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
           autoDelete,
           deleteDelay: autoDelete ? deleteDelay : undefined,
           deleteDelayUnit: autoDelete ? deleteDelayUnit : undefined,
-          showInChat: showDispatchInChat,
+          showMessagesInCrmChat,
         },
         schedule: hasSchedule
           ? {
@@ -334,9 +334,9 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
       setSelectedColumnIds([]);
       setSpeed('normal');
       setAutoDelete(false);
+      setShowMessagesInCrmChat(true);
       setDeleteDelay(0);
       setDeleteDelayUnit('seconds');
-      setShowDispatchInChat(false);
       setDefaultName('Cliente');
       setHasSchedule(false);
       setStartTime('08:00');
@@ -617,14 +617,14 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
               <label className="flex items-start gap-2 text-gray-700 dark:text-gray-300">
                 <input
                   type="checkbox"
-                  checked={showDispatchInChat}
-                  onChange={(e) => setShowDispatchInChat(e.target.checked)}
+                  checked={showMessagesInCrmChat}
+                  onChange={(e) => setShowMessagesInCrmChat(e.target.checked)}
                   className="mt-1 shrink-0"
                 />
                 <span>
-                  <span className="font-medium block">{t('dispatchCreator.showInChat')}</span>
+                  <span className="font-medium block">{t('dispatchCreator.showMessagesInCrmChat')}</span>
                   <span className="text-xs text-gray-500 dark:text-gray-400 block mt-0.5">
-                    {t('dispatchCreator.showInChatHint')}
+                    {t('dispatchCreator.showMessagesInCrmChatHint')}
                   </span>
                 </span>
               </label>

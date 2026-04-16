@@ -711,9 +711,9 @@ const translations = {
     'dispatchCreator.timezoneHint': 'Deixe em branco para usar o timezone do seu perfil',
     'dispatchCreator.useProfileTimezone': 'Usar timezone do perfil',
     'dispatchCreator.autoDelete': 'Excluir mensagem automaticamente para todos',
-    'dispatchCreator.showInChat': 'Mostrar envios do disparo no chat do CRM',
-    'dispatchCreator.showInChatHint':
-      'Quando ativo, cada mensagem enviada com sucesso é registrada na conversa do contato no CRM (OnlyFlow).',
+    'dispatchCreator.showMessagesInCrmChat': 'Mostrar mensagens do disparo no chat do CRM',
+    'dispatchCreator.showMessagesInCrmChatHint':
+      'Desmarque para enviar o disparo sem gravar as mensagens enviadas na conversa do CRM (o WhatsApp continua a receber).',
     'dispatchCreator.deleteDelay': 'Delay',
     'dispatchCreator.deleteDelayUnit': 'Unidade',
     'dispatchCreator.seconds': 'Segundos',
@@ -2480,9 +2480,9 @@ const translations = {
     'dispatchCreator.timezoneHint': 'Deixe em branco para usar o timezone do seu perfil',
     'dispatchCreator.useProfileTimezone': 'Usar timezone do perfil',
     'dispatchCreator.autoDelete': 'Automatically delete message for everyone',
-    'dispatchCreator.showInChat': 'Show dispatch sends in CRM chat',
-    'dispatchCreator.showInChatHint':
-      'When enabled, each successfully sent message is saved to the contact thread in the CRM (OnlyFlow).',
+    'dispatchCreator.showMessagesInCrmChat': 'Show dispatch messages in CRM chat',
+    'dispatchCreator.showMessagesInCrmChatHint':
+      'Uncheck to send the campaign without saving outbound messages in the CRM thread (WhatsApp still receives them).',
     'dispatchCreator.deleteDelay': 'Delay',
     'dispatchCreator.deleteDelayUnit': 'Unit',
     'dispatchCreator.seconds': 'Seconds',
