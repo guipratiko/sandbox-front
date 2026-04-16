@@ -1191,7 +1191,6 @@ export interface Dispatch {
     autoDelete?: boolean;
     deleteDelay?: number;
     deleteDelayUnit?: 'seconds' | 'minutes' | 'hours';
-    mirrorDispatchToCrm?: boolean;
   };
   schedule?: {
     startDate?: string;
@@ -1220,7 +1219,6 @@ export interface CreateDispatchData {
     autoDelete?: boolean;
     deleteDelay?: number;
     deleteDelayUnit?: 'seconds' | 'minutes' | 'hours';
-    mirrorDispatchToCrm?: boolean;
   };
   schedule?: {
     startDate?: string;

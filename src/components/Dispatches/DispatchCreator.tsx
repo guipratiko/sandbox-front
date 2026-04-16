@@ -28,7 +28,6 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
   const [selectedColumnIds, setSelectedColumnIds] = useState<string[]>([]);
   const [speed, setSpeed] = useState<'fast' | 'normal' | 'slow' | 'randomized'>('normal');
   const [autoDelete, setAutoDelete] = useState(false);
-  const [mirrorDispatchToCrm, setMirrorDispatchToCrm] = useState(false);
   const [deleteDelay, setDeleteDelay] = useState(0);
   const [deleteDelayUnit, setDeleteDelayUnit] = useState<'seconds' | 'minutes' | 'hours'>('seconds');
   const [defaultName, setDefaultName] = useState('Cliente');
@@ -64,7 +63,6 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
         if (initialData.settings) {
           setSpeed(initialData.settings.speed);
           setAutoDelete(initialData.settings.autoDelete || false);
-          setMirrorDispatchToCrm(initialData.settings.mirrorDispatchToCrm === true);
           setDeleteDelay(initialData.settings.deleteDelay || 0);
           setDeleteDelayUnit(initialData.settings.deleteDelayUnit || 'seconds');
         }
@@ -83,7 +81,6 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
         setSelectedTemplateId('');
         setSpeed('normal');
         setAutoDelete(false);
-        setMirrorDispatchToCrm(false);
         setDeleteDelay(0);
         setDeleteDelayUnit('seconds');
         setDefaultName('Cliente');
@@ -299,7 +296,6 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
           autoDelete,
           deleteDelay: autoDelete ? deleteDelay : undefined,
           deleteDelayUnit: autoDelete ? deleteDelayUnit : undefined,
-          mirrorDispatchToCrm: mirrorDispatchToCrm || undefined,
         },
         schedule: hasSchedule
           ? {
@@ -333,7 +329,6 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
       setSelectedColumnIds([]);
       setSpeed('normal');
       setAutoDelete(false);
-      setMirrorDispatchToCrm(false);
       setDeleteDelay(0);
       setDeleteDelayUnit('seconds');
       setDefaultName('Cliente');
@@ -609,23 +604,6 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
                   className="mr-2"
                 />
                 {t('dispatchCreator.autoDelete')}
-              </label>
-            </div>
-
-            <div>
-              <label className="flex items-start text-gray-700 dark:text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={mirrorDispatchToCrm}
-                  onChange={(e) => setMirrorDispatchToCrm(e.target.checked)}
-                  className="mr-2 mt-1 shrink-0"
-                />
-                <span>
-                  <span className="block">{t('dispatchCreator.mirrorDispatchToCrm')}</span>
-                  <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    {t('dispatchCreator.mirrorDispatchToCrmHint')}
-                  </span>
-                </span>
               </label>
             </div>
 
