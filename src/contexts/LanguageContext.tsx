@@ -1264,6 +1264,12 @@ const translations = {
     'groupManager.configureGroup.description': 'Descrição',
     'groupManager.configureGroup.photo': 'Foto do grupo',
     'groupManager.configureGroup.removeParticipants': 'Remover participantes atuais',
+    'groupManager.configureGroup.removeParticipantsHint':
+      'Marque quem deseja remover e salve. Para promover a administrador, use o botão ao lado do contato.',
+    'groupManager.configureGroup.promoteToAdmin': 'Promover a administrador',
+    'groupManager.configureGroup.promoteToAdminConfirm':
+      'Promover este participante a administrador do grupo no WhatsApp?',
+    'groupManager.configureGroup.promoteToAdminError': 'Não foi possível promover o participante.',
     'groupManager.configureGroup.addParticipants': 'Adicionar participantes',
     'groupManager.configureGroup.addFromCsv': 'Upload CSV',
     'groupManager.configureGroup.addManually': 'Digitar manualmente',
@@ -1276,16 +1282,6 @@ const translations = {
     'groupManager.configureGroup.noParticipants': 'Nenhum participante carregado',
     'groupManager.configureGroup.manualPlaceholder': 'Número ou número e nome (um por linha ou separados por vírgula)',
     'groupManager.configureGroup.scrollHint': 'Há mais conteúdo abaixo',
-    'groupManager.configureGroup.participantsAndRoles':
-      'Remover do grupo ou alterar administrador (alterações ao salvar).',
-    'groupManager.configureGroup.adminBadge': 'Admin',
-    'groupManager.configureGroup.promoteAdmin': 'Promover a admin ao salvar',
-    'groupManager.configureGroup.promoteAdminHint':
-      'Envia promote na API do grupo (número com DDI). Só para quem ainda não é admin.',
-    'groupManager.configureGroup.demoteAdmin': 'Remover como admin ao salvar',
-    'groupManager.configureGroup.demoteAdminHint': 'Envia demote na API do grupo. Só para quem já é admin.',
-    'groupManager.configureGroup.roleChangeUnavailable':
-      'Não foi possível obter o número deste participante para promote/demote.',
     'groupManager.participants': 'Participantes',
     'groupManager.created': 'Criado em',
     'groupManager.viewDetails': 'Ver Detalhes',
@@ -3054,6 +3050,12 @@ const translations = {
     'groupManager.configureGroup.description': 'Description',
     'groupManager.configureGroup.photo': 'Group photo',
     'groupManager.configureGroup.removeParticipants': 'Remove current participants',
+    'groupManager.configureGroup.removeParticipantsHint':
+      'Check who to remove and save. To make someone an admin, use the button next to the contact.',
+    'groupManager.configureGroup.promoteToAdmin': 'Promote to admin',
+    'groupManager.configureGroup.promoteToAdminConfirm':
+      'Promote this participant to group admin on WhatsApp?',
+    'groupManager.configureGroup.promoteToAdminError': 'Could not promote the participant.',
     'groupManager.configureGroup.addParticipants': 'Add participants',
     'groupManager.configureGroup.addFromCsv': 'CSV upload',
     'groupManager.configureGroup.addManually': 'Enter manually',
@@ -3066,16 +3068,6 @@ const translations = {
     'groupManager.configureGroup.noParticipants': 'No participants loaded',
     'groupManager.configureGroup.manualPlaceholder': 'Phone or phone and name (one per line or comma-separated)',
     'groupManager.configureGroup.scrollHint': 'More content below',
-    'groupManager.configureGroup.participantsAndRoles':
-      'Remove from group or change admin role (applied when you save).',
-    'groupManager.configureGroup.adminBadge': 'Admin',
-    'groupManager.configureGroup.promoteAdmin': 'Promote to admin on save',
-    'groupManager.configureGroup.promoteAdminHint':
-      'Calls group promote API (number with country code). Only for members who are not admins yet.',
-    'groupManager.configureGroup.demoteAdmin': 'Remove as admin on save',
-    'groupManager.configureGroup.demoteAdminHint': 'Calls group demote API. Only for current admins.',
-    'groupManager.configureGroup.roleChangeUnavailable':
-      'Could not resolve this participant’s number for promote/demote.',
     'groupManager.participants': 'Participants',
     'groupManager.created': 'Created on',
     'groupManager.viewDetails': 'View Details',

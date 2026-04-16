@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Modal, Button, Input } from '../UI';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Group, groupAPI, GroupParticipantEvolution } from '../../services/api';
@@ -22,22 +22,12 @@ interface ConfigureGroupModalProps {
 
 type AddParticipantTab = 'csv' | 'manual' | 'crm';
 
-function participantDigitsForEvolution(p: GroupParticipantEvolution): string | null {
-  const ph = (p.phoneNumber ?? '').replace(/\D/g, '');
-  if (ph.length >= 10) return ph;
-  const local = String(p.id).split('@')[0]?.replace(/\D/g, '') ?? '';
-  if (local.length >= 10) return local;
-  return null;
-}
-
-function isParticipantAdmin(p: GroupParticipantEvolution): boolean {
+function isEvolutionGroupAdmin(p: GroupParticipantEvolution): boolean {
   const a = p.admin;
-  if (a === true) return true;
-  if (typeof a === 'string') {
-    const s = a.toLowerCase();
-    if (s === 'true' || s === 'admin' || s === 'superadmin') return true;
-  }
-  return false;
+  if (a == null || a === '') return false;
+  if (typeof a === 'boolean') return a;
+  const s = String(a).toLowerCase();
+  return s === 'true' || s === '1' || s === 'admin' || s === 'superadmin';
 }
 
 const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
@@ -58,11 +48,11 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
   const [manualParticipants, setManualParticipants] = useState('');
   const [addNumberingToName, setAddNumberingToName] = useState(false);
   const [participantsToRemove, setParticipantsToRemove] = useState<Set<string>>(new Set());
-  const [participantsToPromote, setParticipantsToPromote] = useState<Set<string>>(new Set());
-  const [participantsToDemote, setParticipantsToDemote] = useState<Set<string>>(new Set());
   const [showScrollHint, setShowScrollHint] = useState(true);
   const [participantsList, setParticipantsList] = useState<GroupParticipantEvolution[]>([]);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
+  const [promotingParticipantId, setPromotingParticipantId] = useState<string | null>(null);
+  const [promoteError, setPromoteError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -97,10 +87,10 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
       setOnlyAdminsSend(group.announcement ?? false);
       setOnlyAdminsEdit(group.locked ?? false);
       setParticipantsToRemove(new Set());
-      setParticipantsToPromote(new Set());
-      setParticipantsToDemote(new Set());
       setManualParticipants('');
       setSaveError(null);
+      setPromoteError(null);
+      setPromotingParticipantId(null);
       setParticipantsList(group.participants?.length ? [] : []);
       if (group.id && instanceId) {
         setLoadingParticipants(true);
@@ -113,6 +103,38 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
     }
   }, [group, isOpen, instanceId]);
 
+  const refreshParticipants = useCallback(async () => {
+    if (!group?.id || !instanceId) return;
+    setLoadingParticipants(true);
+    try {
+      const r = await groupAPI.getParticipants(instanceId, group.id);
+      setParticipantsList(r.participants ?? []);
+    } catch {
+      setParticipantsList([]);
+    } finally {
+      setLoadingParticipants(false);
+    }
+  }, [group?.id, instanceId]);
+
+  const handlePromoteToAdmin = async (participantId: string) => {
+    if (!group?.id) return;
+    if (!window.confirm(t('groupManager.configureGroup.promoteToAdminConfirm'))) return;
+    setPromoteError(null);
+    setPromotingParticipantId(participantId);
+    try {
+      await groupAPI.updateParticipant(instanceId, group.id, 'promote', [participantId]);
+      await refreshParticipants();
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: string }).message)
+          : t('groupManager.configureGroup.promoteToAdminError');
+      setPromoteError(message);
+    } finally {
+      setPromotingParticipantId(null);
+    }
+  };
+
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -124,55 +146,7 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
   };
 
   const toggleRemoveParticipant = (id: string) => {
-    setParticipantsToPromote((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-    setParticipantsToDemote((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
     setParticipantsToRemove((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const togglePromoteParticipant = (id: string) => {
-    setParticipantsToDemote((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-    setParticipantsToRemove((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-    setParticipantsToPromote((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleDemoteParticipant = (id: string) => {
-    setParticipantsToPromote((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-    setParticipantsToRemove((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-    setParticipantsToDemote((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -196,22 +170,6 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
     const descVal = description.trim();
     const toRemove = Array.from(participantsToRemove);
     const toAdd = addTab === 'manual' ? parseManualParticipants() : [];
-    const partListForRoles: GroupParticipantEvolution[] =
-      participantsList.length > 0
-        ? participantsList
-        : ((group!.participants ?? []) as GroupParticipantEvolution[]);
-    const promotePhones = Array.from(participantsToPromote)
-      .map((pid) => {
-        const p = partListForRoles.find((x) => x.id === pid);
-        return p ? participantDigitsForEvolution(p) : null;
-      })
-      .filter((d): d is string => d != null && d.length >= 10);
-    const demotePhones = Array.from(participantsToDemote)
-      .map((pid) => {
-        const p = partListForRoles.find((x) => x.id === pid);
-        return p ? participantDigitsForEvolution(p) : null;
-      })
-      .filter((d): d is string => d != null && d.length >= 10);
     setSaving(true);
     setSaveError(null);
     try {
@@ -226,12 +184,6 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
         onlyAdminsSend ? 'announcement' : 'not_announcement'
       );
       await groupAPI.updateSetting(instanceId, groupJid, onlyAdminsEdit ? 'locked' : 'unlocked');
-      if (promotePhones.length) {
-        await groupAPI.updateParticipant(instanceId, groupJid, 'promote', promotePhones);
-      }
-      if (demotePhones.length) {
-        await groupAPI.updateParticipant(instanceId, groupJid, 'demote', demotePhones);
-      }
       if (toRemove.length) {
         await groupAPI.updateParticipant(instanceId, groupJid, 'remove', toRemove);
       }
@@ -336,13 +288,16 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
         </div>
 
         <div>
-          <h4 className="text-sm font-medium text-clerky-backendText dark:text-gray-200 mb-2">
+          <h4 className="text-sm font-medium text-clerky-backendText dark:text-gray-200 mb-1">
             {t('groupManager.configureGroup.removeParticipants')}
           </h4>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-            {t('groupManager.configureGroup.participantsAndRoles')}
+            {t('groupManager.configureGroup.removeParticipantsHint')}
           </p>
-          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-3">
+          {promoteError && (
+            <p className="text-sm text-red-600 dark:text-red-400 mb-2">{promoteError}</p>
+          )}
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2">
             {loadingParticipants ? (
               <p className="text-sm text-gray-500 dark:text-gray-400">{t('groupManager.loading')}</p>
             ) : currentParticipants.length === 0 ? (
@@ -351,74 +306,40 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
               currentParticipants.map((p) => {
                 const pe = p as GroupParticipantEvolution;
                 const label = pe.name ?? pe.phoneNumber ?? pe.id;
-                const admin = isParticipantAdmin(pe);
-                const digitsOk = !!participantDigitsForEvolution(pe);
+                const isAdmin = isEvolutionGroupAdmin(pe);
+                const busy = promotingParticipantId === p.id;
                 return (
                   <div
                     key={p.id}
-                    className="pb-3 border-b border-gray-100 dark:border-gray-700/80 last:border-0 last:pb-0 space-y-2"
+                    className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-gray-100 dark:border-gray-700/80 pb-2 last:border-0 last:pb-0"
                   >
-                    <label className="flex items-center gap-2 text-sm text-clerky-backendText dark:text-gray-200">
+                    <label className="flex items-center gap-2 text-sm text-clerky-backendText dark:text-gray-200 min-w-0 flex-1">
                       <input
                         type="checkbox"
                         checked={participantsToRemove.has(p.id)}
                         onChange={() => toggleRemoveParticipant(p.id)}
                         className="rounded border-gray-300 dark:border-gray-600 text-clerky-backendButton shrink-0"
                       />
-                      <span className="min-w-0 break-words">
-                        {label}
-                        {admin ? (
-                          <span className="ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
-                            {t('groupManager.configureGroup.adminBadge')}
-                          </span>
-                        ) : null}
-                      </span>
+                      <span className="truncate">{label}</span>
+                      {isAdmin && (
+                        <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
+                          {t('groupManager.admin')}
+                        </span>
+                      )}
                     </label>
-                    <div className="pl-6 sm:pl-7 space-y-2">
-                      <label
-                        className={`flex items-start gap-2 text-xs ${
-                          !digitsOk || admin ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                        } text-clerky-backendText dark:text-gray-200`}
+                    {!isAdmin && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 self-start sm:self-auto"
+                        disabled={saving || (!!promotingParticipantId && !busy)}
+                        isLoading={busy}
+                        onClick={() => void handlePromoteToAdmin(p.id)}
                       >
-                        <input
-                          type="checkbox"
-                          className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-clerky-backendButton shrink-0"
-                          disabled={!digitsOk || admin}
-                          checked={participantsToPromote.has(p.id)}
-                          onChange={() => togglePromoteParticipant(p.id)}
-                        />
-                        <span>
-                          <span className="font-medium">{t('groupManager.configureGroup.promoteAdmin')}</span>
-                          <span className="block text-gray-500 dark:text-gray-400 mt-0.5">
-                            {t('groupManager.configureGroup.promoteAdminHint')}
-                          </span>
-                        </span>
-                      </label>
-                      <label
-                        className={`flex items-start gap-2 text-xs ${
-                          !digitsOk || !admin ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                        } text-clerky-backendText dark:text-gray-200`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-clerky-backendButton shrink-0"
-                          disabled={!digitsOk || !admin}
-                          checked={participantsToDemote.has(p.id)}
-                          onChange={() => toggleDemoteParticipant(p.id)}
-                        />
-                        <span>
-                          <span className="font-medium">{t('groupManager.configureGroup.demoteAdmin')}</span>
-                          <span className="block text-gray-500 dark:text-gray-400 mt-0.5">
-                            {t('groupManager.configureGroup.demoteAdminHint')}
-                          </span>
-                        </span>
-                      </label>
-                      {!digitsOk ? (
-                        <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                          {t('groupManager.configureGroup.roleChangeUnavailable')}
-                        </p>
-                      ) : null}
-                    </div>
+                        {t('groupManager.configureGroup.promoteToAdmin')}
+                      </Button>
+                    )}
                   </div>
                 );
               })
