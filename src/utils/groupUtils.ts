@@ -19,8 +19,60 @@ function nameIsRedundantPhoneName(name: string, jidUserPart: string, phoneField?
 export type GroupParticipantLike = {
   id: string;
   phoneNumber?: string;
+  phone_number?: string;
   name?: string | null;
+  pushName?: string | null;
+  notify?: string | null;
 };
+
+/** Nome amigável: `name`, depois aliases (Evolution/Baileys e variações de chave). */
+function readParticipantDisplayName(pe: GroupParticipantLike): string {
+  const raw = pe as Record<string, unknown>;
+  const candidates: unknown[] = [
+    pe.name,
+    raw.Name,
+    raw.NAME,
+    pe.pushName,
+    raw.pushName,
+    raw.PushName,
+    pe.notify,
+    raw.notify,
+    raw.Notify,
+    raw.subject,
+    raw.Subject,
+  ];
+  for (const c of candidates) {
+    if (c == null) continue;
+    const s = String(c).trim();
+    if (s) return s;
+  }
+  return '';
+}
+
+function resolveParticipantPhoneField(pe: GroupParticipantLike): string {
+  const raw = pe as Record<string, unknown>;
+  const candidates: unknown[] = [
+    pe.phoneNumber,
+    pe.phone_number,
+    raw.PhoneNumber,
+    raw.phone_number,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c.trim();
+  }
+  return '';
+}
+
+/** Unifica chaves da API Evolution (`pushName`, `phone_number`, PascalCase) em `name` / `phoneNumber`. */
+export function normalizeGroupParticipantFromApi(p: GroupParticipantLike): GroupParticipantLike {
+  const displayName = readParticipantDisplayName(p);
+  const phone = resolveParticipantPhoneField(p);
+  return {
+    ...p,
+    name: displayName || p.name || null,
+    phoneNumber: phone || p.phoneNumber,
+  };
+}
 
 /**
  * Título (nome ou telefone formatado), subtítulo (telefone quando o título é nome) e inicial para avatar.
@@ -34,12 +86,12 @@ export function getGroupParticipantCardDisplay(pe: GroupParticipantLike): {
   const id = pe.id || '';
   const jidUser = id.split('@')[0] || '';
   const isLid = /@lid$/i.test(id);
-  const phoneField = pe.phoneNumber && pe.phoneNumber.trim() ? pe.phoneNumber.trim() : '';
-  /** Para @lid o trecho antes de @ não é telefone; só formatar se a API mandou `phoneNumber`. */
+  const phoneField = resolveParticipantPhoneField(pe);
+  /** Para @lid o trecho antes de @ não é telefone; só formatar se a API mandou número/PN. */
   const phoneSource = phoneField || (isLid ? '' : jidUser);
   const formatted = phoneSource ? formatPhone(phoneSource) : '';
 
-  const nameTrim = pe.name != null && String(pe.name).trim() ? String(pe.name).trim() : '';
+  const nameTrim = readParticipantDisplayName(pe);
   const redundant = nameTrim ? nameIsRedundantPhoneName(nameTrim, jidUser, phoneField) : false;
   const looksLikeJidName = nameTrim.includes('@');
 
@@ -64,9 +116,10 @@ export function getGroupParticipantCardDisplay(pe: GroupParticipantLike): {
 
   const nat = cleanPhone(phoneSource || jidUser);
   const natStripped = nat.startsWith('55') && nat.length > 11 ? nat.slice(2) : nat;
-  const useNameAvatar = nameTrim && !redundant && !looksLikeJidName && !isLid;
+  /** Com nome real (não só número), usar iniciais — também para @lid. */
+  const useNameAvatar = Boolean(nameTrim && !redundant && !looksLikeJidName);
   const avatarInitial = useNameAvatar
-    ? (getInitials(title).slice(0, 2) || (title[0]?.toUpperCase() ?? '?'))
+    ? (getInitials(normalizeName(nameTrim)).slice(0, 2) || (nameTrim[0]?.toUpperCase() ?? '?'))
     : natStripped.slice(-2) || (jidUser ? jidUser.slice(-2) : '?');
 
   return { title, subtitle, avatarInitial: avatarInitial.toUpperCase() };

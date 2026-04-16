@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Modal, Button, Input } from '../UI';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Group, groupAPI, GroupParticipantEvolution } from '../../services/api';
-import { getGroupParticipantCardDisplay } from '../../utils/groupUtils';
+import { getGroupParticipantCardDisplay, normalizeGroupParticipantFromApi } from '../../utils/groupUtils';
 
 interface ConfigureGroupModalProps {
   isOpen: boolean;
@@ -104,7 +104,13 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
         setLoadingParticipants(true);
         groupAPI
           .getParticipants(instanceId, group.id)
-          .then((r) => setParticipantsList(r.participants ?? []))
+          .then((r) =>
+            setParticipantsList(
+              (r.participants ?? []).map((row) =>
+                normalizeGroupParticipantFromApi(row as GroupParticipantEvolution)
+              )
+            )
+          )
           .catch(() => setParticipantsList([]))
           .finally(() => setLoadingParticipants(false));
       }

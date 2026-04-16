@@ -1873,8 +1873,13 @@ export const dashboardAPI = {
 export interface GroupParticipantEvolution {
   id: string;
   phoneNumber?: string;
+  /** Algumas respostas da Evolution usam snake_case */
+  phone_number?: string;
   admin?: string;
   name?: string | null;
+  /** Nome de exibição em algumas versões da Evolution / Baileys */
+  pushName?: string | null;
+  notify?: string | null;
   imgUrl?: string | null;
 }
 
