@@ -33,7 +33,6 @@ import {
 import { useSocket, NewMessageData, ContactUpdatedPayload } from '../hooks/useSocket';
 import { sortMessagesByTimestamp, formatLastMessageContent } from '../utils/messageUtils';
 import { userHasPremiumPlan } from '../utils/planAccess';
-import { getInitials } from '../utils/formatters';
 import {
   formatTime,
   resolveUserDisplayTimeZone,
@@ -78,6 +77,9 @@ interface ContactCardProps {
 
 const CRM_STORAGE_INSTANCES = 'crm.selectedInstancesV1';
 const CRM_STORAGE_LEGACY = 'crm.selectedInstanceV1';
+
+/** Avatar quando não há foto de perfil (`public/avatar.png`). */
+const CRM_DEFAULT_CONTACT_AVATAR_URL = `${(process.env.PUBLIC_URL || '').replace(/\/$/, '')}/avatar.png`;
 
 /** Tamanho da página por coluna no Kanban (alinhado ao backend, máx. 100). */
 const CRM_KANBAN_PAGE_SIZE = 20;
@@ -280,26 +282,18 @@ const ContactCard: React.FC<ContactCardProps> = ({
             />
             <div className="relative rounded-full bg-gradient-to-br from-white/95 to-slate-100/90 p-[2px] shadow-[inset_0_2px_5px_rgba(15,23,42,0.14),inset_0_-2px_4px_rgba(255,255,255,0.75)] dark:from-slate-600/50 dark:to-slate-800/85 dark:shadow-[inset_0_2px_9px_rgba(0,0,0,0.5),inset_0_-1px_3px_rgba(255,255,255,0.06)]">
               <div className="relative overflow-hidden rounded-full ring-1 ring-slate-200/60 dark:ring-slate-500/25">
-                {contact.profilePicture ? (
-                  <img
-                    src={contact.profilePicture}
-                    alt={cardTitle}
-                    className="h-[2.39rem] w-[2.39rem] rounded-full object-cover"
-                    style={{ imageRendering: 'auto' }}
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                      const parent = target.parentElement;
-                      if (parent) {
-                        parent.innerHTML = `<div class="rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold" style="width:2.39rem;height:2.39rem;font-size:0.644rem">${getInitials(cardTitle)}</div>`;
-                      }
-                    }}
-                  />
-                ) : (
-                  <div className="flex h-[2.39rem] w-[2.39rem] items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-[0.644rem] font-semibold text-white">
-                    {getInitials(cardTitle)}
-                  </div>
-                )}
+                <img
+                  src={contact.profilePicture || CRM_DEFAULT_CONTACT_AVATAR_URL}
+                  alt=""
+                  className="h-[2.39rem] w-[2.39rem] rounded-full object-cover bg-slate-100 dark:bg-slate-700"
+                  style={{ imageRendering: 'auto' }}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (target.src.endsWith('/avatar.png')) return;
+                    target.onerror = null;
+                    target.src = CRM_DEFAULT_CONTACT_AVATAR_URL;
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -730,41 +724,6 @@ const ChatModal: React.FC<ChatModalProps> = ({
     () => groupCrmChatMessagesByUserCalendarDay(messages, chatTimeZone),
     [messages, chatTimeZone]
   );
-  const [stickyDayLabel, setStickyDayLabel] = useState('');
-  const dayGroupRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  const handleMessagesScroll = useCallback(() => {
-    const root = messagesContainerRef.current;
-    if (!root || messageGroups.length === 0) {
-      return;
-    }
-    const rootRect = root.getBoundingClientRect();
-    const threshold = rootRect.top + 44;
-    let active = messageGroups[0];
-    for (const g of messageGroups) {
-      const el = dayGroupRefs.current[g.dayKey];
-      if (!el) continue;
-      if (el.getBoundingClientRect().top <= threshold) {
-        active = g;
-      }
-    }
-    const label = formatChatDaySeparatorLabel(
-      new Date(active.messages[0].timestamp),
-      chatTimeZone,
-      language as 'pt' | 'en'
-    );
-    setStickyDayLabel((prev) => (prev === label ? prev : label));
-  }, [messageGroups, chatTimeZone, language]);
-
-  useEffect(() => {
-    dayGroupRefs.current = {};
-  }, [contact?.id]);
-
-  useEffect(() => {
-    if (messageGroups.length === 0) {
-      setStickyDayLabel('');
-    }
-  }, [messageGroups.length]);
 
   const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -913,11 +872,8 @@ const ChatModal: React.FC<ChatModalProps> = ({
       const container = messagesContainerRef.current;
       container.scrollTop = container.scrollHeight;
       isInitialLoadRef.current = false;
-      queueMicrotask(() => {
-        handleMessagesScroll();
-      });
     }
-  }, [messages, isLoading, handleMessagesScroll]);
+  }, [messages, isLoading]);
 
 
   const handleSendMessage = async () => {
@@ -1341,7 +1297,6 @@ const ChatModal: React.FC<ChatModalProps> = ({
           {/* Área de mensagens — único scroll (barra invisível) */}
           <div
             ref={messagesContainerRef}
-            onScroll={handleMessagesScroll}
             className="relative flex-1 min-h-0 overflow-y-auto scrollbar-hide p-3 sm:p-4 bg-gray-50/80 dark:bg-[#0d1f3c] rounded-2xl mb-3 sm:mb-4 overscroll-contain"
           >
           {isLoading ? (
@@ -1355,21 +1310,9 @@ const ChatModal: React.FC<ChatModalProps> = ({
             </div>
           ) : (
             <>
-              <div className="sticky top-0 z-10 flex justify-center pointer-events-none mb-2">
-                <span className="rounded-full px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 bg-white/95 dark:bg-gray-800/95 border border-gray-200/90 dark:border-gray-600/80 shadow-sm">
-                  {stickyDayLabel || '\u00a0'}
-                </span>
-              </div>
               <div className="space-y-4 sm:space-y-5">
                 {messageGroups.map((group) => (
-                  <div
-                    key={group.dayKey}
-                    data-chat-day={group.dayKey}
-                    ref={(el) => {
-                      if (el) dayGroupRefs.current[group.dayKey] = el;
-                      else delete dayGroupRefs.current[group.dayKey];
-                    }}
-                  >
+                  <div key={group.dayKey} data-chat-day={group.dayKey}>
                     <div className="flex justify-center py-1.5">
                       <span className="rounded-full px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-200/90 dark:bg-gray-700/90">
                         {formatChatDaySeparatorLabel(
@@ -2507,17 +2450,17 @@ const CRM: React.FC = () => {
               {draggedContact ? (
                 <div className="box-border w-[225px] max-w-[225px] rounded-lg border border-slate-200/70 bg-[radial-gradient(ellipse_125%_110%_at_50%_-15%,#F0F8FF_0%,#FAFCFF_42%,#ffffff_100%)] p-[13.7px] opacity-95 shadow-[0_9px_34px_-9px_rgba(30,64,120,0.16)] backdrop-blur-sm dark:border-slate-600/35 dark:bg-[radial-gradient(ellipse_125%_110%_at_50%_-15%,#152a4a_0%,#0f1f35_48%,#091525_100%)] dark:shadow-[0_11px_38px_-11px_rgba(0,0,0,0.5)]">
                   <div className="flex items-center gap-2">
-                    {draggedContact.profilePicture ? (
-                      <img
-                        src={draggedContact.profilePicture}
-                        alt={draggedContact.name}
-                        className="h-[2.39rem] w-[2.39rem] rounded-full object-cover ring-1 ring-slate-200/60 dark:ring-slate-500/25"
-                      />
-                    ) : (
-                      <div className="flex h-[2.39rem] w-[2.39rem] items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-[0.644rem] font-semibold text-white">
-                        {getInitials(draggedContact.name)}
-                      </div>
-                    )}
+                    <img
+                      src={draggedContact.profilePicture || CRM_DEFAULT_CONTACT_AVATAR_URL}
+                      alt=""
+                      className="h-[2.39rem] w-[2.39rem] rounded-full object-cover bg-slate-100 ring-1 ring-slate-200/60 dark:bg-slate-700 dark:ring-slate-500/25"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        if (target.src.endsWith('/avatar.png')) return;
+                        target.onerror = null;
+                        target.src = CRM_DEFAULT_CONTACT_AVATAR_URL;
+                      }}
+                    />
                     <div className="min-w-0 flex-1">
                       <h4
                         className="mb-0.5 truncate text-[11.6px] font-medium leading-snug text-slate-800 dark:text-slate-100 whitespace-nowrap"
