@@ -1313,8 +1313,8 @@ const ChatModal: React.FC<ChatModalProps> = ({
               <div className="space-y-4 sm:space-y-5">
                 {messageGroups.map((group) => (
                   <div key={group.dayKey} data-chat-day={group.dayKey}>
-                    <div className="flex justify-center py-1.5">
-                      <span className="rounded-full px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-200/90 dark:bg-gray-700/90">
+                    <div className="sticky top-0 z-20 -mx-3 sm:-mx-4 px-3 sm:px-4 flex justify-center py-2 mb-1 bg-gray-50/95 dark:bg-[#0d1f3c]/95 backdrop-blur-sm">
+                      <span className="rounded-full px-3 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-200/90 dark:bg-gray-700/90 shadow-sm">
                         {formatChatDaySeparatorLabel(
                           new Date(group.messages[0].timestamp),
                           chatTimeZone,
