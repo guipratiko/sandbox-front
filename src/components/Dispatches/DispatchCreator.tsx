@@ -30,6 +30,7 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
   const [autoDelete, setAutoDelete] = useState(false);
   const [deleteDelay, setDeleteDelay] = useState(0);
   const [deleteDelayUnit, setDeleteDelayUnit] = useState<'seconds' | 'minutes' | 'hours'>('seconds');
+  const [showDispatchInChat, setShowDispatchInChat] = useState(false);
   const [defaultName, setDefaultName] = useState('Cliente');
   const [hasSchedule, setHasSchedule] = useState(false);
   const [startDate, setStartDate] = useState('');
@@ -65,6 +66,7 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
           setAutoDelete(initialData.settings.autoDelete || false);
           setDeleteDelay(initialData.settings.deleteDelay || 0);
           setDeleteDelayUnit(initialData.settings.deleteDelayUnit || 'seconds');
+          setShowDispatchInChat(initialData.settings.showDispatchInChat === true);
         }
         if (initialData.defaultName) setDefaultName(initialData.defaultName);
         if (initialData.schedule) {
@@ -83,6 +85,7 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
         setAutoDelete(false);
         setDeleteDelay(0);
         setDeleteDelayUnit('seconds');
+        setShowDispatchInChat(false);
         setDefaultName('Cliente');
         setHasSchedule(false);
         setStartDate('');
@@ -296,6 +299,7 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
           autoDelete,
           deleteDelay: autoDelete ? deleteDelay : undefined,
           deleteDelayUnit: autoDelete ? deleteDelayUnit : undefined,
+          showDispatchInChat: showDispatchInChat || undefined,
         },
         schedule: hasSchedule
           ? {
@@ -331,6 +335,7 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
       setAutoDelete(false);
       setDeleteDelay(0);
       setDeleteDelayUnit('seconds');
+      setShowDispatchInChat(false);
       setDefaultName('Cliente');
       setHasSchedule(false);
       setStartTime('08:00');
@@ -593,6 +598,21 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
                 <option value="slow">{t('dispatchCreator.speedSlow')}</option>
                 <option value="randomized">{t('dispatchCreator.speedRandomized')}</option>
               </select>
+            </div>
+
+            <div>
+              <label className="flex items-center text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={showDispatchInChat}
+                  onChange={(e) => setShowDispatchInChat(e.target.checked)}
+                  className="mr-2"
+                />
+                {t('dispatchCreator.showInChat')}
+              </label>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
+                {t('dispatchCreator.showInChatHint')}
+              </p>
             </div>
 
             <div>
