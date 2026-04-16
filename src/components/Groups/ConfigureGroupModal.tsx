@@ -30,6 +30,20 @@ function isEvolutionGroupAdmin(p: GroupParticipantEvolution): boolean {
   return s === 'true' || s === '1' || s === 'admin' || s === 'superadmin';
 }
 
+/** Criador do grupo (superadmin) — não oferecemos «remover admin» para evitar erro da API. */
+function isEvolutionSuperAdmin(p: GroupParticipantEvolution): boolean {
+  const a = p.admin;
+  if (a == null || a === '') return false;
+  return String(a).toLowerCase() === 'superadmin';
+}
+
+function participantInitial(label: string): string {
+  const t = label.trim();
+  if (!t) return '?';
+  const c = t[0];
+  return c && /[a-zA-ZÀ-ÿ0-9]/.test(c) ? c.toUpperCase() : '?';
+}
+
 const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
   isOpen,
   onClose,
@@ -51,8 +65,8 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
   const [showScrollHint, setShowScrollHint] = useState(true);
   const [participantsList, setParticipantsList] = useState<GroupParticipantEvolution[]>([]);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
-  const [promotingParticipantId, setPromotingParticipantId] = useState<string | null>(null);
-  const [promoteError, setPromoteError] = useState<string | null>(null);
+  const [adminMutationParticipantId, setAdminMutationParticipantId] = useState<string | null>(null);
+  const [adminMutationError, setAdminMutationError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -89,8 +103,8 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
       setParticipantsToRemove(new Set());
       setManualParticipants('');
       setSaveError(null);
-      setPromoteError(null);
-      setPromotingParticipantId(null);
+      setAdminMutationError(null);
+      setAdminMutationParticipantId(null);
       setParticipantsList(group.participants?.length ? [] : []);
       if (group.id && instanceId) {
         setLoadingParticipants(true);
@@ -116,24 +130,45 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
     }
   }, [group?.id, instanceId]);
 
-  const handlePromoteToAdmin = async (participantId: string) => {
+  const runAdminMutation = async (
+    participantId: string,
+    action: 'promote' | 'demote',
+    confirmKey: string,
+    errorKey: string
+  ) => {
     if (!group?.id) return;
-    if (!window.confirm(t('groupManager.configureGroup.promoteToAdminConfirm'))) return;
-    setPromoteError(null);
-    setPromotingParticipantId(participantId);
+    if (!window.confirm(t(confirmKey))) return;
+    setAdminMutationError(null);
+    setAdminMutationParticipantId(participantId);
     try {
-      await groupAPI.updateParticipant(instanceId, group.id, 'promote', [participantId]);
+      await groupAPI.updateParticipant(instanceId, group.id, action, [participantId]);
       await refreshParticipants();
     } catch (err: unknown) {
       const message =
         err && typeof err === 'object' && 'message' in err
           ? String((err as { message: string }).message)
-          : t('groupManager.configureGroup.promoteToAdminError');
-      setPromoteError(message);
+          : t(errorKey);
+      setAdminMutationError(message);
     } finally {
-      setPromotingParticipantId(null);
+      setAdminMutationParticipantId(null);
     }
   };
+
+  const handlePromoteToAdmin = (participantId: string) =>
+    void runAdminMutation(
+      participantId,
+      'promote',
+      'groupManager.configureGroup.promoteToAdminConfirm',
+      'groupManager.configureGroup.promoteToAdminError'
+    );
+
+  const handleDemoteFromAdmin = (participantId: string) =>
+    void runAdminMutation(
+      participantId,
+      'demote',
+      'groupManager.configureGroup.demoteFromAdminConfirm',
+      'groupManager.configureGroup.demoteFromAdminError'
+    );
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -288,58 +323,146 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
         </div>
 
         <div>
-          <h4 className="text-sm font-medium text-clerky-backendText dark:text-gray-200 mb-1">
-            {t('groupManager.configureGroup.removeParticipants')}
+          <h4 className="text-sm font-semibold text-clerky-backendText dark:text-gray-200 mb-1">
+            {t('groupManager.configureGroup.participantsSectionTitle')}
           </h4>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
             {t('groupManager.configureGroup.removeParticipantsHint')}
           </p>
-          {promoteError && (
-            <p className="text-sm text-red-600 dark:text-red-400 mb-2">{promoteError}</p>
+          <p className="text-xs text-clerky-backendButton/90 dark:text-emerald-300/90 mb-3 flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            {t('groupManager.configureGroup.adminActionsHint')}
+          </p>
+          {adminMutationError && (
+            <p className="text-sm text-red-600 dark:text-red-400 mb-2">{adminMutationError}</p>
           )}
-          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2">
+          <div className="space-y-2.5">
             {loadingParticipants ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t('groupManager.loading')}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center rounded-xl border border-dashed border-gray-200 dark:border-gray-600">
+                {t('groupManager.loading')}
+              </p>
             ) : currentParticipants.length === 0 ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t('groupManager.configureGroup.noParticipants')}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center rounded-xl border border-dashed border-gray-200 dark:border-gray-600">
+                {t('groupManager.configureGroup.noParticipants')}
+              </p>
             ) : (
               currentParticipants.map((p) => {
                 const pe = p as GroupParticipantEvolution;
                 const label = pe.name ?? pe.phoneNumber ?? pe.id;
                 const isAdmin = isEvolutionGroupAdmin(pe);
-                const busy = promotingParticipantId === p.id;
+                const isSuper = isEvolutionSuperAdmin(pe);
+                const busy = adminMutationParticipantId === p.id;
+                const initial = participantInitial(label);
                 return (
                   <div
                     key={p.id}
-                    className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-gray-100 dark:border-gray-700/80 pb-2 last:border-0 last:pb-0"
+                    className={`rounded-xl border p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4 transition-shadow ${
+                      isAdmin
+                        ? 'border-amber-200/80 bg-amber-50/40 dark:border-amber-800/50 dark:bg-amber-950/25'
+                        : 'border-gray-200 dark:border-gray-600 bg-white/80 dark:bg-[#0a1628]/60'
+                    }`}
                   >
-                    <label className="flex items-center gap-2 text-sm text-clerky-backendText dark:text-gray-200 min-w-0 flex-1">
-                      <input
-                        type="checkbox"
-                        checked={participantsToRemove.has(p.id)}
-                        onChange={() => toggleRemoveParticipant(p.id)}
-                        className="rounded border-gray-300 dark:border-gray-600 text-clerky-backendButton shrink-0"
-                      />
-                      <span className="truncate">{label}</span>
-                      {isAdmin && (
-                        <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
-                          {t('groupManager.admin')}
-                        </span>
-                      )}
-                    </label>
-                    {!isAdmin && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0 self-start sm:self-auto"
-                        disabled={saving || (!!promotingParticipantId && !busy)}
-                        isLoading={busy}
-                        onClick={() => void handlePromoteToAdmin(p.id)}
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
+                          isAdmin
+                            ? 'bg-amber-200 text-amber-950 dark:bg-amber-800/80 dark:text-amber-50'
+                            : 'bg-clerky-backendButton/15 text-clerky-backendButton dark:bg-clerky-backendButton/25 dark:text-emerald-200'
+                        }`}
+                        aria-hidden
                       >
-                        {t('groupManager.configureGroup.promoteToAdmin')}
-                      </Button>
-                    )}
+                        {initial}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-sm text-clerky-backendText dark:text-gray-100 truncate">
+                            {label}
+                          </span>
+                          {isSuper && (
+                            <span className="shrink-0 text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-md bg-violet-200 text-violet-900 dark:bg-violet-900/60 dark:text-violet-100">
+                              {t('groupManager.configureGroup.groupCreatorBadge')}
+                            </span>
+                          )}
+                          {isAdmin && !isSuper && (
+                            <span className="shrink-0 text-[10px] uppercase tracking-wide font-bold px-2 py-0.5 rounded-md bg-amber-200 text-amber-950 dark:bg-amber-800/70 dark:text-amber-50">
+                              {t('groupManager.admin')}
+                            </span>
+                          )}
+                        </div>
+                        {pe.phoneNumber && pe.name && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{pe.phoneNumber}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 shrink-0 sm:ml-auto">
+                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs text-gray-600 dark:text-gray-400 px-2 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/80 border border-transparent hover:border-gray-200 dark:hover:border-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={participantsToRemove.has(p.id)}
+                          onChange={() => toggleRemoveParticipant(p.id)}
+                          className="rounded border-gray-300 dark:border-gray-600 text-clerky-backendButton shrink-0"
+                        />
+                        <span>{t('groupManager.configureGroup.removeFromGroupShort')}</span>
+                      </label>
+
+                      <div className="flex flex-wrap gap-2 sm:pl-2 sm:border-l sm:border-gray-200 sm:dark:border-gray-600">
+                        {!isAdmin && (
+                          <button
+                            type="button"
+                            disabled={saving || (!!adminMutationParticipantId && !busy)}
+                            onClick={() => handlePromoteToAdmin(p.id)}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm ring-1 ring-emerald-500/30 min-w-[8.5rem]"
+                          >
+                            {busy ? (
+                              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                                />
+                              </svg>
+                            )}
+                            <span className="hidden sm:inline">{t('groupManager.configureGroup.promoteToAdmin')}</span>
+                            <span className="sm:hidden">{t('groupManager.configureGroup.promoteToAdminShort')}</span>
+                          </button>
+                        )}
+                        {isAdmin && !isSuper && (
+                          <button
+                            type="button"
+                            disabled={saving || (!!adminMutationParticipantId && !busy)}
+                            onClick={() => handleDemoteFromAdmin(p.id)}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-amber-950 dark:text-amber-100 bg-white dark:bg-gray-900/80 border-2 border-amber-300 dark:border-amber-600/80 hover:bg-amber-50 dark:hover:bg-amber-950/50 disabled:opacity-50 disabled:cursor-not-allowed min-w-[8.5rem]"
+                          >
+                            {busy ? (
+                              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                                />
+                              </svg>
+                            )}
+                            <span className="hidden sm:inline">{t('groupManager.configureGroup.demoteFromAdmin')}</span>
+                            <span className="sm:hidden">{t('groupManager.configureGroup.demoteFromAdminShort')}</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 );
               })
