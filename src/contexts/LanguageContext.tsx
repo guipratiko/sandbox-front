@@ -713,7 +713,7 @@ const translations = {
     'dispatchCreator.autoDelete': 'Excluir mensagem automaticamente para todos',
     'dispatchCreator.showInChat': 'Mostrar envios do disparo no chat do CRM',
     'dispatchCreator.showInChatHint':
-      'Quando ativo, cada envio é gravado no histórico do CRM. Configure DISPATCH_CRM_MIRROR_SECRET igual no Backend e no Disparo-Clerky.',
+      'Quando ativo, cada mensagem enviada com sucesso é registrada na conversa do contato no CRM (OnlyFlow).',
     'dispatchCreator.deleteDelay': 'Delay',
     'dispatchCreator.deleteDelayUnit': 'Unidade',
     'dispatchCreator.seconds': 'Segundos',
@@ -2480,9 +2480,9 @@ const translations = {
     'dispatchCreator.timezoneHint': 'Deixe em branco para usar o timezone do seu perfil',
     'dispatchCreator.useProfileTimezone': 'Usar timezone do perfil',
     'dispatchCreator.autoDelete': 'Automatically delete message for everyone',
-    'dispatchCreator.showInChat': 'Show dispatch sends in CRM chat history',
+    'dispatchCreator.showInChat': 'Show dispatch sends in CRM chat',
     'dispatchCreator.showInChatHint':
-      'When enabled, each send is saved to CRM history. Set DISPATCH_CRM_MIRROR_SECRET to the same value on Backend and Disparo-Clerky.',
+      'When enabled, each successfully sent message is saved to the contact thread in the CRM (OnlyFlow).',
     'dispatchCreator.deleteDelay': 'Delay',
     'dispatchCreator.deleteDelayUnit': 'Unit',
     'dispatchCreator.seconds': 'Seconds',

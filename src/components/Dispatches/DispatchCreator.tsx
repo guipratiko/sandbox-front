@@ -30,6 +30,7 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
   const [autoDelete, setAutoDelete] = useState(false);
   const [deleteDelay, setDeleteDelay] = useState(0);
   const [deleteDelayUnit, setDeleteDelayUnit] = useState<'seconds' | 'minutes' | 'hours'>('seconds');
+  /** Quando true, o Disparo-Clerky espelha cada envio em contacts/messages (chat CRM). */
   const [showDispatchInChat, setShowDispatchInChat] = useState(false);
   const [defaultName, setDefaultName] = useState('Cliente');
   const [hasSchedule, setHasSchedule] = useState(false);
@@ -66,7 +67,7 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
           setAutoDelete(initialData.settings.autoDelete || false);
           setDeleteDelay(initialData.settings.deleteDelay || 0);
           setDeleteDelayUnit(initialData.settings.deleteDelayUnit || 'seconds');
-          setShowDispatchInChat(initialData.settings.showDispatchInChat === true);
+          setShowDispatchInChat(initialData.settings.showInChat === true);
         }
         if (initialData.defaultName) setDefaultName(initialData.defaultName);
         if (initialData.schedule) {
@@ -299,7 +300,7 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
           autoDelete,
           deleteDelay: autoDelete ? deleteDelay : undefined,
           deleteDelayUnit: autoDelete ? deleteDelayUnit : undefined,
-          showDispatchInChat: showDispatchInChat || undefined,
+          showInChat: showDispatchInChat,
         },
         schedule: hasSchedule
           ? {
@@ -604,26 +605,28 @@ const DispatchCreator: React.FC<DispatchCreatorProps> = ({ isOpen, onClose, onSa
               <label className="flex items-center text-gray-700 dark:text-gray-300">
                 <input
                   type="checkbox"
-                  checked={showDispatchInChat}
-                  onChange={(e) => setShowDispatchInChat(e.target.checked)}
-                  className="mr-2"
-                />
-                {t('dispatchCreator.showInChat')}
-              </label>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
-                {t('dispatchCreator.showInChatHint')}
-              </p>
-            </div>
-
-            <div>
-              <label className="flex items-center text-gray-700 dark:text-gray-300">
-                <input
-                  type="checkbox"
                   checked={autoDelete}
                   onChange={(e) => setAutoDelete(e.target.checked)}
                   className="mr-2"
                 />
                 {t('dispatchCreator.autoDelete')}
+              </label>
+            </div>
+
+            <div>
+              <label className="flex items-start gap-2 text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={showDispatchInChat}
+                  onChange={(e) => setShowDispatchInChat(e.target.checked)}
+                  className="mt-1 shrink-0"
+                />
+                <span>
+                  <span className="font-medium block">{t('dispatchCreator.showInChat')}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block mt-0.5">
+                    {t('dispatchCreator.showInChatHint')}
+                  </span>
+                </span>
               </label>
             </div>
 

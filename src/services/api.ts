@@ -1191,7 +1191,7 @@ export interface Dispatch {
     autoDelete?: boolean;
     deleteDelay?: number;
     deleteDelayUnit?: 'seconds' | 'minutes' | 'hours';
-    showDispatchInChat?: boolean;
+    showInChat?: boolean;
   };
   schedule?: {
     startDate?: string;
@@ -1220,7 +1220,7 @@ export interface CreateDispatchData {
     autoDelete?: boolean;
     deleteDelay?: number;
     deleteDelayUnit?: 'seconds' | 'minutes' | 'hours';
-    showDispatchInChat?: boolean;
+    showInChat?: boolean;
   };
   schedule?: {
     startDate?: string;
