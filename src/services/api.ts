@@ -1873,7 +1873,7 @@ export const dashboardAPI = {
 export interface GroupParticipantEvolution {
   id: string;
   phoneNumber?: string;
-  admin?: string;
+  admin?: string | boolean;
   name?: string | null;
   imgUrl?: string | null;
 }

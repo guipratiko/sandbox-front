@@ -22,26 +22,22 @@ interface ConfigureGroupModalProps {
 
 type AddParticipantTab = 'csv' | 'manual' | 'crm';
 
-/** Número só dígitos para Evolution promote/demote (ex.: 556284049128). */
-function digitsForEvolutionAdminAction(p: GroupParticipantEvolution): string | null {
-  const fromPhone = String(p.phoneNumber ?? '').replace(/\D/g, '');
-  if (fromPhone.length >= 10) return fromPhone;
-  const id = String(p.id ?? '');
-  const wa = id.match(/^(\d{10,16})@/);
-  if (wa && wa[1].length >= 10) return wa[1];
-  const digits = id.replace(/\D/g, '');
-  return digits.length >= 10 ? digits : null;
+function participantDigitsForEvolution(p: GroupParticipantEvolution): string | null {
+  const ph = (p.phoneNumber ?? '').replace(/\D/g, '');
+  if (ph.length >= 10) return ph;
+  const local = String(p.id).split('@')[0]?.replace(/\D/g, '') ?? '';
+  if (local.length >= 10) return local;
+  return null;
 }
 
-function isParticipantAdminEvolution(p: GroupParticipantEvolution): boolean {
-  const a = p.admin as unknown;
-  if (a == null || a === false) return false;
+function isParticipantAdmin(p: GroupParticipantEvolution): boolean {
+  const a = p.admin;
+  if (a === true) return true;
   if (typeof a === 'string') {
-    const s = a.toLowerCase().trim();
-    if (s === '' || s === 'false' || s === '0') return false;
-    return true;
+    const s = a.toLowerCase();
+    if (s === 'true' || s === 'admin' || s === 'superadmin') return true;
   }
-  return true;
+  return false;
 }
 
 const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
@@ -128,6 +124,16 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
   };
 
   const toggleRemoveParticipant = (id: string) => {
+    setParticipantsToPromote((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    setParticipantsToDemote((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
     setParticipantsToRemove((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -136,30 +142,40 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
     });
   };
 
-  const togglePromoteAdmin = (participantId: string) => {
-    setParticipantsToPromote((prev) => {
-      const next = new Set(prev);
-      if (next.has(participantId)) next.delete(participantId);
-      else next.add(participantId);
-      return next;
-    });
+  const togglePromoteParticipant = (id: string) => {
     setParticipantsToDemote((prev) => {
       const next = new Set(prev);
-      next.delete(participantId);
+      next.delete(id);
+      return next;
+    });
+    setParticipantsToRemove((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    setParticipantsToPromote((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
 
-  const toggleDemoteAdmin = (participantId: string) => {
-    setParticipantsToDemote((prev) => {
-      const next = new Set(prev);
-      if (next.has(participantId)) next.delete(participantId);
-      else next.add(participantId);
-      return next;
-    });
+  const toggleDemoteParticipant = (id: string) => {
     setParticipantsToPromote((prev) => {
       const next = new Set(prev);
-      next.delete(participantId);
+      next.delete(id);
+      return next;
+    });
+    setParticipantsToRemove((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    setParticipantsToDemote((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -180,8 +196,22 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
     const descVal = description.trim();
     const toRemove = Array.from(participantsToRemove);
     const toAdd = addTab === 'manual' ? parseManualParticipants() : [];
-    const participantSnapshot: GroupParticipantEvolution[] =
-      participantsList.length > 0 ? participantsList : (group!.participants ?? []);
+    const partListForRoles: GroupParticipantEvolution[] =
+      participantsList.length > 0
+        ? participantsList
+        : ((group!.participants ?? []) as GroupParticipantEvolution[]);
+    const promotePhones = Array.from(participantsToPromote)
+      .map((pid) => {
+        const p = partListForRoles.find((x) => x.id === pid);
+        return p ? participantDigitsForEvolution(p) : null;
+      })
+      .filter((d): d is string => d != null && d.length >= 10);
+    const demotePhones = Array.from(participantsToDemote)
+      .map((pid) => {
+        const p = partListForRoles.find((x) => x.id === pid);
+        return p ? participantDigitsForEvolution(p) : null;
+      })
+      .filter((d): d is string => d != null && d.length >= 10);
     setSaving(true);
     setSaveError(null);
     try {
@@ -196,23 +226,9 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
         onlyAdminsSend ? 'announcement' : 'not_announcement'
       );
       await groupAPI.updateSetting(instanceId, groupJid, onlyAdminsEdit ? 'locked' : 'unlocked');
-      const promotePhones: string[] = [];
-      Array.from(participantsToPromote).forEach((pid) => {
-        if (participantsToRemove.has(pid)) return;
-        const p = participantSnapshot.find((x) => x.id === pid);
-        const d = p ? digitsForEvolutionAdminAction(p) : null;
-        if (d) promotePhones.push(d);
-      });
       if (promotePhones.length) {
         await groupAPI.updateParticipant(instanceId, groupJid, 'promote', promotePhones);
       }
-      const demotePhones: string[] = [];
-      Array.from(participantsToDemote).forEach((pid) => {
-        if (participantsToRemove.has(pid)) return;
-        const p = participantSnapshot.find((x) => x.id === pid);
-        const d = p ? digitsForEvolutionAdminAction(p) : null;
-        if (d) demotePhones.push(d);
-      });
       if (demotePhones.length) {
         await groupAPI.updateParticipant(instanceId, groupJid, 'demote', demotePhones);
       }
@@ -323,93 +339,89 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
           <h4 className="text-sm font-medium text-clerky-backendText dark:text-gray-200 mb-2">
             {t('groupManager.configureGroup.removeParticipants')}
           </h4>
-          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+            {t('groupManager.configureGroup.participantsAndRoles')}
+          </p>
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-3">
             {loadingParticipants ? (
               <p className="text-sm text-gray-500 dark:text-gray-400">{t('groupManager.loading')}</p>
             ) : currentParticipants.length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-gray-400">{t('groupManager.configureGroup.noParticipants')}</p>
             ) : (
-              <div className="space-y-3">
-                <p className="text-xs text-gray-500 dark:text-gray-400 -mt-1">
-                  {t('groupManager.configureGroup.adminsSectionHint')}
-                </p>
-                {currentParticipants.map((p) => {
-                  const isAdmin = isParticipantAdminEvolution(p);
-                  const phoneDigits = digitsForEvolutionAdminAction(p);
-                  const canAdminAction = Boolean(phoneDigits);
-                  const markedRemove = participantsToRemove.has(p.id);
-                  const pendingPromote = participantsToPromote.has(p.id);
-                  const pendingDemote = participantsToDemote.has(p.id);
-                  return (
-                    <div
-                      key={p.id}
-                      className="rounded-lg border border-gray-100 dark:border-gray-600/80 bg-gray-50/50 dark:bg-gray-800/40 p-2.5 space-y-2"
-                    >
-                      <label className="flex items-center gap-2 text-sm text-clerky-backendText dark:text-gray-200 cursor-pointer">
+              currentParticipants.map((p) => {
+                const pe = p as GroupParticipantEvolution;
+                const label = pe.name ?? pe.phoneNumber ?? pe.id;
+                const admin = isParticipantAdmin(pe);
+                const digitsOk = !!participantDigitsForEvolution(pe);
+                return (
+                  <div
+                    key={p.id}
+                    className="pb-3 border-b border-gray-100 dark:border-gray-700/80 last:border-0 last:pb-0 space-y-2"
+                  >
+                    <label className="flex items-center gap-2 text-sm text-clerky-backendText dark:text-gray-200">
+                      <input
+                        type="checkbox"
+                        checked={participantsToRemove.has(p.id)}
+                        onChange={() => toggleRemoveParticipant(p.id)}
+                        className="rounded border-gray-300 dark:border-gray-600 text-clerky-backendButton shrink-0"
+                      />
+                      <span className="min-w-0 break-words">
+                        {label}
+                        {admin ? (
+                          <span className="ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
+                            {t('groupManager.configureGroup.adminBadge')}
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                    <div className="pl-6 sm:pl-7 space-y-2">
+                      <label
+                        className={`flex items-start gap-2 text-xs ${
+                          !digitsOk || admin ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                        } text-clerky-backendText dark:text-gray-200`}
+                      >
                         <input
                           type="checkbox"
-                          checked={markedRemove}
-                          onChange={() => toggleRemoveParticipant(p.id)}
-                          className="rounded border-gray-300 dark:border-gray-600 text-clerky-backendButton shrink-0"
+                          className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-clerky-backendButton shrink-0"
+                          disabled={!digitsOk || admin}
+                          checked={participantsToPromote.has(p.id)}
+                          onChange={() => togglePromoteParticipant(p.id)}
                         />
-                        <span className="min-w-0 flex flex-wrap items-center gap-2">
-                          <span className="truncate">
-                            {(p as GroupParticipantEvolution).name ??
-                              (p as GroupParticipantEvolution).phoneNumber ??
-                              p.id}
+                        <span>
+                          <span className="font-medium">{t('groupManager.configureGroup.promoteAdmin')}</span>
+                          <span className="block text-gray-500 dark:text-gray-400 mt-0.5">
+                            {t('groupManager.configureGroup.promoteAdminHint')}
                           </span>
-                          {isAdmin && (
-                            <span className="text-xs px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200 shrink-0">
-                              {t('groupManager.admin')}
-                            </span>
-                          )}
-                          {pendingPromote && (
-                            <span className="text-xs text-clerky-backendButton shrink-0">
-                              {t('groupManager.configureGroup.pendingPromote')}
-                            </span>
-                          )}
-                          {pendingDemote && (
-                            <span className="text-xs text-orange-600 dark:text-orange-400 shrink-0">
-                              {t('groupManager.configureGroup.pendingDemote')}
-                            </span>
-                          )}
                         </span>
                       </label>
-                      {!canAdminAction && (
-                        <p className="text-xs text-amber-700 dark:text-amber-300 pl-7">
-                          {t('groupManager.configureGroup.cannotResolvePhone')}
+                      <label
+                        className={`flex items-start gap-2 text-xs ${
+                          !digitsOk || !admin ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                        } text-clerky-backendText dark:text-gray-200`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-clerky-backendButton shrink-0"
+                          disabled={!digitsOk || !admin}
+                          checked={participantsToDemote.has(p.id)}
+                          onChange={() => toggleDemoteParticipant(p.id)}
+                        />
+                        <span>
+                          <span className="font-medium">{t('groupManager.configureGroup.demoteAdmin')}</span>
+                          <span className="block text-gray-500 dark:text-gray-400 mt-0.5">
+                            {t('groupManager.configureGroup.demoteAdminHint')}
+                          </span>
+                        </span>
+                      </label>
+                      {!digitsOk ? (
+                        <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                          {t('groupManager.configureGroup.roleChangeUnavailable')}
                         </p>
-                      )}
-                      <div className="flex flex-wrap gap-2 pl-7">
-                        <button
-                          type="button"
-                          disabled={markedRemove || !canAdminAction || isAdmin}
-                          onClick={() => togglePromoteAdmin(p.id)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                            pendingPromote
-                              ? 'border-clerky-backendButton bg-clerky-backendButton/15 text-clerky-backendButton'
-                              : 'border-gray-300 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-800'
-                          }`}
-                        >
-                          {t('groupManager.configureGroup.promoteToAdmin')}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={markedRemove || !canAdminAction || !isAdmin}
-                          onClick={() => toggleDemoteAdmin(p.id)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                            pendingDemote
-                              ? 'border-orange-500 bg-orange-500/10 text-orange-700 dark:text-orange-300'
-                              : 'border-gray-300 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-800'
-                          }`}
-                        >
-                          {t('groupManager.configureGroup.demoteFromAdmin')}
-                        </button>
-                      </div>
+                      ) : null}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
