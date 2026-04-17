@@ -117,6 +117,15 @@ export interface ApiError {
   message: string;
 }
 
+/** Erro HTTP da API com `status` string (compatível com `ApiError` e ESLint no-throw-literal). */
+type RequestFailedError = Error & { status: string };
+
+function createRequestFailedError(status: string, message: string): RequestFailedError {
+  const e = new Error(message) as RequestFailedError;
+  e.status = status;
+  return e;
+}
+
 // Instâncias
 export interface Instance {
   id: string;
@@ -311,6 +320,13 @@ export interface WhatsAppPhoneSettings {
   business_hours?: BusinessHoursConfig;
 }
 
+/** Quando o proxy devolve HTML/502 sem JSON, o navegador pode mostrar CORS — mensagem orienta suporte/dev. */
+const MSG_GATEWAY_OR_UPSTREAM =
+  'O servidor respondeu com erro (502/503/504). Verifique se o backend e o microsserviço de grupos (Grupo-Flow) estão no ar. Se o console acusar CORS, costuma ser falha no proxy (resposta sem JSON nem cabeçalhos CORS), não bloqueio de origem do app.';
+
+const MSG_FETCH_FAILED =
+  'Não foi possível conectar ao servidor (rede, SSL ou indisponibilidade). Se aparecer CORS no console junto de net::ERR_FAILED, confira backend, Grupo-Flow e certificados.';
+
 // Função auxiliar para fazer requisições
 export const request = async <T>(
   endpoint: string,
@@ -331,53 +347,49 @@ export const request = async <T>(
     let response: Response;
     try {
       response = await fetch(`${API_URL}${endpoint}`, config);
-    } catch (fetchError: any) {
-      // Se o fetch falhar completamente (servidor parado), é um erro de rede
-      const networkError: ApiError = {
-        status: 'error',
-        message: 'Serviço temporariamente indisponível',
-      };
-      throw networkError;
+    } catch {
+      throw createRequestFailedError('error', MSG_FETCH_FAILED);
     }
-    
-    // Se não conseguir fazer a requisição (servidor parado, erro de rede)
-    if (!response.ok) {
-      let data: any;
+
+    const textBody = await response.text();
+    let parsedBody: unknown = null;
+    if (textBody) {
       try {
-        data = await response.json();
+        parsedBody = JSON.parse(textBody);
       } catch {
-        data = {};
+        parsedBody = null;
       }
-      const serverMessage = data?.message;
-      // Para 502/503/504, usar mensagem do servidor se existir (ex.: Grupo-Flow indisponível)
+    }
+
+    if (!response.ok) {
+      const data =
+        parsedBody && typeof parsedBody === 'object' && !Array.isArray(parsedBody)
+          ? (parsedBody as Record<string, unknown>)
+          : {};
+      const serverMessage =
+        typeof data.message === 'string' ? data.message.trim() : '';
+
       if (response.status === 503 || response.status === 502 || response.status === 504) {
-        const error: ApiError = {
-          status: 'error',
-          message: typeof serverMessage === 'string' && serverMessage.trim()
-            ? serverMessage
-            : 'Serviço temporariamente indisponível',
-        };
-        throw error;
+        throw createRequestFailedError('error', serverMessage || MSG_GATEWAY_OR_UPSTREAM);
       }
 
-      const error: ApiError = {
-        status: data.status || 'error',
-        message: data.message || 'Erro ao processar requisição. Tente novamente.',
-      };
+      throw createRequestFailedError(
+        typeof data.status === 'string' ? data.status : 'error',
+        serverMessage || 'Erro ao processar requisição. Tente novamente.'
+      );
+    }
+
+    if (parsedBody === null) {
+      if (!textBody) return {} as T;
+      throw createRequestFailedError('error', 'Resposta inválida do servidor (não é JSON).');
+    }
+    return parsedBody as T;
+  } catch (error: any) {
+    if (error instanceof Error && typeof (error as RequestFailedError).status === 'string') {
       throw error;
     }
 
-    const data = await response.json();
-    return data;
-  } catch (error: any) {
-    // Se o erro já for um ApiError com mensagem de serviço indisponível, re-lançar
-    if (error.status && error.message === 'Serviço temporariamente indisponível') {
-      throw error;
-    }
-    
-    // Se for erro de rede (servidor parado, CORS, etc)
-    // Verificar vários tipos de erros de rede
-    const isNetworkError = 
+    const isNetworkError =
       error instanceof TypeError ||
       error instanceof DOMException ||
       error?.name === 'NetworkError' ||
@@ -391,27 +403,16 @@ export const request = async <T>(
       error?.message?.includes('ERR_CONNECTION_RESET') ||
       error?.message?.includes('ERR_CONNECTION_CLOSED') ||
       error?.message?.includes('ERR_CONNECTION_TIMED_OUT') ||
-      (!error?.status && !error?.message); // Erro sem estrutura pode ser erro de rede
-    
+      (!error?.status && !error?.message);
+
     if (isNetworkError) {
-      const networkError: ApiError = {
-        status: 'error',
-        message: 'Serviço temporariamente indisponível',
-      };
-      throw networkError;
+      throw createRequestFailedError('error', MSG_FETCH_FAILED);
     }
-    
-    // Se o erro já for um ApiError, re-lançar
-    if (error.status && error.message) {
-      throw error;
-    }
-    
-    // Para outros erros, criar um ApiError
-    const apiError: ApiError = {
-      status: 'error',
-      message: error.message || 'Erro ao processar requisição. Tente novamente.',
-    };
-    throw apiError;
+
+    throw createRequestFailedError(
+      'error',
+      error.message || 'Erro ao processar requisição. Tente novamente.'
+    );
   }
 };
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Modal, Button, Input } from '../UI';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Group, groupAPI, GroupParticipantEvolution } from '../../services/api';
+import { getErrorMessage } from '../../utils/errorHandler';
 import { getGroupParticipantCardDisplay, normalizeGroupParticipantFromApi } from '../../utils/groupUtils';
 
 interface ConfigureGroupModalProps {
@@ -205,31 +206,90 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
     const descVal = description.trim();
     const toRemove = Array.from(participantsToRemove);
     const toAdd = addTab === 'manual' ? parseManualParticipants() : [];
+    const origName = (group!.name ?? '').trim();
+    const origDesc = (group!.description ?? '').trim();
+    const announceChanged = onlyAdminsSend !== !!group!.announcement;
+    const lockedChanged = onlyAdminsEdit !== !!group!.locked;
+    const photoChanged = Boolean(photoPreview && (photoFile || group!.pictureUrl !== photoPreview));
+
+    const failAt = (stepKey: string, err: unknown) => {
+      const detail = getErrorMessage(err, t('groupManager.error.refreshGroups'));
+      setSaveError(
+        t('groupManager.configureGroup.saveFailedAt', {
+          step: t(stepKey),
+          detail,
+        })
+      );
+    };
+
     setSaving(true);
     setSaveError(null);
     try {
-      await groupAPI.updateGroupSubject(instanceId, groupJid, nameVal);
-      await groupAPI.updateGroupDescription(instanceId, groupJid, descVal);
-      if (photoPreview && (photoFile || group!.pictureUrl !== photoPreview)) {
-        await groupAPI.updateGroupPicture(instanceId, groupJid, photoPreview);
+      if (nameVal !== origName) {
+        try {
+          await groupAPI.updateGroupSubject(instanceId, groupJid, nameVal);
+        } catch (e) {
+          failAt('groupManager.configureGroup.saveStepName', e);
+          return;
+        }
       }
-      await groupAPI.updateSetting(
-        instanceId,
-        groupJid,
-        onlyAdminsSend ? 'announcement' : 'not_announcement'
-      );
-      await groupAPI.updateSetting(instanceId, groupJid, onlyAdminsEdit ? 'locked' : 'unlocked');
+
       if (toRemove.length) {
-        await groupAPI.updateParticipant(instanceId, groupJid, 'remove', toRemove);
+        try {
+          await groupAPI.updateParticipant(instanceId, groupJid, 'remove', toRemove);
+        } catch (e) {
+          failAt('groupManager.configureGroup.saveStepRemoveParticipants', e);
+          return;
+        }
       }
       if (toAdd.length) {
-        await groupAPI.updateParticipant(
-          instanceId,
-          groupJid,
-          'add',
-          toAdd.map((p) => p.phone)
-        );
+        try {
+          await groupAPI.updateParticipant(instanceId, groupJid, 'add', toAdd.map((p) => p.phone));
+        } catch (e) {
+          failAt('groupManager.configureGroup.saveStepAddParticipants', e);
+          return;
+        }
       }
+
+      if (descVal !== origDesc) {
+        try {
+          await groupAPI.updateGroupDescription(instanceId, groupJid, descVal);
+        } catch (e) {
+          failAt('groupManager.configureGroup.saveStepDescription', e);
+          return;
+        }
+      }
+
+      if (photoChanged) {
+        try {
+          await groupAPI.updateGroupPicture(instanceId, groupJid, photoPreview!);
+        } catch (e) {
+          failAt('groupManager.configureGroup.saveStepPhoto', e);
+          return;
+        }
+      }
+
+      if (announceChanged) {
+        try {
+          await groupAPI.updateSetting(
+            instanceId,
+            groupJid,
+            onlyAdminsSend ? 'announcement' : 'not_announcement'
+          );
+        } catch (e) {
+          failAt('groupManager.configureGroup.saveStepAnnounce', e);
+          return;
+        }
+      }
+      if (lockedChanged) {
+        try {
+          await groupAPI.updateSetting(instanceId, groupJid, onlyAdminsEdit ? 'locked' : 'unlocked');
+        } catch (e) {
+          failAt('groupManager.configureGroup.saveStepEditLock', e);
+          return;
+        }
+      }
+
       onSave({
         name: nameVal,
         description: descVal,
@@ -241,8 +301,7 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
       });
       onClose();
     } catch (err: unknown) {
-      const message = err && typeof err === 'object' && 'message' in err ? String((err as { message: string }).message) : 'Erro ao salvar';
-      setSaveError(message);
+      setSaveError(getErrorMessage(err, t('groupManager.error.refreshGroups')));
     } finally {
       setSaving(false);
     }
