@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom';
 import { AppLayout } from '../components/Layout';
 import { Card, Button, Modal, ImageCrop } from '../components/UI';
+import GroupMessagesPage from '../components/GroupFlow/GroupMessagesPage';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import {
@@ -376,8 +377,8 @@ const GroupFlow: React.FC = () => {
   }, [t]);
 
   useEffect(() => {
-    if (!messagesMode && !campaignId) loadCampaigns();
-  }, [messagesMode, campaignId, loadCampaigns]);
+    if (!campaignId) void loadCampaigns();
+  }, [campaignId, loadCampaigns]);
 
   const refreshCampaignDetail = useCallback(
     async (id: string) => {
@@ -1117,63 +1118,12 @@ const GroupFlow: React.FC = () => {
   if (messagesMode) {
     return (
       <AppLayout>
-        <div className="max-w-3xl mx-auto space-y-6">
-          <button
-            type="button"
-            onClick={leaveMessages}
-            className="text-sm font-medium text-clerky-backendButton hover:underline"
-          >
-            ← {t('groupFlow.messagesBack')}
-          </button>
-
-          <Card padding="lg" shadow="md" className="divide-y divide-gray-200 dark:divide-gray-700">
-            <div className="pb-6">
-              <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-                <h2 className="text-lg font-semibold text-clerky-backendText dark:text-gray-100">
-                  {t('groupFlow.templatesTitle')}
-                </h2>
-                <span className="text-sm text-gray-500">{t('groupFlow.templatesCount', { n: '0' })}</span>
-              </div>
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">{t('groupFlow.templatesEmpty')}</p>
-              <div className="flex justify-end">
-                <Button type="button" variant="primary" size="sm" disabled title={t('groupFlow.comingSoon')}>
-                  {t('groupFlow.createTemplate')}
-                </Button>
-              </div>
-            </div>
-
-            <div className="py-6">
-              <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-                <h2 className="text-lg font-semibold text-clerky-backendText dark:text-gray-100">
-                  {t('groupFlow.scheduledTitle')}
-                </h2>
-                <span className="text-sm text-gray-500">{t('groupFlow.scheduledCount', { n: '0' })}</span>
-              </div>
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">{t('groupFlow.scheduledEmpty')}</p>
-              <div className="flex justify-end">
-                <Button type="button" variant="primary" size="sm" disabled title={t('groupFlow.comingSoon')}>
-                  {t('groupFlow.createSchedule')}
-                </Button>
-              </div>
-            </div>
-
-            <div className="pt-6">
-              <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
-                <div>
-                  <h2 className="text-lg font-semibold text-clerky-backendText dark:text-gray-100">
-                    {t('groupFlow.immediateTitle')}
-                  </h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 max-w-xl">{t('groupFlow.immediateDesc')}</p>
-                </div>
-              </div>
-              <div className="flex justify-end mt-4">
-                <Button type="button" variant="primary" size="sm" disabled title={t('groupFlow.comingSoon')}>
-                  {t('groupFlow.sendNow')}
-                </Button>
-              </div>
-            </div>
-          </Card>
-        </div>
+        <GroupMessagesPage
+          campaigns={campaigns}
+          loadingCampaigns={loadingCampaigns}
+          onReloadCampaigns={() => void loadCampaigns()}
+          onBack={leaveMessages}
+        />
       </AppLayout>
     );
   }
@@ -2098,17 +2048,29 @@ const GroupFlow: React.FC = () => {
               {campaigns.map((c) => (
                 <li
                   key={c.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/50 px-4 py-3"
+                  className="flex min-h-[52px] flex-wrap items-stretch gap-0 overflow-hidden rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/50 shadow-sm transition hover:border-clerky-backendButton/35 hover:shadow-md"
                 >
-                  <div>
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 px-4 py-3 text-left outline-none transition hover:bg-white/90 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-clerky-backendButton/40 dark:hover:bg-gray-900/40 dark:focus-visible:ring-clerky-backendButton/50"
+                    onClick={() => openCampaignById(c.id)}
+                    aria-label={t('groupFlow.openCampaignAria', { name: c.name })}
+                  >
                     <p className="font-medium text-clerky-backendText dark:text-gray-100">{c.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                       {c.evolution_instance_name} · {c.inclusion_rule} · {c.contacts_per_group_hint} contatos/grupo
                     </p>
-                  </div>
-                  <Button type="button" variant="outline" size="sm" onClick={() => openCampaignById(c.id)}>
-                    {t('groupFlow.campaignOpen')}
-                  </Button>
+                  </button>
+                  <button
+                    type="button"
+                    className="flex shrink-0 items-center border-l border-gray-200 bg-transparent px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-gray-600 dark:text-red-400 dark:hover:bg-red-950/40 sm:px-4 sm:text-sm"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      void handleDeleteCampaign(c.id);
+                    }}
+                  >
+                    {t('groupFlow.campaignDelete')}
+                  </button>
                 </li>
               ))}
             </ul>

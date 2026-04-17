@@ -2551,6 +2551,74 @@ export const grupoCampaignAPI = {
   },
 };
 
+export interface GrupoFlowMessageTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  type: 'text' | 'image';
+  content_text: string | null;
+  media_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GrupoFlowScheduleRow {
+  id: string;
+  template_id: string;
+  campaign_id: string;
+  scheduled_at: string;
+  repeat_rule: string;
+  scope: 'all_campaign' | 'selected';
+  group_jids: string[] | null;
+  status: string;
+  last_error: string | null;
+  created_at: string;
+  template_name?: string;
+  campaign_name?: string;
+}
+
+/** Templates e agendamentos — Mensagens para grupos (Postgres + envio via Grupo-Flow). */
+export const grupoFlowMessagesAPI = {
+  listTemplates: async (): Promise<{ status: string; templates: GrupoFlowMessageTemplate[] }> => {
+    return request('/grupo-flow-messages/templates');
+  },
+  createTemplate: async (body: {
+    name: string;
+    description?: string;
+    type: 'text' | 'image';
+    contentText?: string;
+    mediaUrl?: string;
+  }): Promise<{ status: string; templateId: string }> => {
+    return request('/grupo-flow-messages/templates', { method: 'POST', body: JSON.stringify(body) });
+  },
+  deleteTemplate: async (id: string): Promise<{ status: string }> => {
+    return request(`/grupo-flow-messages/templates/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+  listSchedules: async (): Promise<{ status: string; schedules: GrupoFlowScheduleRow[] }> => {
+    return request('/grupo-flow-messages/schedules');
+  },
+  createSchedule: async (body: {
+    templateId: string;
+    campaignId: string;
+    scheduledAt: string;
+    scope: 'all_campaign' | 'selected';
+    groupJids?: string[];
+  }): Promise<{ status: string; scheduleId: string }> => {
+    return request('/grupo-flow-messages/schedules', { method: 'POST', body: JSON.stringify(body) });
+  },
+  deleteSchedule: async (id: string): Promise<{ status: string }> => {
+    return request(`/grupo-flow-messages/schedules/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+  sendImmediate: async (body: {
+    templateId: string;
+    campaignId: string;
+    scope: 'all_campaign' | 'selected';
+    groupJids?: string[];
+  }): Promise<{ status: string; sentTo: number }> => {
+    return request('/grupo-flow-messages/send-immediate', { method: 'POST', body: JSON.stringify(body) });
+  },
+};
+
 // Scraping (busca de lugares)
 export interface ScrapingSearchRecord {
   id: string;
@@ -2624,6 +2692,7 @@ const api = {
   scrapingAPI,
   groupFlowAPI,
   grupoCampaignAPI,
+  grupoFlowMessagesAPI,
 };
 
 export default api;
