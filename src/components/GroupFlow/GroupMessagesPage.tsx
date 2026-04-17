@@ -4,6 +4,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import {
   grupoCampaignAPI,
   grupoFlowMessagesAPI,
+  groupFlowAPI,
   type GrupoCampaignRow,
   type GrupoFlowMessageTemplate,
   type GrupoFlowMessageTemplateType,
@@ -27,6 +28,81 @@ function toDatetimeLocalValue(d: Date): string {
 
 const BTN =
   'inline-flex min-h-[40px] items-center justify-center rounded-xl border-2 border-clerky-backendButton/85 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-semibold text-clerky-backendButton shadow-sm transition hover:bg-clerky-backendButton/10';
+
+type CampaignGroupPickRow = { jid: string; subject: string };
+
+function extractGroupInfoFromGetInfo(data: unknown): { subject: string; description: string; memberCount: number | null } {
+  const unwrap = (v: unknown): Record<string, unknown> | null => {
+    if (!v || typeof v !== 'object') return null;
+    if (Array.isArray(v)) {
+      for (const item of v) {
+        const o = unwrap(item);
+        if (o) return o;
+      }
+      return null;
+    }
+    return v as Record<string, unknown>;
+  };
+  let o = unwrap(data);
+  if (o && typeof o.data === 'object' && o.data !== null) {
+    const inner = unwrap(o.data);
+    if (inner) o = inner;
+  }
+  if (!o) return { subject: '', description: '', memberCount: null };
+  const subject = String(o.subject ?? o.name ?? o.groupName ?? '');
+  const description = String(o.desc ?? o.description ?? o.about ?? '');
+  let memberCount: number | null = null;
+  if (typeof o.size === 'number' && Number.isFinite(o.size)) memberCount = o.size;
+  else if (Array.isArray(o.participants)) memberCount = o.participants.length;
+  return { subject, description, memberCount };
+}
+
+/** Lista JIDs da campanha e resolve o nome do grupo (Evolution), alinhado ao GroupFlow. */
+function useCampaignGroupRows(campaignId: string, enabled: boolean, t: (key: string) => string) {
+  const [rows, setRows] = useState<CampaignGroupPickRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!enabled || !campaignId) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setRows([]);
+    void (async () => {
+      try {
+        const res = await grupoCampaignAPI.get(campaignId);
+        if (cancelled) return;
+        const jids = res.groupJids || [];
+        const inst = res.campaign.evolution_instance_name;
+        const out: CampaignGroupPickRow[] = await Promise.all(
+          jids.map(async (jid) => {
+            try {
+              const r = await groupFlowAPI.getGroupInfo(inst, jid);
+              const { subject } = extractGroupInfoFromGetInfo(r.data);
+              const sub = subject.trim() || t('groupFlow.groupNameUnknown');
+              return { jid, subject: sub };
+            } catch {
+              return { jid, subject: jid };
+            }
+          })
+        );
+        if (!cancelled) setRows(out);
+      } catch {
+        if (!cancelled) setRows([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId, enabled, t]);
+
+  return { rows, loading };
+}
 
 const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadingCampaigns, onReloadCampaigns, onBack }) => {
   const { t } = useLanguage();
@@ -61,14 +137,25 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
   const [schTemplateId, setSchTemplateId] = useState('');
   const [schCampaignId, setSchCampaignId] = useState('');
   const [schScope, setSchScope] = useState<'all_campaign' | 'selected'>('all_campaign');
-  const [schJidsRaw, setSchJidsRaw] = useState('');
+  const [schSelectedJids, setSchSelectedJids] = useState<Set<string>>(() => new Set());
   const [schAt, setSchAt] = useState(() => toDatetimeLocalValue(new Date(Date.now() + 3600000)));
 
   const [immediateFormOpen, setImmediateFormOpen] = useState(false);
   const [imTemplateId, setImTemplateId] = useState('');
   const [imCampaignId, setImCampaignId] = useState('');
   const [imScope, setImScope] = useState<'all_campaign' | 'selected'>('all_campaign');
-  const [imJidsRaw, setImJidsRaw] = useState('');
+  const [imSelectedJids, setImSelectedJids] = useState<Set<string>>(() => new Set());
+
+  const schCampaignGroups = useCampaignGroupRows(schCampaignId, schScope === 'selected', t);
+  const imCampaignGroups = useCampaignGroupRows(imCampaignId, imScope === 'selected', t);
+
+  useEffect(() => {
+    setSchSelectedJids(new Set());
+  }, [schCampaignId, schScope]);
+
+  useEffect(() => {
+    setImSelectedJids(new Set());
+  }, [imCampaignId, imScope]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -284,15 +371,9 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
     }
     const when = new Date(schAt);
     if (Number.isNaN(when.getTime())) return;
-    const groupJids =
-      schScope === 'selected'
-        ? schJidsRaw
-            .split(/[\n,;]+/)
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : undefined;
+    const groupJids = schScope === 'selected' ? Array.from(schSelectedJids) : undefined;
     if (schScope === 'selected' && (!groupJids || !groupJids.length)) {
-      setError(t('groupFlow.error'));
+      setError(t('groupFlow.msgSelectGroupsRequired'));
       return;
     }
     setSaving(true);
@@ -330,15 +411,9 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
       setError(t('groupFlow.error'));
       return;
     }
-    const groupJids =
-      imScope === 'selected'
-        ? imJidsRaw
-            .split(/[\n,;]+/)
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : undefined;
+    const groupJids = imScope === 'selected' ? Array.from(imSelectedJids) : undefined;
     if (imScope === 'selected' && (!groupJids || !groupJids.length)) {
-      setError(t('groupFlow.error'));
+      setError(t('groupFlow.msgSelectGroupsRequired'));
       return;
     }
     setSaving(true);
@@ -480,13 +555,51 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
                 </label>
               </div>
               {schScope === 'selected' && (
-                <textarea
-                  className="w-full rounded-xl border px-3 py-2 text-sm font-mono"
-                  rows={4}
-                  placeholder={t('groupFlow.msgSelectedJidsPlaceholder')}
-                  value={schJidsRaw}
-                  onChange={(e) => setSchJidsRaw(e.target.value)}
-                />
+                <div className="space-y-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3">
+                  {!schCampaignId ? (
+                    <p className="text-xs text-amber-700 dark:text-amber-300">{t('groupFlow.msgPickCampaignFirst')}</p>
+                  ) : schCampaignGroups.loading ? (
+                    <p className="text-sm text-gray-500 py-2">{t('groupFlow.loading')}</p>
+                  ) : schCampaignGroups.rows.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('groupFlow.noGroupsInCampaign')}</p>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className={BTN}
+                          onClick={() => setSchSelectedJids(new Set(schCampaignGroups.rows.map((r) => r.jid)))}
+                        >
+                          {t('groupFlow.selectAll')}
+                        </button>
+                        <button type="button" className={BTN} onClick={() => setSchSelectedJids(new Set())}>
+                          {t('groupFlow.deselectAll')}
+                        </button>
+                      </div>
+                      <ul className="max-h-52 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800 rounded-lg border border-gray-100 dark:border-gray-800">
+                        {schCampaignGroups.rows.map(({ jid, subject }) => (
+                          <li key={jid} className="flex items-start gap-3 px-3 py-2.5">
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300"
+                              checked={schSelectedJids.has(jid)}
+                              onChange={() =>
+                                setSchSelectedJids((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(jid)) next.delete(jid);
+                                  else next.add(jid);
+                                  return next;
+                                })
+                              }
+                              aria-label={subject}
+                            />
+                            <span className="text-sm font-medium text-clerky-backendText dark:text-gray-100 break-words">{subject}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
               )}
               <div>
                 <label className="block text-sm font-medium mb-1">{t('groupFlow.msgScheduleAt')}</label>
@@ -596,13 +709,51 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
                 </label>
               </div>
               {imScope === 'selected' && (
-                <textarea
-                  className="w-full rounded-xl border px-3 py-2 text-sm font-mono"
-                  rows={4}
-                  placeholder={t('groupFlow.msgSelectedJidsPlaceholder')}
-                  value={imJidsRaw}
-                  onChange={(e) => setImJidsRaw(e.target.value)}
-                />
+                <div className="space-y-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3">
+                  {!imCampaignId ? (
+                    <p className="text-xs text-amber-700 dark:text-amber-300">{t('groupFlow.msgPickCampaignFirst')}</p>
+                  ) : imCampaignGroups.loading ? (
+                    <p className="text-sm text-gray-500 py-2">{t('groupFlow.loading')}</p>
+                  ) : imCampaignGroups.rows.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('groupFlow.noGroupsInCampaign')}</p>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className={BTN}
+                          onClick={() => setImSelectedJids(new Set(imCampaignGroups.rows.map((r) => r.jid)))}
+                        >
+                          {t('groupFlow.selectAll')}
+                        </button>
+                        <button type="button" className={BTN} onClick={() => setImSelectedJids(new Set())}>
+                          {t('groupFlow.deselectAll')}
+                        </button>
+                      </div>
+                      <ul className="max-h-52 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800 rounded-lg border border-gray-100 dark:border-gray-800">
+                        {imCampaignGroups.rows.map(({ jid, subject }) => (
+                          <li key={jid} className="flex items-start gap-3 px-3 py-2.5">
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300"
+                              checked={imSelectedJids.has(jid)}
+                              onChange={() =>
+                                setImSelectedJids((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(jid)) next.delete(jid);
+                                  else next.add(jid);
+                                  return next;
+                                })
+                              }
+                              aria-label={subject}
+                            />
+                            <span className="text-sm font-medium text-clerky-backendText dark:text-gray-100 break-words">{subject}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
               )}
               {!templates.length ? <p className="text-xs text-amber-700 dark:text-amber-300">{t('groupFlow.msgNoTemplateHint')}</p> : null}
               <Button type="button" variant="primary" disabled={saving || !templates.length} isLoading={saving} onClick={() => void submitImmediate()}>
