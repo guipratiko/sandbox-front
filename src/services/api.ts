@@ -2483,6 +2483,21 @@ export const groupFlowAPI = {
   },
 };
 
+function officialWpPath(path: string): string {
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return `/official-wp${p}`;
+}
+
+/** Proxy OnlyFlow API → OficialAPI-Clerky (`OFFICIAL_API_CLERKY_URL` no backend). Ex.: `/templates` → `/api/official-wp/templates` → microserviço `/api/templates`. */
+export const officialWpAPI = {
+  get: <T>(path: string) => request<T>(officialWpPath(path)),
+  post: <T>(path: string, body?: unknown) =>
+    request<T>(officialWpPath(path), {
+      method: 'POST',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }),
+};
+
 export type GrupoCampaignInclusionRule = 'all' | 'explicit' | 'empty';
 
 export interface GrupoCampaignRow {
@@ -2702,6 +2717,7 @@ const api = {
   instagramAPI,
   scrapingAPI,
   groupFlowAPI,
+  officialWpAPI,
   grupoCampaignAPI,
   grupoFlowMessagesAPI,
 };
