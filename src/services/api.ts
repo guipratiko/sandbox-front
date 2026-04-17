@@ -2412,6 +2412,75 @@ export const groupFlowAPI = {
     const q = new URLSearchParams({ instanceName });
     return request(`/grupo-flow/groups/${encodeURIComponent(groupJid)}/invite?${q.toString()}`);
   },
+  createGroup: async (
+    instanceName: string,
+    body: { subject: string; description?: string; participants: string[] }
+  ): Promise<{ status: string; data: unknown }> => {
+    const q = new URLSearchParams({ instanceName });
+    return request(`/grupo-flow/groups?${q.toString()}`, { method: 'POST', body: JSON.stringify(body) });
+  },
+  getParticipants: async (instanceName: string, groupJid: string): Promise<{ status: string; data: unknown }> => {
+    const q = new URLSearchParams({ instanceName });
+    return request(`/grupo-flow/groups/${encodeURIComponent(groupJid)}/participants?${q.toString()}`);
+  },
+  updateGroupSubject: async (instanceName: string, groupJid: string, subject: string): Promise<{ status: string; data: unknown }> => {
+    const q = new URLSearchParams({ instanceName });
+    return request(`/grupo-flow/groups/${encodeURIComponent(groupJid)}/subject?${q.toString()}`, {
+      method: 'POST',
+      body: JSON.stringify({ subject }),
+    });
+  },
+  updateGroupDescription: async (
+    instanceName: string,
+    groupJid: string,
+    description: string
+  ): Promise<{ status: string; data: unknown }> => {
+    const q = new URLSearchParams({ instanceName });
+    return request(`/grupo-flow/groups/${encodeURIComponent(groupJid)}/description?${q.toString()}`, {
+      method: 'POST',
+      body: JSON.stringify({ description }),
+    });
+  },
+  updateGroupPicture: async (instanceName: string, groupJid: string, image: string): Promise<{ status: string; data: unknown }> => {
+    const q = new URLSearchParams({ instanceName });
+    return request(`/grupo-flow/groups/${encodeURIComponent(groupJid)}/picture?${q.toString()}`, {
+      method: 'POST',
+      body: JSON.stringify({ image }),
+    });
+  },
+  updateGroupParticipants: async (
+    instanceName: string,
+    groupJid: string,
+    body: { action: 'add' | 'remove' | 'promote' | 'demote'; participants: string[] }
+  ): Promise<{ status: string; data: unknown }> => {
+    const q = new URLSearchParams({ instanceName });
+    return request(`/grupo-flow/groups/${encodeURIComponent(groupJid)}/participant-updates?${q.toString()}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+  updateGroupSetting: async (
+    instanceName: string,
+    groupJid: string,
+    action: 'announcement' | 'not_announcement' | 'locked' | 'unlocked'
+  ): Promise<{ status: string; data: unknown }> => {
+    const q = new URLSearchParams({ instanceName });
+    return request(`/grupo-flow/groups/${encodeURIComponent(groupJid)}/settings?${q.toString()}`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    });
+  },
+  sendGroupText: async (
+    instanceName: string,
+    groupJid: string,
+    body: { text: string; mentionsEveryOne?: boolean }
+  ): Promise<{ status: string; data: unknown }> => {
+    const q = new URLSearchParams({ instanceName });
+    return request(`/grupo-flow/groups/${encodeURIComponent(groupJid)}/send-text?${q.toString()}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
 };
 
 export type GrupoCampaignInclusionRule = 'all' | 'explicit' | 'empty';
@@ -2422,6 +2491,7 @@ export interface GrupoCampaignRow {
   evolution_instance_name: string;
   inclusion_rule: GrupoCampaignInclusionRule;
   contacts_per_group_hint: number;
+  photo_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -2447,7 +2517,14 @@ export const grupoCampaignAPI = {
   },
   update: async (
     id: string,
-    body: Partial<{ name: string; inclusionRule: GrupoCampaignInclusionRule; contactsPerGroupHint: number }>
+    body: Partial<{
+      name: string;
+      inclusionRule: GrupoCampaignInclusionRule;
+      contactsPerGroupHint: number;
+      /** data URL (ex.: image/jpeg;base64,...) enviada ao backend para upload */
+      photoBase64?: string;
+      clearPhoto?: boolean;
+    }>
   ): Promise<{ status: string }> => {
     return request(`/grupo-campaigns/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) });
   },
