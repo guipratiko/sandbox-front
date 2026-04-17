@@ -416,6 +416,60 @@ export const request = async <T>(
   }
 };
 
+/** Foto de grupo via multipart (binário) — contorna limite de ~1 MB em JSON no nginx/Traefik. */
+export async function requestGroupPictureUpload(
+  instanceId: string,
+  groupJid: string,
+  file: File
+): Promise<{ status: string }> {
+  const token = localStorage.getItem('token');
+  const form = new FormData();
+  form.append('instanceId', instanceId);
+  form.append('groupJid', groupJid);
+  form.append('image', file, file.name || 'group.jpg');
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/groups/updatePictureUpload`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+  } catch {
+    throw createRequestFailedError('error', MSG_FETCH_FAILED);
+  }
+
+  const textBody = await response.text();
+  let parsedBody: unknown = null;
+  if (textBody) {
+    try {
+      parsedBody = JSON.parse(textBody);
+    } catch {
+      parsedBody = null;
+    }
+  }
+
+  if (!response.ok) {
+    const data =
+      parsedBody && typeof parsedBody === 'object' && !Array.isArray(parsedBody)
+        ? (parsedBody as Record<string, unknown>)
+        : {};
+    const serverMessage = typeof data.message === 'string' ? data.message.trim() : '';
+    if (response.status === 503 || response.status === 502 || response.status === 504) {
+      throw createRequestFailedError('error', serverMessage || MSG_GATEWAY_OR_UPSTREAM);
+    }
+    throw createRequestFailedError(
+      typeof data.status === 'string' ? data.status : 'error',
+      serverMessage || 'Erro ao enviar foto do grupo.'
+    );
+  }
+
+  if (parsedBody != null && typeof parsedBody === 'object' && !Array.isArray(parsedBody)) {
+    return parsedBody as { status: string };
+  }
+  return { status: 'ok' };
+}
+
 // Função auxiliar para fazer requisições ao microserviço MindFlow (workflows)
 const requestMindClerky = async <T>(
   endpoint: string,
@@ -2077,6 +2131,15 @@ export const groupAPI = {
       method: 'POST',
       body: JSON.stringify({ instanceId, groupJid, action }),
     });
+  },
+
+  /** Preferir quando houver `File` — multipart reduz tamanho na rede vs. JSON+base64. */
+  updateGroupPictureFile: async (
+    instanceId: string,
+    groupJid: string,
+    file: File
+  ): Promise<{ status: string }> => {
+    return requestGroupPictureUpload(instanceId, groupJid, file);
   },
 
   updateGroupPicture: async (
