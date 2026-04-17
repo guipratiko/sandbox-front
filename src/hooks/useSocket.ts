@@ -66,6 +66,7 @@ export interface NewMessageData {
     timestamp: string;
     read: boolean;
     automatedOutbound?: boolean;
+    reactions?: Array<{ fromMe: boolean; emoji: string; at: string }>;
   }>;
 }
 

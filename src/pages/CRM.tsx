@@ -18,6 +18,7 @@ import {
   Contact,
   CRMColumn,
   Message,
+  type MessageReaction,
   instanceAPI,
   instagramAPI,
   Instance,
@@ -554,6 +555,19 @@ function isCrmMediaPlaceholderContent(content: string | undefined): boolean {
   return placeholders.has(key);
 }
 
+function crmReactionLabel(reactions: MessageReaction[] | undefined, language: 'pt' | 'en'): string | null {
+  if (!reactions || reactions.length === 0) return null;
+  const last = reactions[reactions.length - 1];
+  const emoji = (last.emoji || '').trim();
+  if (!emoji) return null;
+  if (last.fromMe) {
+    return language === 'en' ? `You reacted to this message · ${emoji}` : `Você reagiu a esta mensagem · ${emoji}`;
+  }
+  return language === 'en'
+    ? `The contact reacted to this message · ${emoji}`
+    : `O contato reagiu a esta mensagem · ${emoji}`;
+}
+
 interface CrmChatMessageBubbleProps {
   msg: Message;
   language: 'pt' | 'en';
@@ -572,97 +586,111 @@ const CrmChatMessageBubble: React.FC<CrmChatMessageBubbleProps> = ({ msg, langua
 
   const isNewMessage = newMessageIds.has(msg.id);
   const isAutomationOutbound = msg.fromMe && msg.automatedOutbound === true;
+  const reactionLine = crmReactionLabel(msg.reactions, language);
 
   return (
     <div
-      className={`flex ${msg.fromMe ? 'justify-end' : 'justify-start'} ${
+      className={`flex flex-col ${msg.fromMe ? 'items-end' : 'items-start'} ${
         isNewMessage ? 'animate-message-appear' : ''
       }`}
     >
-      <div
-        className={`${isImage || isVideo ? 'w-fit' : 'max-w-[85%] sm:max-w-[75%]'} rounded-2xl ${isImage || isVideo ? 'p-1 overflow-hidden' : 'px-3 sm:px-4 py-2 sm:py-2.5'} shadow-sm ${
-          msg.fromMe
-            ? isAutomationOutbound
-              ? 'bg-[#5B9DFE] text-white rounded-br-md'
-              : 'bg-[#D9FCD2] text-[#0f1f1c] dark:bg-[#064640] dark:text-gray-100 rounded-br-md'
-            : 'bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200 rounded-bl-md'
-        }`}
-      >
-        {isMedia ? (
-          <div>
-            {isImage && (
-              <img
-                src={msg.mediaUrl!}
-                alt="Imagem"
-                className="max-w-[250px] h-auto rounded-lg block"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            )}
-            {isVideo && (
-              <video src={msg.mediaUrl!} controls className="max-w-[250px] h-auto rounded-lg block">
-                Seu navegador não suporta vídeo.
-              </video>
-            )}
-            {isAudio && (
-              <div className="flex items-center gap-2">
-                <audio src={msg.mediaUrl!} controls className="flex-1">
-                  Seu navegador não suporta áudio.
-                </audio>
-              </div>
-            )}
-            {isDocument && (
-              <div className="flex items-center gap-2">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                  />
-                </svg>
-                <a
-                  href={msg.mediaUrl!}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm underline hover:opacity-80"
-                >
-                  Baixar documento
-                </a>
-              </div>
-            )}
-            {!isImage && !isVideo && !isAudio && !isDocument && (
-              <p className="text-sm">[Mídia não suportada]</p>
-            )}
-            {msg.content && !isCrmMediaPlaceholderContent(msg.content) && (
-              <p
-                className={`text-sm mt-2 whitespace-pre-wrap break-words ${
-                  msg.fromMe
-                    ? isAutomationOutbound
-                      ? 'text-white/95'
-                      : 'text-[#0f1f1c]/95 dark:text-gray-100'
-                    : 'text-clerky-backendText dark:text-gray-200'
-                }`}
-              >
-                {msg.content}
-              </p>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
-        )}
-        <p
-          className={`text-xs mt-1 ${
+      {reactionLine && (
+        <div
+          className={`max-w-[85%] sm:max-w-[75%] mb-1 px-2.5 py-1 rounded-lg text-xs font-medium shadow-sm ring-1 ring-black/5 dark:ring-white/10 ${
             msg.fromMe
-              ? isAutomationOutbound
-                ? 'text-white/85'
-                : 'text-[#14532d]/65 dark:text-white/70'
-              : 'text-gray-500'
+              ? 'bg-emerald-100/90 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100'
+              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
           }`}
         >
-          {formatTime(msg.timestamp, language)}
-        </p>
+          {reactionLine}
+        </div>
+      )}
+      <div className={`flex ${msg.fromMe ? 'justify-end' : 'justify-start'} w-full`}>
+        <div
+          className={`${isImage || isVideo ? 'w-fit' : 'max-w-[85%] sm:max-w-[75%]'} rounded-2xl ${isImage || isVideo ? 'p-1 overflow-hidden' : 'px-3 sm:px-4 py-2 sm:py-2.5'} shadow-sm ${
+            msg.fromMe
+              ? isAutomationOutbound
+                ? 'bg-[#5B9DFE] text-white rounded-br-md'
+                : 'bg-[#D9FCD2] text-[#0f1f1c] dark:bg-[#064640] dark:text-gray-100 rounded-br-md'
+              : 'bg-white dark:bg-gray-700 text-clerky-backendText dark:text-gray-200 rounded-bl-md'
+          }`}
+        >
+          {isMedia ? (
+            <div>
+              {isImage && (
+                <img
+                  src={msg.mediaUrl!}
+                  alt="Imagem"
+                  className="max-w-[250px] h-auto rounded-lg block"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              )}
+              {isVideo && (
+                <video src={msg.mediaUrl!} controls className="max-w-[250px] h-auto rounded-lg block">
+                  Seu navegador não suporta vídeo.
+                </video>
+              )}
+              {isAudio && (
+                <div className="flex items-center gap-2">
+                  <audio src={msg.mediaUrl!} controls className="flex-1">
+                    Seu navegador não suporta áudio.
+                  </audio>
+                </div>
+              )}
+              {isDocument && (
+                <div className="flex items-center gap-2">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <a
+                    href={msg.mediaUrl!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm underline hover:opacity-80"
+                  >
+                    Baixar documento
+                  </a>
+                </div>
+              )}
+              {!isImage && !isVideo && !isAudio && !isDocument && (
+                <p className="text-sm">[Mídia não suportada]</p>
+              )}
+              {msg.content && !isCrmMediaPlaceholderContent(msg.content) && (
+                <p
+                  className={`text-sm mt-2 whitespace-pre-wrap break-words ${
+                    msg.fromMe
+                      ? isAutomationOutbound
+                        ? 'text-white/95'
+                        : 'text-[#0f1f1c]/95 dark:text-gray-100'
+                      : 'text-clerky-backendText dark:text-gray-200'
+                  }`}
+                >
+                  {msg.content}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+          )}
+          <p
+            className={`text-xs mt-1 ${
+              msg.fromMe
+                ? isAutomationOutbound
+                  ? 'text-white/85'
+                  : 'text-[#14532d]/65 dark:text-white/70'
+                : 'text-gray-500'
+            }`}
+          >
+            {formatTime(msg.timestamp, language)}
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -754,7 +782,9 @@ const ChatModal: React.FC<ChatModalProps> = ({
         setIsLoading(true);
       }
       const response = await crmAPI.getMessages(contact.id);
-      const sorted = sortMessagesByTimestamp(response.messages);
+      const sorted = sortMessagesByTimestamp(
+        (response.messages || []).filter((m) => m.messageType !== 'reactionMessage')
+      );
       setMessages(sorted);
       if (!silent) {
         pendingScrollAfterMessagesLoadRef.current = sorted.length > 0;
@@ -786,7 +816,9 @@ const ChatModal: React.FC<ChatModalProps> = ({
 
     setMessages((prev) => {
       const existingIds = new Set(prev.map((m) => m.id));
-      const newMessages = data.messages.filter((m) => !existingIds.has(m.id));
+      const newMessages = data.messages.filter(
+        (m) => !existingIds.has(m.id) && m.messageType !== 'reactionMessage'
+      );
       if (newMessages.length === 0) {
         return prev;
       }
@@ -802,6 +834,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
         timestamp: m.timestamp,
         read: m.read,
         automatedOutbound: m.automatedOutbound === true,
+        reactions: m.reactions,
       }));
 
       const highlightIds = new Set(mapped.map((m) => m.id));

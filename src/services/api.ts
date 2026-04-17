@@ -872,6 +872,12 @@ export interface Contact {
   labels?: Label[];
 }
 
+export interface MessageReaction {
+  fromMe: boolean;
+  emoji: string;
+  at: string;
+}
+
 export interface Message {
   id: string;
   messageId: string;
@@ -884,6 +890,8 @@ export interface Message {
   read: boolean;
   /** Resposta do agente de IA ou envio via webhook API — balão #5B9DFE no CRM. */
   automatedOutbound?: boolean;
+  /** Reações WhatsApp na mensagem alvo (não são mensagens separadas). */
+  reactions?: MessageReaction[];
 }
 
 export interface GetColumnsResponse {
