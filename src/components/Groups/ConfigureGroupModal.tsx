@@ -3,6 +3,7 @@ import { Modal, Button, Input } from '../UI';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Group, groupAPI, GroupParticipantEvolution } from '../../services/api';
 import { getErrorMessage } from '../../utils/errorHandler';
+import { compressImageDataUrlForGroupPicture } from '../../utils/groupPicturePayload';
 import { getGroupParticipantCardDisplay, normalizeGroupParticipantFromApi } from '../../utils/groupUtils';
 
 interface ConfigureGroupModalProps {
@@ -262,7 +263,12 @@ const ConfigureGroupModal: React.FC<ConfigureGroupModalProps> = ({
 
       if (photoChanged) {
         try {
-          await groupAPI.updateGroupPicture(instanceId, groupJid, photoPreview!);
+          const raw = photoPreview!;
+          const imagePayload =
+            raw.startsWith('data:image') && (photoFile || raw.length > 400_000)
+              ? await compressImageDataUrlForGroupPicture(raw)
+              : raw;
+          await groupAPI.updateGroupPicture(instanceId, groupJid, imagePayload);
         } catch (e) {
           failAt('groupManager.configureGroup.saveStepPhoto', e);
           return;
