@@ -2393,9 +2393,77 @@ export const instagramAPI = {
 
 /** Proxy OnlyFlow API → microserviço Grupo-Flow (`GRUPO_FLOW_SERVICE_URL` no backend). */
 export const groupFlowAPI = {
-  getGroups: async (instanceName: string): Promise<Record<string, unknown>> => {
+  listGroups: async (
+    instanceName: string,
+    getParticipants = false
+  ): Promise<{ status: string; data: { groups: unknown[]; raw?: unknown } }> => {
+    const q = new URLSearchParams({ instanceName, getParticipants: String(getParticipants) });
+    return request(`/grupo-flow/groups?${q.toString()}`);
+  },
+  /** @deprecated use listGroups */
+  getGroups: async (instanceName: string): Promise<{ status: string; data: { groups: unknown[]; raw?: unknown } }> => {
+    return groupFlowAPI.listGroups(instanceName, false);
+  },
+  getGroupInfo: async (instanceName: string, groupJid: string): Promise<{ status: string; data: unknown }> => {
     const q = new URLSearchParams({ instanceName });
-    return request<Record<string, unknown>>(`/grupo-flow/groups?${q.toString()}`);
+    return request(`/grupo-flow/groups/${encodeURIComponent(groupJid)}/info?${q.toString()}`);
+  },
+  getInvite: async (instanceName: string, groupJid: string): Promise<{ status: string; data: unknown }> => {
+    const q = new URLSearchParams({ instanceName });
+    return request(`/grupo-flow/groups/${encodeURIComponent(groupJid)}/invite?${q.toString()}`);
+  },
+};
+
+export type GrupoCampaignInclusionRule = 'all' | 'explicit' | 'empty';
+
+export interface GrupoCampaignRow {
+  id: string;
+  name: string;
+  evolution_instance_name: string;
+  inclusion_rule: GrupoCampaignInclusionRule;
+  contacts_per_group_hint: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Campanhas Grupo Flow (Postgres no backend OnlyFlow). */
+export const grupoCampaignAPI = {
+  list: async (): Promise<{ status: string; campaigns: GrupoCampaignRow[] }> => {
+    return request('/grupo-campaigns');
+  },
+  create: async (body: {
+    name: string;
+    evolutionInstanceName: string;
+    inclusionRule: GrupoCampaignInclusionRule;
+    contactsPerGroupHint?: number;
+    groupJids?: string[];
+  }): Promise<{ status: string; campaignId: string }> => {
+    return request('/grupo-campaigns', { method: 'POST', body: JSON.stringify(body) });
+  },
+  get: async (
+    id: string
+  ): Promise<{ status: string; campaign: Omit<GrupoCampaignRow, 'id'> & { id: string }; groupJids: string[] }> => {
+    return request(`/grupo-campaigns/${encodeURIComponent(id)}`);
+  },
+  update: async (
+    id: string,
+    body: Partial<{ name: string; inclusionRule: GrupoCampaignInclusionRule; contactsPerGroupHint: number }>
+  ): Promise<{ status: string }> => {
+    return request(`/grupo-campaigns/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) });
+  },
+  delete: async (id: string): Promise<{ status: string }> => {
+    return request(`/grupo-campaigns/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+  addGroups: async (id: string, groupJids: string[]): Promise<{ status: string }> => {
+    return request(`/grupo-campaigns/${encodeURIComponent(id)}/groups`, {
+      method: 'POST',
+      body: JSON.stringify({ groupJids }),
+    });
+  },
+  removeGroup: async (id: string, groupJid: string): Promise<{ status: string }> => {
+    return request(`/grupo-campaigns/${encodeURIComponent(id)}/groups/${encodeURIComponent(groupJid)}`, {
+      method: 'DELETE',
+    });
   },
 };
 
@@ -2471,6 +2539,7 @@ const api = {
   instagramAPI,
   scrapingAPI,
   groupFlowAPI,
+  grupoCampaignAPI,
 };
 
 export default api;
