@@ -31,7 +31,13 @@ import {
   CRMInstanceOption,
   CrmSelectedInstance,
 } from '../components/crm/CrmInstancePicker';
-import { useSocket, NewMessageData, ContactUpdatedPayload } from '../hooks/useSocket';
+import {
+  useSocket,
+  NewMessageData,
+  ContactUpdatedPayload,
+  type MessageDeletedPayload,
+  type CrmHistorySyncedPayload,
+} from '../hooks/useSocket';
 import { sortMessagesByTimestamp, formatLastMessageContent } from '../utils/messageUtils';
 import { userHasPremiumPlan } from '../utils/planAccess';
 import {
@@ -861,6 +867,23 @@ const ChatModal: React.FC<ChatModalProps> = ({
 
   // Recarrega a thread quando o backend avisa (WhatsApp e Instagram).
   // Instagram: fallback quando new-message não chega (ex.: socket do Insta-Clerky em produção).
+  const handleMessageDeleted = useCallback(
+    (data: MessageDeletedPayload) => {
+      if (!contact || !isOpen) return;
+      if (String(data.instanceId) !== String(contact.instanceId)) return;
+      const ch = data.channel;
+      if (ch != null && ch !== contact.channel) return;
+      const ids = new Set(
+        (data.keys || [])
+          .map((k) => (k && k.id != null ? String(k.id) : ''))
+          .filter(Boolean)
+      );
+      if (ids.size === 0) return;
+      setMessages((prev) => prev.filter((m) => !ids.has(String(m.messageId))));
+    },
+    [contact, isOpen]
+  );
+
   const handleContactUpdate = useCallback(
     (payload?: ContactUpdatedPayload) => {
       if (!contact || !isOpen) return;
@@ -880,8 +903,22 @@ const ChatModal: React.FC<ChatModalProps> = ({
     [contact, isOpen, loadMessages]
   );
 
-  // Conectar ao WebSocket para receber novas mensagens em tempo real
-  useSocket(token, undefined, handleNewMessage, handleContactUpdate);
+  // WebSocket: novas mensagens, atualização de thread (reações) e exclusão no aparelho
+  useSocket(
+    token,
+    undefined,
+    handleNewMessage,
+    handleContactUpdate,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    handleMessageDeleted,
+    undefined
+  );
 
   useEffect(() => {
     if (contact && isOpen) {
@@ -2111,8 +2148,32 @@ const CRM: React.FC = () => {
     loadContactsFull();
   }, [loadContactsFull, selectedInstances]);
 
-  // Conectar ao WebSocket - escutar tanto new-message quanto contact-updated
-  useSocket(token, undefined, handleNewMessage, handleContactUpdate);
+  const handleCrmHistorySynced = useCallback(
+    (data: CrmHistorySyncedPayload) => {
+      if (selectedInstances.length === 0) return;
+      const iid = String(data.instanceId || '').trim();
+      if (iid && !selectedInstances.some((s) => String(s.id) === iid)) return;
+      handleContactUpdate({ instanceId: data.instanceId, channel: 'whatsapp' });
+    },
+    [handleContactUpdate, selectedInstances]
+  );
+
+  // WebSocket: cards do Kanban + histórico importado (MESSAGES_SET)
+  useSocket(
+    token,
+    undefined,
+    handleNewMessage,
+    handleContactUpdate,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    handleCrmHistorySynced
+  );
 
   // Cleanup do timeout quando componente desmontar
   useEffect(() => {

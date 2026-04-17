@@ -122,7 +122,15 @@ const Dispatches: React.FC = () => {
           return prevDispatches;
         }
       });
-    }
+    },
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined
   );
 
   const handleCreateTemplate = async (data: CreateTemplateData) => {

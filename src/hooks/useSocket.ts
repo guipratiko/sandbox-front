@@ -76,6 +76,19 @@ export interface ContactUpdatedPayload {
   channel?: 'whatsapp' | 'instagram';
 }
 
+/** WhatsApp: mensagem apagada no aparelho / Evolution (CRM remove do thread sem recarregar tudo). */
+export interface MessageDeletedPayload {
+  instanceId: string;
+  channel?: 'whatsapp' | 'instagram';
+  keys: Array<{ id?: string; remoteJid?: string; fromMe?: boolean }>;
+}
+
+/** Histórico MESSAGES_SET importado — Kanban deve refetch (sem new-message por contato). */
+export interface CrmHistorySyncedPayload {
+  instanceId: string;
+  importedMessageCount: number;
+}
+
 export interface GroupInfoResponseData {
   instanceId: string;
   groupId: string;
@@ -131,6 +144,8 @@ const callbacks = new Set<{
   onScrapingCreditsUpdate?: (data: { credits: number }) => void;
   onInstagramInstanceUpdate?: (data: InstagramInstanceSocketData) => void;
   onQrCodeUpdate?: (data: QrCodeUpdatedPayload) => void;
+  onMessageDeleted?: (data: MessageDeletedPayload) => void;
+  onCrmHistorySynced?: (data: CrmHistorySyncedPayload) => void;
 }>();
 
 /**
@@ -148,6 +163,8 @@ const createCallbackObj = (callbackRef: React.MutableRefObject<{
   onScrapingCreditsUpdate?: (data: { credits: number }) => void;
   onInstagramInstanceUpdate?: (data: InstagramInstanceSocketData) => void;
   onQrCodeUpdate?: (data: QrCodeUpdatedPayload) => void;
+  onMessageDeleted?: (data: MessageDeletedPayload) => void;
+  onCrmHistorySynced?: (data: CrmHistorySyncedPayload) => void;
 }>) => ({
   get onStatusUpdate() { return callbackRef.current.onStatusUpdate; },
   get onNewMessage() { return callbackRef.current.onNewMessage; },
@@ -159,6 +176,8 @@ const createCallbackObj = (callbackRef: React.MutableRefObject<{
   get onScrapingCreditsUpdate() { return callbackRef.current.onScrapingCreditsUpdate; },
   get onInstagramInstanceUpdate() { return callbackRef.current.onInstagramInstanceUpdate; },
   get onQrCodeUpdate() { return callbackRef.current.onQrCodeUpdate; },
+  get onMessageDeleted() { return callbackRef.current.onMessageDeleted; },
+  get onCrmHistorySynced() { return callbackRef.current.onCrmHistorySynced; },
 });
 
 /**
@@ -186,7 +205,9 @@ export const useSocket = (
   onGroupInfoResponse?: (data: GroupInfoResponseData) => void,
   onScrapingCreditsUpdate?: (data: { credits: number }) => void,
   onInstagramInstanceUpdate?: (data: InstagramInstanceSocketData) => void,
-  onQrCodeUpdate?: (data: QrCodeUpdatedPayload) => void
+  onQrCodeUpdate?: (data: QrCodeUpdatedPayload) => void,
+  onMessageDeleted?: (data: MessageDeletedPayload) => void,
+  onCrmHistorySynced?: (data: CrmHistorySyncedPayload) => void
 ) => {
   const callbackRef = useRef({
     onStatusUpdate,
@@ -199,6 +220,8 @@ export const useSocket = (
     onScrapingCreditsUpdate,
     onInstagramInstanceUpdate,
     onQrCodeUpdate,
+    onMessageDeleted,
+    onCrmHistorySynced,
   });
 
   // Atualizar referências dos callbacks
@@ -214,6 +237,8 @@ export const useSocket = (
       onScrapingCreditsUpdate,
       onInstagramInstanceUpdate,
       onQrCodeUpdate,
+      onMessageDeleted,
+      onCrmHistorySynced,
     };
   }, [
     onStatusUpdate,
@@ -226,6 +251,8 @@ export const useSocket = (
     onScrapingCreditsUpdate,
     onInstagramInstanceUpdate,
     onQrCodeUpdate,
+    onMessageDeleted,
+    onCrmHistorySynced,
   ]);
 
   useEffect(() => {
@@ -296,6 +323,8 @@ export const useSocket = (
         socket.off('scraping-credits-updated');
         socket.off('instagram-instance-updated');
         socket.off('qrcode-updated');
+        socket.off('message-deleted');
+        socket.off('crm-history-synced');
         socket.off('error');
 
       socket.on('instance-status-updated', (data: { instanceId: string; status: string }) => {
@@ -390,6 +419,24 @@ export const useSocket = (
         callbacks.forEach((cb) => {
           if (cb.onQrCodeUpdate) {
             cb.onQrCodeUpdate(data);
+          }
+        });
+      });
+
+      socket.on('message-deleted', (data: MessageDeletedPayload) => {
+        if (!data?.instanceId) return;
+        callbacks.forEach((cb) => {
+          if (cb.onMessageDeleted) {
+            cb.onMessageDeleted(data);
+          }
+        });
+      });
+
+      socket.on('crm-history-synced', (data: CrmHistorySyncedPayload) => {
+        if (!data?.instanceId) return;
+        callbacks.forEach((cb) => {
+          if (cb.onCrmHistorySynced) {
+            cb.onCrmHistorySynced(data);
           }
         });
       });

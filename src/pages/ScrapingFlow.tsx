@@ -42,7 +42,11 @@ const ScrapingFlow: React.FC = () => {
     undefined,
     undefined,
     undefined,
-    (data) => setCredits(data.credits)
+    (data) => setCredits(data.credits),
+    undefined,
+    undefined,
+    undefined,
+    undefined
   );
 
   useEffect(() => {

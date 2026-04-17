@@ -475,7 +475,21 @@ const WhatsAppOfficialInstances: React.FC = () => {
     );
   }, []);
 
-  useSocket(token, handleStatusUpdate);
+  useSocket(
+    token,
+    handleStatusUpdate,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined
+  );
 
   const loadInstances = useCallback(async () => {
     try {

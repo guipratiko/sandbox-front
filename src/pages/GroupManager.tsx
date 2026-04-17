@@ -510,7 +510,13 @@ const GroupManager: React.FC = () => {
     undefined,
     undefined,
     undefined,
-    handleGroupsSocketUpdate
+    handleGroupsSocketUpdate,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined
   );
 
   const handleMentionEveryoneSubmit = useCallback(

@@ -277,7 +277,13 @@ const GroupMessagesSection: React.FC<GroupMessagesSectionProps> = ({
     undefined,
     (data) => {
       if (data.instanceId === instanceId) refreshFromSocket();
-    }
+    },
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined
   );
 
   useEffect(() => {

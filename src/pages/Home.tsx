@@ -647,7 +647,13 @@ const Home: React.FC = () => {
       loadDashboardData();
     },
     undefined, // onWorkflowContactUpdate
-    undefined // onGroupsUpdate
+    undefined, // onGroupsUpdate
+    undefined, // onGroupInfoResponse
+    undefined, // onScrapingCreditsUpdate
+    undefined, // onInstagramInstanceUpdate
+    undefined, // onQrCodeUpdate
+    undefined, // onMessageDeleted
+    undefined // onCrmHistorySynced
   );
 
   useEffect(() => {

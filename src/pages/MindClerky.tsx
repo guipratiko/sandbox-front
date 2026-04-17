@@ -142,7 +142,14 @@ const MindClerky: React.FC = () => {
       if (selectedWorkflow) {
         loadWorkflowContacts(selectedWorkflow.id);
       }
-    }
+    },
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined
   );
 
   // Criar novo workflow

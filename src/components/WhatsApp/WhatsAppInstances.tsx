@@ -97,7 +97,9 @@ const WhatsAppInstances: React.FC = () => {
     undefined,
     undefined,
     undefined,
-    handleQrCodeUpdate
+    handleQrCodeUpdate,
+    undefined,
+    undefined
   );
 
   const loadInstances = useCallback(async () => {

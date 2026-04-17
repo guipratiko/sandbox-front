@@ -75,7 +75,9 @@ const InstagramInstances: React.FC<InstagramInstancesProps> = ({ onStatusUpdate 
     undefined,
     undefined,
     undefined,
-    handleInstagramInstanceSocket
+    handleInstagramInstanceSocket,
+    undefined,
+    undefined
   );
 
   const handleCreateInstance = async () => {
