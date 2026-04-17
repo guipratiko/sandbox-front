@@ -19,7 +19,6 @@ const MODULE_ORDER: (keyof SubuserPermissions)[] = [
   'manyflow',
   'integration',
   'aiAgent',
-  'groupManager',
   'instagram',
   'scraping',
 ];
@@ -33,7 +32,6 @@ const MODULE_LABELS: Record<keyof SubuserPermissions, string> = {
   manyflow: 'ManyFlow',
   integration: 'Integração',
   aiAgent: 'Agente de IA',
-  groupManager: 'Gerenciador de grupos',
   instagram: 'Instagram',
   scraping: 'Scraping',
 };
@@ -48,7 +46,6 @@ function emptyPerms(): SubuserPermissions {
     manyflow: false,
     integration: false,
     aiAgent: false,
-    groupManager: false,
     instagram: false,
     scraping: false,
   };

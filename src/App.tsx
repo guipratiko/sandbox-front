@@ -25,7 +25,6 @@ import AIAgentPage from './pages/AIAgent';
 import Documentation from './pages/Documentation';
 import Settings from './pages/Settings';
 import DeleteAccount from './pages/DeleteAccount';
-import GroupManager from './pages/GroupManager';
 import GerenciadorInstagram from './pages/GerenciadorInstagram';
 import ScrapingFlow from './pages/ScrapingFlow';
 import Admin from './pages/Admin';
@@ -175,18 +174,6 @@ function AppContent() {
         element={
           <ProtectedRoute>
             <DeleteAccount />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/gerenciador-grupos"
-        element={
-          <ProtectedRoute>
-            <PremiumRoute>
-              <ModuleGate module="groupManager">
-            <GroupManager />
-              </ModuleGate>
-            </PremiumRoute>
           </ProtectedRoute>
         }
       />

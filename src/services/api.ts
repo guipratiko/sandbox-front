@@ -48,7 +48,6 @@ export interface SubuserPermissions {
   manyflow: boolean;
   integration: boolean;
   aiAgent: boolean;
-  groupManager: boolean;
   instagram: boolean;
   scraping: boolean;
 }
@@ -322,10 +321,10 @@ export interface WhatsAppPhoneSettings {
 
 /** Quando o proxy devolve HTML/502 sem JSON, o navegador pode mostrar CORS — mensagem orienta suporte/dev. */
 const MSG_GATEWAY_OR_UPSTREAM =
-  'O servidor respondeu com erro (502/503/504). Verifique se o backend e o microsserviço de grupos (Grupo-Flow) estão no ar. Se o console acusar CORS, costuma ser falha no proxy (resposta sem JSON nem cabeçalhos CORS), não bloqueio de origem do app.';
+  'O servidor respondeu com erro (502/503/504). Verifique se a API OnlyFlow está no ar e se o proxy (nginx/Traefik) não está a truncar a resposta. Se o console acusar CORS, costuma ser falha no proxy (HTML de erro sem cabeçalhos CORS), não bloqueio de origem do app.';
 
 const MSG_FETCH_FAILED =
-  'Não foi possível conectar ao servidor (rede, SSL ou indisponibilidade). Se aparecer CORS no console junto de net::ERR_FAILED, confira backend, Grupo-Flow e certificados.';
+  'Não foi possível conectar ao servidor (rede, SSL ou indisponibilidade). Se aparecer CORS no console junto de net::ERR_FAILED, confira o backend, a URL da API e certificados.';
 
 // Função auxiliar para fazer requisições
 export const request = async <T>(
@@ -415,60 +414,6 @@ export const request = async <T>(
     );
   }
 };
-
-/** Foto de grupo via multipart (binário) — contorna limite de ~1 MB em JSON no nginx/Traefik. */
-export async function requestGroupPictureUpload(
-  instanceId: string,
-  groupJid: string,
-  file: File
-): Promise<{ status: string }> {
-  const token = localStorage.getItem('token');
-  const form = new FormData();
-  form.append('instanceId', instanceId);
-  form.append('groupJid', groupJid);
-  form.append('image', file, file.name || 'group.jpg');
-
-  let response: Response;
-  try {
-    response = await fetch(`${API_URL}/groups/updatePictureUpload`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: form,
-    });
-  } catch {
-    throw createRequestFailedError('error', MSG_FETCH_FAILED);
-  }
-
-  const textBody = await response.text();
-  let parsedBody: unknown = null;
-  if (textBody) {
-    try {
-      parsedBody = JSON.parse(textBody);
-    } catch {
-      parsedBody = null;
-    }
-  }
-
-  if (!response.ok) {
-    const data =
-      parsedBody && typeof parsedBody === 'object' && !Array.isArray(parsedBody)
-        ? (parsedBody as Record<string, unknown>)
-        : {};
-    const serverMessage = typeof data.message === 'string' ? data.message.trim() : '';
-    if (response.status === 503 || response.status === 502 || response.status === 504) {
-      throw createRequestFailedError('error', serverMessage || MSG_GATEWAY_OR_UPSTREAM);
-    }
-    throw createRequestFailedError(
-      typeof data.status === 'string' ? data.status : 'error',
-      serverMessage || 'Erro ao enviar foto do grupo.'
-    );
-  }
-
-  if (parsedBody != null && typeof parsedBody === 'object' && !Array.isArray(parsedBody)) {
-    return parsedBody as { status: string };
-  }
-  return { status: 'ok' };
-}
 
 // Função auxiliar para fazer requisições ao microserviço MindFlow (workflows)
 const requestMindClerky = async <T>(
@@ -1928,24 +1873,6 @@ export interface AgentLocation {
   createdAt: string;
 }
 
-// Group Interfaces
-export interface GroupParticipant {
-  id: string;
-  name?: string;
-  isAdmin?: boolean;
-}
-
-export interface Group {
-  id: string;
-  name?: string;
-  description?: string;
-  creation?: number;
-  participants?: GroupParticipant[];
-  pictureUrl?: string;
-  announcement?: boolean;
-  locked?: boolean;
-}
-
 // Dashboard API
 export interface DashboardStats {
   instances: {
@@ -2029,338 +1956,6 @@ export const dashboardAPI = {
       status: string;
       data: Banner[];
     }>('/dashboard/banners');
-  },
-};
-
-// Group API (Grupo-Flow / Evolution API)
-export interface GroupParticipantEvolution {
-  id: string;
-  phoneNumber?: string;
-  /** Algumas respostas da Evolution usam snake_case */
-  phone_number?: string;
-  admin?: string;
-  name?: string | null;
-  /** Nome de exibição em algumas versões da Evolution / Baileys */
-  pushName?: string | null;
-  notify?: string | null;
-  imgUrl?: string | null;
-}
-
-export const groupAPI = {
-  getAll: async (instanceId: string): Promise<{ status: string; groups: Group[] }> => {
-    return request<{ status: string; groups: Group[] }>(`/groups?instanceId=${instanceId}`);
-  },
-
-  /** Cria um grupo. subject: nome; description opcional; participants: números. */
-  createGroup: async (
-    instanceId: string,
-    subject: string,
-    description?: string,
-    participants?: string[]
-  ): Promise<{ status: string; group: Group }> => {
-    return request<{ status: string; group: Group }>('/groups/create', {
-      method: 'POST',
-      body: JSON.stringify({
-        instanceId,
-        subject,
-        description: description ?? '',
-        participants: participants ?? [],
-      }),
-    });
-  },
-
-  /** Upload de imagem para usar como foto do grupo (retorna URL pública). */
-  uploadImage: async (file: File): Promise<{ status: string; fullUrl: string; url: string; fileName: string }> => {
-    const token = localStorage.getItem('token');
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await fetch(`${API_URL}/groups/upload`, {
-      method: 'POST',
-      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
-      body: formData,
-    });
-    const data = await response.json();
-    if (!response.ok) throw { status: data.status || 'error', message: data.message || 'Erro no upload' };
-    return data;
-  },
-
-  /** Cria N grupos em lote e adiciona à campanha. Se participants.length > 1023, cria automaticamente mais grupos. */
-  createBulk: async (params: {
-    instanceId: string;
-    campaignId: string;
-    count: number;
-    baseName: string;
-    description: string;
-    addNumbering: boolean;
-    participants: string[];
-    groupImageUrl?: string | null;
-    groupSettings?: { announcement?: boolean; locked?: boolean } | null;
-  }): Promise<{ status: string; created: number; groupIds: string[] }> => {
-    return request<{ status: string; created: number; groupIds: string[] }>('/groups/createBulk', {
-      method: 'POST',
-      body: JSON.stringify(params),
-    });
-  },
-
-  /** Busca grupos por lista de IDs (findGroupInfos) — mais rápido que getAll quando já se tem os IDs. */
-  getGroupsByIds: async (
-    instanceId: string,
-    groupJids: string[]
-  ): Promise<{ status: string; groups: Group[] }> => {
-    return request<{ status: string; groups: Group[] }>('/groups/findGroupInfos', {
-      method: 'POST',
-      body: JSON.stringify({ instanceId, groupJids }),
-    });
-  },
-
-  getParticipants: async (
-    instanceId: string,
-    groupJid: string
-  ): Promise<{ status: string; participants: GroupParticipantEvolution[] }> => {
-    return request<{ status: string; participants: GroupParticipantEvolution[] }>(
-      `/groups/participants?instanceId=${encodeURIComponent(instanceId)}&groupJid=${encodeURIComponent(groupJid)}`
-    );
-  },
-
-  updateSetting: async (
-    instanceId: string,
-    groupJid: string,
-    action: 'announcement' | 'not_announcement' | 'locked' | 'unlocked'
-  ): Promise<{ status: string }> => {
-    return request<{ status: string }>('/groups/updateSetting', {
-      method: 'POST',
-      body: JSON.stringify({ instanceId, groupJid, action }),
-    });
-  },
-
-  /** Preferir quando houver `File` — multipart reduz tamanho na rede vs. JSON+base64. */
-  updateGroupPictureFile: async (
-    instanceId: string,
-    groupJid: string,
-    file: File
-  ): Promise<{ status: string }> => {
-    return requestGroupPictureUpload(instanceId, groupJid, file);
-  },
-
-  updateGroupPicture: async (
-    instanceId: string,
-    groupJid: string,
-    image: string
-  ): Promise<{ status: string }> => {
-    return request<{ status: string }>('/groups/updatePicture', {
-      method: 'POST',
-      body: JSON.stringify({ instanceId, groupJid, image }),
-    });
-  },
-
-  updateGroupSubject: async (
-    instanceId: string,
-    groupJid: string,
-    subject: string
-  ): Promise<{ status: string }> => {
-    return request<{ status: string }>('/groups/updateSubject', {
-      method: 'POST',
-      body: JSON.stringify({ instanceId, groupJid, subject }),
-    });
-  },
-
-  updateGroupDescription: async (
-    instanceId: string,
-    groupJid: string,
-    description: string
-  ): Promise<{ status: string }> => {
-    return request<{ status: string }>('/groups/updateDescription', {
-      method: 'POST',
-      body: JSON.stringify({ instanceId, groupJid, description }),
-    });
-  },
-
-  updateParticipant: async (
-    instanceId: string,
-    groupJid: string,
-    action: 'add' | 'remove' | 'promote' | 'demote',
-    participants: string[]
-  ): Promise<{ status: string }> => {
-    return request<{ status: string }>('/groups/updateParticipant', {
-      method: 'POST',
-      body: JSON.stringify({ instanceId, groupJid, action, participants }),
-    });
-  },
-
-  /** Sair do grupo no WhatsApp (Evolution leaveGroup). Remove o número da instância do grupo. */
-  leaveGroup: async (instanceId: string, groupJid: string): Promise<{ status: string }> => {
-    return request<{ status: string }>('/groups/leaveGroup', {
-      method: 'POST',
-      body: JSON.stringify({ instanceId, groupJid }),
-    });
-  },
-
-  /** Evolution: sendText com mentionsEveryOne para um ou vários JIDs de grupo (@g.us). */
-  mentionEveryone: async (params: {
-    instanceId: string;
-    text: string;
-    groupJid?: string;
-    groupJids?: string[];
-  }): Promise<{
-    status: 'success' | 'partial' | 'error';
-    results: Array<{ groupJid: string; ok: boolean; error?: string }>;
-    successCount: number;
-    failCount: number;
-  }> => {
-    return request('/groups/mentionEveryone', {
-      method: 'POST',
-      body: JSON.stringify(params),
-    });
-  },
-};
-
-export type GroupMessageType = 'text' | 'media' | 'poll' | 'contact' | 'location' | 'audio';
-
-export interface GroupMessageTemplate {
-  id: string;
-  name: string;
-  description?: string | null;
-  messageType: GroupMessageType;
-  contentJson: Record<string, unknown>;
-  instanceId: string;
-  userId?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface GroupScheduledMessage {
-  id: string;
-  userId: string;
-  instanceName: string;
-  instanceId: string;
-  groupJids?: string[];
-  /** Quando a API não envia groupJids (versões antigas). */
-  groupCount?: number;
-  messageType: string;
-  contentJson?: Record<string, unknown>;
-  nextRunAt: string;
-  repeat: { type: 'none' | 'daily' | 'weekly' | 'monthly' };
-  /** active = pendente; completed = envio único já executado (ou fim de série). */
-  status?: 'active' | 'cancelled' | 'completed' | string;
-  createdAt: string;
-  lastSentAt?: string;
-  label?: string;
-}
-
-/** Templates, envio e agendamento de mensagens para grupos (Backend → Grupo-Flow). */
-export const groupMessageAPI = {
-  getTemplates: async (instanceId: string): Promise<{ status: string; data: GroupMessageTemplate[] }> => {
-    return request(`/groups/message-templates?instanceId=${encodeURIComponent(instanceId)}`);
-  },
-  createTemplate: async (body: {
-    instanceId: string;
-    name: string;
-    description?: string | null;
-    messageType: GroupMessageType;
-    contentJson: Record<string, unknown>;
-  }): Promise<{ status: string; data: GroupMessageTemplate }> => {
-    return request('/groups/message-templates', { method: 'POST', body: JSON.stringify(body) });
-  },
-  updateTemplate: async (
-    id: string,
-    body: { name?: string; description?: string | null; contentJson?: Record<string, unknown> }
-  ): Promise<{ status: string; data: GroupMessageTemplate }> => {
-    return request(`/groups/message-templates/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(body),
-    });
-  },
-  deleteTemplate: async (id: string): Promise<{ status: string }> => {
-    return request(`/groups/message-templates/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  },
-  sendNow: async (body: {
-    instanceId: string;
-    messageType: GroupMessageType;
-    contentJson: Record<string, unknown>;
-    targetType: 'groups' | 'campaign' | 'campaign_groups';
-    groupIds?: string[];
-    campaignId?: string;
-    templateId?: string;
-  }): Promise<{
-    status: string;
-    data: { templateId?: string | null; results: Array<{ groupId: string; success: boolean; error?: string }> };
-  }> => {
-    return request('/groups/messages/send', { method: 'POST', body: JSON.stringify(body) });
-  },
-  schedule: async (body: {
-    instanceId: string;
-    messageType: GroupMessageType;
-    contentJson: Record<string, unknown>;
-    targetType: 'groups' | 'campaign' | 'campaign_groups';
-    groupIds?: string[];
-    campaignId?: string;
-    templateId?: string;
-    scheduledAt: string;
-    repeat?: { type: 'none' | 'daily' | 'weekly' | 'monthly' };
-  }): Promise<{ status: string; data: GroupScheduledMessage }> => {
-    return request('/groups/messages/schedule', { method: 'POST', body: JSON.stringify(body) });
-  },
-  getScheduled: async (instanceId: string): Promise<{ status: string; data: GroupScheduledMessage[] }> => {
-    return request(`/groups/messages/scheduled?instanceId=${encodeURIComponent(instanceId)}`);
-  },
-  cancelScheduled: async (id: string): Promise<{ status: string }> => {
-    return request(`/groups/messages/scheduled/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
-  },
-  deleteScheduled: async (id: string): Promise<{ status: string }> => {
-    return request(`/groups/messages/scheduled/${encodeURIComponent(id)}/delete`, { method: 'POST' });
-  },
-};
-
-// Campaign API (Group Manager - persistência no backend)
-export interface CampaignResponse {
-  id: string;
-  campaignName: string;
-  contactsPerGroup: number;
-  instanceId: string;
-  importGroups: 'all' | string[] | null;
-  photoUrl?: string | null;
-  /** Slug para link único de convite: /api/public/join/:inviteLinkSlug redireciona para o primeiro grupo com vaga */
-  inviteLinkSlug?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export const campaignAPI = {
-  getAll: async (): Promise<{ status: string; campaigns: CampaignResponse[] }> => {
-    return request<{ status: string; campaigns: CampaignResponse[] }>('/campaigns');
-  },
-
-  create: async (data: {
-    campaignName: string;
-    contactsPerGroup: number;
-    instanceId: string;
-    importGroups: 'all' | string[] | null;
-  }): Promise<{ status: string; campaign: CampaignResponse }> => {
-    return request<{ status: string; campaign: CampaignResponse }>('/campaigns', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
-
-  update: async (
-    id: string,
-    data: { campaignName?: string; photoUrl?: string | null; importGroups?: 'all' | string[] | null }
-  ): Promise<{ status: string; campaign: CampaignResponse }> => {
-    return request<{ status: string; campaign: CampaignResponse }>(`/campaigns/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  },
-
-  delete: async (id: string): Promise<{ status: string }> => {
-    return request<{ status: string }>(`/campaigns/${id}`, { method: 'DELETE' });
-  },
-
-  /** Garante que a campanha tenha link de convite (gera slug se tiver grupos e ainda não tiver). */
-  ensureInviteLink: async (id: string): Promise<{ status: string; campaign: CampaignResponse }> => {
-    return request<{ status: string; campaign: CampaignResponse }>(`/campaigns/${id}/ensure-invite-link`, {
-      method: 'POST',
-    });
   },
 };
 
@@ -2863,9 +2458,6 @@ const api = {
   dispatchAPI,
   workflowAPI,
   aiAgentAPI,
-  groupAPI,
-  groupMessageAPI,
-  campaignAPI,
   dashboardAPI,
   adminAPI,
   instagramAPI,

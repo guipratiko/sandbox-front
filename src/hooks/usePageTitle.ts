@@ -20,7 +20,6 @@ const routeTitleMap: Record<string, string> = {
   '/agente-ia': 'menu.aiAgent',
   '/documentacao': 'menu.documentation',
   '/configuracoes': 'menu.settings',
-  '/gerenciador-grupos': 'menu.groupManager',
   '/gerenciador-instagram': 'menu.instagramManager',
   '/scraping': 'menu.scraping',
   '/excluir-conta': 'deleteAccount.title',
