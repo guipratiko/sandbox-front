@@ -1922,7 +1922,14 @@ const GroupFlow: React.FC = () => {
                     </div>
                     <div className="overflow-y-auto flex-1 min-h-0">
                       {loadingAddGroupsModalList ? (
-                        <p className="text-sm text-gray-500 py-6">{t('groupFlow.loadingGroupsList')}</p>
+                        <div className="flex flex-col items-center justify-center gap-3 py-8 px-2 text-center" role="status" aria-live="polite">
+                          <div
+                            className="h-8 w-8 rounded-full border-2 border-clerky-backendButton/30 border-t-clerky-backendButton animate-spin"
+                            aria-hidden
+                          />
+                          <p className="text-sm text-gray-600 dark:text-gray-400">{t('groupFlow.loadingGroupsList')}</p>
+                          <p className="text-xs text-amber-700 dark:text-amber-300 max-w-sm">{t('groupFlow.loadingGroupsDurationHint')}</p>
+                        </div>
                       ) : addGroupsCandidateList.length === 0 ? (
                         <p className="text-sm text-gray-500 py-6">{t('groupFlow.addGroupsModalEmpty')}</p>
                       ) : (
@@ -2058,7 +2065,7 @@ const GroupFlow: React.FC = () => {
                   >
                     <p className="font-medium text-clerky-backendText dark:text-gray-100">{c.name}</p>
                     <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                      {c.evolution_instance_name} · {c.inclusion_rule} · {c.contacts_per_group_hint} contatos/grupo
+                      {c.contacts_per_group_hint} contatos/grupo
                     </p>
                   </button>
                   <button
@@ -2225,7 +2232,14 @@ const GroupFlow: React.FC = () => {
                           </Button>
                         </div>
                         {loadingWizardGroups ? (
-                          <p className="text-sm text-gray-500 py-4">{t('groupFlow.loadingGroupsList')}</p>
+                          <div className="flex flex-col items-center justify-center gap-3 py-6 px-2 text-center" role="status" aria-live="polite">
+                            <div
+                              className="h-8 w-8 rounded-full border-2 border-clerky-backendButton/30 border-t-clerky-backendButton animate-spin"
+                              aria-hidden
+                            />
+                            <p className="text-sm text-gray-600 dark:text-gray-400">{t('groupFlow.loadingGroupsList')}</p>
+                            <p className="text-xs text-amber-700 dark:text-amber-300 max-w-sm">{t('groupFlow.loadingGroupsDurationHint')}</p>
+                          </div>
                         ) : (
                           <ul className="max-h-56 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800">
                             {wizardGroups.map((g, idx) => {

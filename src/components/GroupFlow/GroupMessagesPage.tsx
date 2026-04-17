@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
-import { Button, Card, ImageCrop, Modal } from '../UI';
+import { Button, Card, Modal } from '../UI';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
@@ -147,9 +147,6 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
 
-  const [cropOpen, setCropOpen] = useState(false);
-  const [cropSrc, setCropSrc] = useState<string | null>(null);
-
   const [scheduleFormOpen, setScheduleFormOpen] = useState(false);
   const [schTemplateId, setSchTemplateId] = useState('');
   const [schCampaignId, setSchCampaignId] = useState('');
@@ -250,18 +247,7 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
     }
     try {
       const compressed = await compressImage(file, 1600, 1600, 0.88);
-      setCropSrc(compressed);
-      setCropOpen(true);
-    } catch {
-      setError(t('groupFlow.error'));
-    }
-  };
-
-  const onCropDone = async (croppedBase64: string) => {
-    setCropOpen(false);
-    setCropSrc(null);
-    try {
-      const jpeg = await prepareGroupFlowImageDataUrl(croppedBase64);
+      const jpeg = await prepareGroupFlowImageDataUrl(compressed);
       const up = await grupoCampaignAPI.uploadGroupFlowImage(jpeg);
       setTplMediaUrl(up.fullUrl);
     } catch (e: unknown) {
@@ -965,31 +951,6 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
         </Modal>
       )}
 
-      {cropOpen && cropSrc && (
-        <Modal
-          isOpen={cropOpen}
-          onClose={() => {
-            if (!saving) {
-              setCropOpen(false);
-              setCropSrc(null);
-            }
-          }}
-          title={t('groupFlow.msgAdjustImageTitle')}
-          size="xl"
-          zIndex={100}
-        >
-          <ImageCrop
-            imageSrc={cropSrc}
-            onCrop={(b64) => void onCropDone(b64)}
-            onCancel={() => {
-              setCropOpen(false);
-              setCropSrc(null);
-            }}
-            aspectRatio={1}
-            circular={false}
-          />
-        </Modal>
-      )}
     </div>
   );
 };
