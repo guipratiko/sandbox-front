@@ -2391,6 +2391,14 @@ export const instagramAPI = {
   },
 };
 
+/** Proxy OnlyFlow API → microserviço Grupo-Flow (`GRUPO_FLOW_SERVICE_URL` no backend). */
+export const groupFlowAPI = {
+  getGroups: async (instanceName: string): Promise<Record<string, unknown>> => {
+    const q = new URLSearchParams({ instanceName });
+    return request<Record<string, unknown>>(`/grupo-flow/groups?${q.toString()}`);
+  },
+};
+
 // Scraping (busca de lugares)
 export interface ScrapingSearchRecord {
   id: string;
@@ -2462,6 +2470,7 @@ const api = {
   adminAPI,
   instagramAPI,
   scrapingAPI,
+  groupFlowAPI,
 };
 
 export default api;

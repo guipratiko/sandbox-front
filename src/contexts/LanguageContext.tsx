@@ -176,9 +176,9 @@ const translations = {
     'menu.groupFlow': 'Grupo Flow',
     'groupFlow.title': 'Grupo Flow',
     'groupFlow.placeholder':
-      'Estamos a voltar a ligar o microserviço de grupos WhatsApp. Em breve poderá gerir grupos e campanhas a partir desta área.',
+      'Estamos reconectando o microserviço de grupos do WhatsApp. Em breve você poderá gerenciar grupos e campanhas por aqui.',
     'groupFlow.devNote':
-      'O microserviço Grupo-Flow está a ser reintegrado; as ações de grupos aparecem aqui quando a API estiver disponível.',
+      'O Grupo-Flow está sendo reintegrado ao painel; as ações aparecerão nesta tela quando a API do backend estiver disponível.',
     // Scraping Flow
     'scraping.description': 'Busque lugares pela Google Places e exporte resultados (nome, telefone, endereço) em CSV. 1 crédito por resultado. O serviço retorna no máximo 60 resultados por consulta. Dados disponíveis por 30 dias.',
     'scraping.saldoAtual': 'Saldo atual',
