@@ -1121,7 +1121,7 @@ const GroupFlow: React.FC = () => {
         <GroupMessagesPage
           campaigns={campaigns}
           loadingCampaigns={loadingCampaigns}
-          onReloadCampaigns={() => void loadCampaigns()}
+          onReloadCampaigns={loadCampaigns}
           onBack={leaveMessages}
         />
       </AppLayout>
