@@ -2528,6 +2528,13 @@ export const grupoCampaignAPI = {
   ): Promise<{ status: string }> => {
     return request(`/grupo-campaigns/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) });
   },
+  /** Imagem já ajustada no cliente (data URL) → MidiaService; URL para `updateGroupPicture`. */
+  uploadGroupFlowImage: async (imageBase64: string): Promise<{ status: string; fullUrl: string }> => {
+    return request('/grupo-campaigns/upload-group-image', {
+      method: 'POST',
+      body: JSON.stringify({ imageBase64 }),
+    });
+  },
   delete: async (id: string): Promise<{ status: string }> => {
     return request(`/grupo-campaigns/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },

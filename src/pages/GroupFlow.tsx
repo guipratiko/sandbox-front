@@ -13,6 +13,7 @@ import {
   type GrupoCampaignInclusionRule,
 } from '../services/api';
 import { getErrorMessage } from '../utils/errorHandler';
+import { prepareGroupFlowImageDataUrl, resolveGroupPictureForEvolution } from '../utils/groupFlowImage';
 
 function isBaileysInstance(i: Instance): boolean {
   return i.integration !== 'WHATSAPP-CLOUD';
@@ -671,8 +672,9 @@ const GroupFlow: React.FC = () => {
         photoBase64?: string;
         clearPhoto?: boolean;
       } = { name };
-      if (editCampaignNewPhotoDataUrl) body.photoBase64 = editCampaignNewPhotoDataUrl;
-      else if (editCampaignClearPhoto) body.clearPhoto = true;
+      if (editCampaignNewPhotoDataUrl) {
+        body.photoBase64 = await prepareGroupFlowImageDataUrl(editCampaignNewPhotoDataUrl);
+      } else if (editCampaignClearPhoto) body.clearPhoto = true;
       await grupoCampaignAPI.update(campaignId, body);
       closeEditCampaignModal();
       await refreshCampaignDetail(campaignId);
@@ -740,6 +742,7 @@ const GroupFlow: React.FC = () => {
     setCreateGroupsSubmitting(true);
     setError(null);
     try {
+      const pictureUrl = await resolveGroupPictureForEvolution(image);
       const newJids: string[] = [];
       for (let i = 1; i <= n; i += 1) {
         const subject = createGroupNumberPrefix ? `#${i} ${base}` : n > 1 ? `${base} ${i}` : base;
@@ -749,7 +752,7 @@ const GroupFlow: React.FC = () => {
         newJids.push(jid);
         await groupFlowAPI.updateGroupSetting(inst, jid, createGroupAnnounceOnly ? 'announcement' : 'not_announcement');
         await groupFlowAPI.updateGroupSetting(inst, jid, createGroupLockSettings ? 'locked' : 'unlocked');
-        if (image) await groupFlowAPI.updateGroupPicture(inst, jid, image);
+        if (pictureUrl) await groupFlowAPI.updateGroupPicture(inst, jid, pictureUrl);
       }
       if (newJids.length) await grupoCampaignAPI.addGroups(campaignId, newJids);
       setCreateGroupsModalOpen(false);
@@ -829,6 +832,7 @@ const GroupFlow: React.FC = () => {
     setBulkApplying(true);
     setError(null);
     try {
+      const pictureUrl = await resolveGroupPictureForEvolution(image);
       let idx = 0;
       for (const jid of jids) {
         idx += 1;
@@ -842,7 +846,7 @@ const GroupFlow: React.FC = () => {
         if (adds.length) {
           await groupFlowAPI.updateGroupParticipants(inst, jid, { action: 'add', participants: adds });
         }
-        if (image) await groupFlowAPI.updateGroupPicture(inst, jid, image);
+        if (pictureUrl) await groupFlowAPI.updateGroupPicture(inst, jid, pictureUrl);
         await groupFlowAPI.updateGroupSetting(inst, jid, bulkAnnounce ? 'announcement' : 'not_announcement');
         await groupFlowAPI.updateGroupSetting(inst, jid, bulkLock ? 'locked' : 'unlocked');
       }
@@ -998,7 +1002,8 @@ const GroupFlow: React.FC = () => {
       await groupFlowAPI.updateGroupSetting(inst, jid, singleAnnounce ? 'announcement' : 'not_announcement');
       await groupFlowAPI.updateGroupSetting(inst, jid, singleLock ? 'locked' : 'unlocked');
       const img = singlePhotoDataUrl || singlePhotoUrl.trim();
-      if (img) await groupFlowAPI.updateGroupPicture(inst, jid, img);
+      const pictureUrl = await resolveGroupPictureForEvolution(img || undefined);
+      if (pictureUrl) await groupFlowAPI.updateGroupPicture(inst, jid, pictureUrl);
       closeConfigureSingleGroup();
       await refreshCampaignDetail(campaignId);
       void loadGroupMetas(inst, campaignDetail.groupJids);
