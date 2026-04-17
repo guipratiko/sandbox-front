@@ -878,9 +878,11 @@ const ChatModal: React.FC<ChatModalProps> = ({
 
   const handleSendMessage = async () => {
     if (!contact || !newMessage.trim()) return;
+    if (isSending) return;
 
     const messageText = newMessage.trim();
     setNewMessage('');
+    setIsSending(true);
 
     // Adicionar mensagem otimisticamente (antes de enviar)
     const optimisticMessage: Message = {
@@ -900,7 +902,6 @@ const ChatModal: React.FC<ChatModalProps> = ({
     scrollToBottomAfterPaint();
 
     try {
-      setIsSending(true);
       const response = await crmAPI.sendMessage(contact.id, { text: messageText });
       
       // Substituir mensagem otimista pela real
@@ -972,6 +973,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
 
   const handleSendMedia = async (file?: File) => {
     if (!contact) return;
+    if (isSending) return;
 
     const fileToSend = file || selectedFile;
     if (!fileToSend) return;
@@ -1387,7 +1389,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
               />
               <button
                 onClick={handleAttachClick}
-                disabled={isSending || isRecording}
+                disabled={isRecording}
                 className="p-2.5 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                 type="button"
                 title="Anexar arquivo"
@@ -1414,7 +1416,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
                 onKeyDown={handleKeyPress}
                 placeholder={isRecording ? `Gravando... ${Math.floor(recordingTime / 60)}:${String(recordingTime % 60).padStart(2, '0')}` : "Digite sua mensagem..."}
                 className="flex-1 px-3 sm:px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-clerky-backendButton/50 focus:border-clerky-backendButton bg-white dark:bg-gray-700/90 text-clerky-backendText dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 disabled:opacity-50 transition-colors duration-200"
-                disabled={isSending || isRecording}
+                disabled={isRecording}
                 autoComplete="off"
               />
               <button
