@@ -2551,13 +2551,23 @@ export const grupoCampaignAPI = {
   },
 };
 
+export type GrupoFlowMessageTemplateType =
+  | 'text'
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'poll'
+  | 'location'
+  | 'contact';
+
 export interface GrupoFlowMessageTemplate {
   id: string;
   name: string;
   description: string | null;
-  type: 'text' | 'image';
+  type: GrupoFlowMessageTemplateType;
   content_text: string | null;
   media_url: string | null;
+  payload_json?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
@@ -2585,9 +2595,10 @@ export const grupoFlowMessagesAPI = {
   createTemplate: async (body: {
     name: string;
     description?: string;
-    type: 'text' | 'image';
+    type: GrupoFlowMessageTemplateType;
     contentText?: string;
     mediaUrl?: string;
+    payload?: Record<string, unknown>;
   }): Promise<{ status: string; templateId: string }> => {
     return request('/grupo-flow-messages/templates', { method: 'POST', body: JSON.stringify(body) });
   },

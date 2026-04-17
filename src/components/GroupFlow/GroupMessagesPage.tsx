@@ -6,6 +6,7 @@ import {
   grupoFlowMessagesAPI,
   type GrupoCampaignRow,
   type GrupoFlowMessageTemplate,
+  type GrupoFlowMessageTemplateType,
   type GrupoFlowScheduleRow,
 } from '../../services/api';
 import { getErrorMessage } from '../../utils/errorHandler';
@@ -38,10 +39,20 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [tplName, setTplName] = useState('');
   const [tplDesc, setTplDesc] = useState('');
-  const [tplType, setTplType] = useState<'text' | 'image'>('text');
+  const [tplType, setTplType] = useState<GrupoFlowMessageTemplateType>('text');
   const [tplText, setTplText] = useState('');
   const [tplCaption, setTplCaption] = useState('');
   const [tplMediaUrl, setTplMediaUrl] = useState<string | null>(null);
+  const [tplMediaUrlInput, setTplMediaUrlInput] = useState('');
+  const [tplPollQuestion, setTplPollQuestion] = useState('');
+  const [tplPollOptions, setTplPollOptions] = useState<string[]>(['', '']);
+  const [tplPollSelectable, setTplPollSelectable] = useState(1);
+  const [locLat, setLocLat] = useState('-23.55');
+  const [locLng, setLocLng] = useState('-46.63');
+  const [locName, setLocName] = useState('');
+  const [locAddress, setLocAddress] = useState('');
+  const [contactName, setContactName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
 
   const [cropOpen, setCropOpen] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
@@ -78,6 +89,19 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
     void refresh();
   }, [refresh]);
 
+  const templateTypeLabel = (type: string) => {
+    const m: Record<string, string> = {
+      text: t('groupFlow.msgTypeText'),
+      image: t('groupFlow.msgTypeImage'),
+      video: t('groupFlow.msgTypeVideo'),
+      audio: t('groupFlow.msgTypeAudio'),
+      poll: t('groupFlow.msgTypePoll'),
+      location: t('groupFlow.msgTypeLocation'),
+      contact: t('groupFlow.msgTypeContact'),
+    };
+    return m[type] || type;
+  };
+
   const openNewTemplate = () => {
     setTplName('');
     setTplDesc('');
@@ -85,7 +109,31 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
     setTplText('');
     setTplCaption('');
     setTplMediaUrl(null);
+    setTplMediaUrlInput('');
+    setTplPollQuestion('');
+    setTplPollOptions(['', '']);
+    setTplPollSelectable(1);
+    setLocLat('-23.55');
+    setLocLng('-46.63');
+    setLocName('');
+    setLocAddress('');
+    setContactName('');
+    setContactPhone('');
     setTemplateModalOpen(true);
+  };
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setError(t('groupFlow.msgGeolocationUnavailable'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocLat(String(pos.coords.latitude));
+        setLocLng(String(pos.coords.longitude));
+      },
+      () => setError(t('groupFlow.msgGeolocationDenied'))
+    );
   };
 
   const onPickTemplateImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -120,28 +168,93 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
   const saveTemplate = async () => {
     const name = tplName.trim();
     if (!name) return;
+    const mediaUrl = (tplMediaUrl || tplMediaUrlInput.trim()) || undefined;
     setSaving(true);
     setError(null);
     try {
+      const description = tplDesc.trim() || undefined;
       if (tplType === 'text') {
-        await grupoFlowMessagesAPI.createTemplate({
-          name,
-          description: tplDesc.trim() || undefined,
-          type: 'text',
-          contentText: tplText.trim(),
-        });
-      } else {
-        if (!tplMediaUrl) {
-          setError(t('groupFlow.error'));
+        if (!tplText.trim()) {
+          setError(t('groupFlow.msgTextRequired'));
           setSaving(false);
           return;
         }
         await grupoFlowMessagesAPI.createTemplate({
           name,
-          description: tplDesc.trim() || undefined,
+          description,
+          type: 'text',
+          contentText: tplText.trim(),
+        });
+      } else if (tplType === 'image') {
+        if (!mediaUrl) {
+          setError(t('groupFlow.msgMediaUrlRequired'));
+          setSaving(false);
+          return;
+        }
+        await grupoFlowMessagesAPI.createTemplate({
+          name,
+          description,
           type: 'image',
           contentText: tplCaption.trim() || undefined,
-          mediaUrl: tplMediaUrl,
+          mediaUrl,
+        });
+      } else if (tplType === 'video' || tplType === 'audio') {
+        if (!mediaUrl) {
+          setError(t('groupFlow.msgMediaUrlRequired'));
+          setSaving(false);
+          return;
+        }
+        await grupoFlowMessagesAPI.createTemplate({
+          name,
+          description,
+          type: tplType,
+          mediaUrl,
+          contentText: tplCaption.trim() || undefined,
+        });
+      } else if (tplType === 'poll') {
+        const values = tplPollOptions.map((o) => o.trim()).filter(Boolean);
+        if (!tplPollQuestion.trim() || values.length < 2) {
+          setError(t('groupFlow.msgPollInvalid'));
+          setSaving(false);
+          return;
+        }
+        await grupoFlowMessagesAPI.createTemplate({
+          name,
+          description,
+          type: 'poll',
+          contentText: tplPollQuestion.trim(),
+          payload: { values, selectableCount: Math.max(1, tplPollSelectable) },
+        });
+      } else if (tplType === 'location') {
+        const lat = Number(locLat);
+        const lng = Number(locLng);
+        if (Number.isNaN(lat) || Number.isNaN(lng)) {
+          setError(t('groupFlow.msgLocationInvalid'));
+          setSaving(false);
+          return;
+        }
+        await grupoFlowMessagesAPI.createTemplate({
+          name,
+          description,
+          type: 'location',
+          payload: {
+            latitude: lat,
+            longitude: lng,
+            name: locName.trim() || undefined,
+            address: locAddress.trim() || undefined,
+          },
+        });
+      } else if (tplType === 'contact') {
+        if (!contactName.trim() || !contactPhone.trim()) {
+          setError(t('groupFlow.msgContactInvalid'));
+          setSaving(false);
+          return;
+        }
+        await grupoFlowMessagesAPI.createTemplate({
+          name,
+          description,
+          type: 'contact',
+          payload: { fullName: contactName.trim(), phone: contactPhone.trim() },
         });
       }
       setTemplateModalOpen(false);
@@ -285,7 +398,7 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
                   <div className="min-w-0">
                     <p className="font-medium text-clerky-backendText dark:text-gray-100">{tpl.name}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {tpl.type === 'text' ? t('groupFlow.msgTypeText') : t('groupFlow.msgTypeImage')}
+                      {templateTypeLabel(tpl.type)}
                       {tpl.description ? ` · ${tpl.description}` : ''}
                     </p>
                   </div>
@@ -335,7 +448,7 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
                   <option value="">{t('groupFlow.msgPickTemplate')}</option>
                   {templates.map((x) => (
                     <option key={x.id} value={x.id}>
-                      {x.name}
+                      {x.name} ({templateTypeLabel(x.type)})
                     </option>
                   ))}
                 </select>
@@ -451,7 +564,7 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
                   <option value="">{t('groupFlow.msgPickTemplate')}</option>
                   {templates.map((x) => (
                     <option key={x.id} value={x.id}>
-                      {x.name}
+                      {x.name} ({templateTypeLabel(x.type)})
                     </option>
                   ))}
                 </select>
@@ -526,27 +639,135 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
               <select
                 className="w-full rounded-xl border px-3 py-2 text-sm"
                 value={tplType}
-                onChange={(e) => setTplType(e.target.value as 'text' | 'image')}
+                onChange={(e) => setTplType(e.target.value as GrupoFlowMessageTemplateType)}
               >
                 <option value="text">{t('groupFlow.msgTypeText')}</option>
                 <option value="image">{t('groupFlow.msgTypeImage')}</option>
+                <option value="video">{t('groupFlow.msgTypeVideo')}</option>
+                <option value="audio">{t('groupFlow.msgTypeAudio')}</option>
+                <option value="poll">{t('groupFlow.msgTypePoll')}</option>
+                <option value="location">{t('groupFlow.msgTypeLocation')}</option>
+                <option value="contact">{t('groupFlow.msgTypeContact')}</option>
               </select>
             </div>
-            {tplType === 'text' ? (
+            {tplType === 'text' && (
               <div>
                 <label className="block text-sm font-medium mb-1">{t('groupFlow.msgTextBody')}</label>
                 <textarea className="w-full rounded-xl border px-3 py-2 text-sm min-h-[120px]" value={tplText} onChange={(e) => setTplText(e.target.value)} />
               </div>
-            ) : (
+            )}
+            {(tplType === 'image' || tplType === 'video' || tplType === 'audio') && (
               <div className="space-y-2">
-                <label className="block text-sm font-medium mb-1">{t('groupFlow.msgImageCaption')}</label>
-                <input className="w-full rounded-xl border px-3 py-2 text-sm" value={tplCaption} onChange={(e) => setTplCaption(e.target.value)} />
-                <input type="file" accept="image/*" className="text-sm" onChange={(e) => void onPickTemplateImage(e)} />
-                {tplMediaUrl ? (
-                  <p className="text-xs text-green-700 dark:text-green-400 break-all">URL: {tplMediaUrl}</p>
-                ) : (
-                  <p className="text-xs text-gray-500">{t('groupFlow.uploadImage')}</p>
+                <label className="block text-sm font-medium mb-1">{t('groupFlow.msgMediaUrl')}</label>
+                <input
+                  className="w-full rounded-xl border px-3 py-2 text-sm"
+                  placeholder={t('groupFlow.msgMediaUrlPh')}
+                  value={tplMediaUrlInput}
+                  onChange={(e) => setTplMediaUrlInput(e.target.value)}
+                />
+                {(tplType === 'image' || tplType === 'video') && (
+                  <>
+                    <label className="block text-sm font-medium mb-1">{t('groupFlow.msgImageCaption')}</label>
+                    <input className="w-full rounded-xl border px-3 py-2 text-sm" value={tplCaption} onChange={(e) => setTplCaption(e.target.value)} />
+                  </>
                 )}
+                {tplType === 'image' && (
+                  <>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t('groupFlow.msgImageUploadHint')}</p>
+                    <input type="file" accept="image/*" className="text-sm" onChange={(e) => void onPickTemplateImage(e)} />
+                    {tplMediaUrl ? (
+                      <p className="text-xs text-green-700 dark:text-green-400 break-all">{t('groupFlow.msgUploaded')}: {tplMediaUrl}</p>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            )}
+            {tplType === 'poll' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('groupFlow.msgPollQuestion')}</label>
+                  <textarea
+                    className="w-full rounded-xl border px-3 py-2 text-sm min-h-[72px]"
+                    value={tplPollQuestion}
+                    onChange={(e) => setTplPollQuestion(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('groupFlow.msgPollOptions')}</label>
+                  <div className="space-y-2">
+                    {tplPollOptions.map((opt, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <input
+                          className="flex-1 rounded-xl border px-3 py-2 text-sm"
+                          value={opt}
+                          onChange={(e) =>
+                            setTplPollOptions((prev) => prev.map((p, i) => (i === idx ? e.target.value : p)))
+                          }
+                        />
+                        {tplPollOptions.length > 2 ? (
+                          <button type="button" className="text-xs text-red-600 font-semibold shrink-0" onClick={() => setTplPollOptions((p) => p.filter((_, i) => i !== idx))}>
+                            {t('groupFlow.msgPollRemove')}
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" className="mt-2 text-xs font-semibold text-clerky-backendButton hover:underline" onClick={() => setTplPollOptions((p) => [...p, ''])}>
+                    {t('groupFlow.msgPollAdd')}
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('groupFlow.msgPollSelectable')}</label>
+                  <input
+                    type="number"
+                    min={1}
+                    className="w-28 rounded-xl border px-3 py-2 text-sm"
+                    value={tplPollSelectable}
+                    onChange={(e) => setTplPollSelectable(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                  />
+                </div>
+              </div>
+            )}
+            {tplType === 'location' && (
+              <div className="space-y-3">
+                <button type="button" className={BTN} onClick={() => useCurrentLocation()}>
+                  {t('groupFlow.msgLocUseCurrent')}
+                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t('groupFlow.msgLocLat')}</label>
+                    <input className="w-full rounded-xl border px-3 py-2 text-sm" value={locLat} onChange={(e) => setLocLat(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">{t('groupFlow.msgLocLng')}</label>
+                    <input className="w-full rounded-xl border px-3 py-2 text-sm" value={locLng} onChange={(e) => setLocLng(e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('groupFlow.msgLocName')}</label>
+                  <input className="w-full rounded-xl border px-3 py-2 text-sm" value={locName} onChange={(e) => setLocName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('groupFlow.msgLocAddress')}</label>
+                  <input className="w-full rounded-xl border px-3 py-2 text-sm" value={locAddress} onChange={(e) => setLocAddress(e.target.value)} />
+                </div>
+              </div>
+            )}
+            {tplType === 'contact' && (
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('groupFlow.msgContactName')}</label>
+                  <input className="w-full rounded-xl border px-3 py-2 text-sm" value={contactName} onChange={(e) => setContactName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">{t('groupFlow.msgContactPhone')}</label>
+                  <input
+                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                    placeholder={t('groupFlow.msgContactPhonePh')}
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                  />
+                </div>
               </div>
             )}
             <div className="flex justify-end gap-2 pt-2">
