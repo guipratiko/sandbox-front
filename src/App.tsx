@@ -27,6 +27,7 @@ import Settings from './pages/Settings';
 import DeleteAccount from './pages/DeleteAccount';
 import GerenciadorInstagram from './pages/GerenciadorInstagram';
 import ScrapingFlow from './pages/ScrapingFlow';
+import GroupFlow from './pages/GroupFlow';
 import Admin from './pages/Admin';
 import AdminRoute from './components/Auth/AdminRoute';
 import News from './pages/News';
@@ -197,6 +198,16 @@ function AppContent() {
               <ModuleGate module="scraping">
             <ScrapingFlow />
               </ModuleGate>
+            </PremiumRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/gerenciador-grupos"
+        element={
+          <ProtectedRoute>
+            <PremiumRoute>
+              <GroupFlow />
             </PremiumRoute>
           </ProtectedRoute>
         }

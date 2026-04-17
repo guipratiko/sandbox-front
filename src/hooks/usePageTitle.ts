@@ -22,6 +22,7 @@ const routeTitleMap: Record<string, string> = {
   '/configuracoes': 'menu.settings',
   '/gerenciador-instagram': 'menu.instagramManager',
   '/scraping': 'menu.scraping',
+  '/gerenciador-grupos': 'menu.groupFlow',
   '/excluir-conta': 'deleteAccount.title',
 };
 

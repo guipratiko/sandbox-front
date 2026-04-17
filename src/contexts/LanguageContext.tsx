@@ -173,6 +173,12 @@ const translations = {
     'menu.aiAgent': 'Agente de IA',
     'menu.instagramManager': 'Gerenciador de Instagram',
     'menu.scraping': 'Scraping Flow',
+    'menu.groupFlow': 'Grupo Flow',
+    'groupFlow.title': 'Grupo Flow',
+    'groupFlow.placeholder':
+      'Estamos a voltar a ligar o microserviço de grupos WhatsApp. Em breve poderá gerir grupos e campanhas a partir desta área.',
+    'groupFlow.devNote':
+      'O microserviço Grupo-Flow está a ser reintegrado; as ações de grupos aparecem aqui quando a API estiver disponível.',
     // Scraping Flow
     'scraping.description': 'Busque lugares pela Google Places e exporte resultados (nome, telefone, endereço) em CSV. 1 crédito por resultado. O serviço retorna no máximo 60 resultados por consulta. Dados disponíveis por 30 dias.',
     'scraping.saldoAtual': 'Saldo atual',
@@ -1430,6 +1436,12 @@ const translations = {
     'menu.aiAgent': 'AI Agent',
     'menu.instagramManager': 'Instagram Manager',
     'menu.scraping': 'Scraping Flow',
+    'menu.groupFlow': 'Group Flow',
+    'groupFlow.title': 'Group Flow',
+    'groupFlow.placeholder':
+      'We are reconnecting the WhatsApp groups microservice. Soon you will manage groups and campaigns from this area.',
+    'groupFlow.devNote':
+      'The Grupo-Flow microservice is being reintegrated; group actions will appear here when the API is available.',
     // Scraping Flow
     'scraping.description': 'Search for places via Google Places and export results (name, phone, address) to CSV. 1 credit per result. The service returns up to 60 results per query. Data available for 30 days.',
     'scraping.saldoAtual': 'Current balance',
