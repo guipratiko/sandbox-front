@@ -57,7 +57,7 @@ function extractGroupInfoFromGetInfo(data: unknown): { subject: string; descript
   return { subject, description, memberCount };
 }
 
-/** Lista JIDs da campanha e resolve o nome do grupo (Evolution), alinhado ao GroupFlow. */
+/** Grupos da campanha (API) + nome amigável via Evolution (sem mostrar JID ao utilizador). */
 function useCampaignGroupRows(campaignId: string, enabled: boolean, t: (key: string) => string) {
   const [rows, setRows] = useState<CampaignGroupPickRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -77,18 +77,28 @@ function useCampaignGroupRows(campaignId: string, enabled: boolean, t: (key: str
         if (cancelled) return;
         const jids = res.groupJids || [];
         const inst = res.campaign.evolution_instance_name;
-        const out: CampaignGroupPickRow[] = await Promise.all(
+        const unknownLabel = t('groupFlow.groupNameUnknown');
+        const raw: CampaignGroupPickRow[] = await Promise.all(
           jids.map(async (jid) => {
             try {
               const r = await groupFlowAPI.getGroupInfo(inst, jid);
               const { subject } = extractGroupInfoFromGetInfo(r.data);
-              const sub = subject.trim() || t('groupFlow.groupNameUnknown');
+              const sub = subject.trim() || unknownLabel;
               return { jid, subject: sub };
             } catch {
-              return { jid, subject: jid };
+              return { jid, subject: unknownLabel };
             }
           })
         );
+        const usage = new Map<string, number>();
+        const out = raw.map((row) => {
+          const base = row.subject;
+          const seen = (usage.get(base) || 0) + 1;
+          usage.set(base, seen);
+          const sameName = raw.filter((x) => x.subject === base).length;
+          if (sameName <= 1) return row;
+          return { ...row, subject: `${base} (${seen})` };
+        });
         if (!cancelled) setRows(out);
       } catch {
         if (!cancelled) setRows([]);
@@ -556,6 +566,7 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
               </div>
               {schScope === 'selected' && (
                 <div className="space-y-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3">
+                  <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">{t('groupFlow.msgScopeSelectedHelp')}</p>
                   {!schCampaignId ? (
                     <p className="text-xs text-amber-700 dark:text-amber-300">{t('groupFlow.msgPickCampaignFirst')}</p>
                   ) : schCampaignGroups.loading ? (
@@ -564,6 +575,7 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
                     <p className="text-sm text-gray-500 dark:text-gray-400">{t('groupFlow.noGroupsInCampaign')}</p>
                   ) : (
                     <>
+                      <p className="text-sm font-medium text-clerky-backendText dark:text-gray-100">{t('groupFlow.msgGroupsPickTitle')}</p>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
@@ -710,6 +722,7 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
               </div>
               {imScope === 'selected' && (
                 <div className="space-y-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3">
+                  <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">{t('groupFlow.msgScopeSelectedHelp')}</p>
                   {!imCampaignId ? (
                     <p className="text-xs text-amber-700 dark:text-amber-300">{t('groupFlow.msgPickCampaignFirst')}</p>
                   ) : imCampaignGroups.loading ? (
@@ -718,6 +731,7 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
                     <p className="text-sm text-gray-500 dark:text-gray-400">{t('groupFlow.noGroupsInCampaign')}</p>
                   ) : (
                     <>
+                      <p className="text-sm font-medium text-clerky-backendText dark:text-gray-100">{t('groupFlow.msgGroupsPickTitle')}</p>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
