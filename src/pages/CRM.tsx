@@ -704,7 +704,8 @@ const ChatModal: React.FC<ChatModalProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [newMessageIds, setNewMessageIds] = useState<Set<string>>(new Set());
-  const isInitialLoadRef = useRef<boolean>(true);
+  /** Após `getMessages` (abrir trocar contato): rolar até a última mensagem, com reforços pós-layout do modal. */
+  const pendingScrollAfterMessagesLoadRef = useRef(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -725,10 +726,6 @@ const ChatModal: React.FC<ChatModalProps> = ({
     [messages, chatTimeZone]
   );
 
-  const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
-    messagesEndRef.current?.scrollIntoView({ behavior });
-  };
-
   /** Garante scroll após o DOM atualizar (mensagens via socket / append). Usa 'auto' para evitar “piscar” por scroll animado. */
   const scrollToBottomAfterPaint = useCallback(() => {
     requestAnimationFrame(() => {
@@ -738,19 +735,35 @@ const ChatModal: React.FC<ChatModalProps> = ({
     });
   }, []);
 
+  const flushScrollToBottomOfThread = useCallback(() => {
+    const container = messagesContainerRef.current;
+    const end = messagesEndRef.current;
+    if (container) {
+      container.scrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+    }
+    end?.scrollIntoView({ behavior: 'auto', block: 'end' });
+  }, []);
+
   const loadMessages = useCallback(async (opts?: { silent?: boolean }) => {
     if (!contact) return;
     const silent = !!opts?.silent;
 
     try {
       if (!silent) {
+        pendingScrollAfterMessagesLoadRef.current = false;
         setIsLoading(true);
-        isInitialLoadRef.current = true;
       }
       const response = await crmAPI.getMessages(contact.id);
-      setMessages(sortMessagesByTimestamp(response.messages));
+      const sorted = sortMessagesByTimestamp(response.messages);
+      setMessages(sorted);
+      if (!silent) {
+        pendingScrollAfterMessagesLoadRef.current = sorted.length > 0;
+      }
     } catch (error: any) {
       console.error('Erro ao carregar mensagens:', error);
+      if (!silent) {
+        pendingScrollAfterMessagesLoadRef.current = false;
+      }
     } finally {
       if (!silent) {
         setIsLoading(false);
@@ -839,11 +852,10 @@ const ChatModal: React.FC<ChatModalProps> = ({
 
   useEffect(() => {
     if (contact && isOpen) {
-      isInitialLoadRef.current = true;
       loadMessages();
     } else {
       setMessages([]);
-      isInitialLoadRef.current = true;
+      pendingScrollAfterMessagesLoadRef.current = false;
     }
   }, [contact, isOpen, loadMessages]);
 
@@ -864,16 +876,37 @@ const ChatModal: React.FC<ChatModalProps> = ({
     return () => window.clearTimeout(id);
   }, [isOpen, contact?.id, showCaptionInput, isRecording, focusMessageInput]);
 
-  // Não rolar a cada nova mensagem (causava “piscar” com scroll suave). Scroll só no carregamento inicial abaixo.
-
-  // Definir scroll no final ANTES da renderização (carregamento inicial da thread)
+  // Ao abrir o chat / trocar de contato: após carregar a thread, ir até a última mensagem (reforços pós-layout do modal).
   useLayoutEffect(() => {
-    if (isInitialLoadRef.current && !isLoading && messages.length > 0 && messagesContainerRef.current) {
-      const container = messagesContainerRef.current;
-      container.scrollTop = container.scrollHeight;
-      isInitialLoadRef.current = false;
+    if (!pendingScrollAfterMessagesLoadRef.current || isLoading || messages.length === 0) {
+      return;
     }
-  }, [messages, isLoading]);
+    flushScrollToBottomOfThread();
+  }, [isLoading, messages, flushScrollToBottomOfThread]);
+
+  useEffect(() => {
+    if (!pendingScrollAfterMessagesLoadRef.current || isLoading || messages.length === 0) {
+      return;
+    }
+    const run = () => flushScrollToBottomOfThread();
+    run();
+    const raf = requestAnimationFrame(() => {
+      run();
+      requestAnimationFrame(run);
+    });
+    const t1 = window.setTimeout(run, 80);
+    const t2 = window.setTimeout(run, 220);
+    const t3 = window.setTimeout(() => {
+      run();
+      pendingScrollAfterMessagesLoadRef.current = false;
+    }, 400);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+    };
+  }, [isLoading, messages, flushScrollToBottomOfThread]);
 
 
   const handleSendMessage = async () => {
