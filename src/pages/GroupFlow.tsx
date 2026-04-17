@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AppLayout } from '../components/Layout';
 import { Card, Button } from '../components/UI';
+import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import {
   instanceAPI,
@@ -28,12 +29,50 @@ function extractGroupFields(item: unknown): { id: string; subject: string; size?
   return { id, subject, size };
 }
 
+function buildPublicJoinUrl(campaignId: string): string {
+  const raw = (process.env.REACT_APP_API_URL || 'http://localhost:4331/api').replace(/\/+$/, '');
+  return `${raw}/public/join/${encodeURIComponent(campaignId)}`;
+}
+
+function extractGroupInfoFromGetInfo(data: unknown): { subject: string; description: string } {
+  const unwrap = (v: unknown): Record<string, unknown> | null => {
+    if (!v || typeof v !== 'object') return null;
+    if (Array.isArray(v)) {
+      for (const item of v) {
+        const o = unwrap(item);
+        if (o) return o;
+      }
+      return null;
+    }
+    return v as Record<string, unknown>;
+  };
+  let o = unwrap(data);
+  if (o && typeof o.data === 'object' && o.data !== null) {
+    const inner = unwrap(o.data);
+    if (inner) o = inner;
+  }
+  if (!o) return { subject: '', description: '' };
+  const subject = String(o.subject ?? o.name ?? o.groupName ?? '');
+  const description = String(o.desc ?? o.description ?? o.about ?? '');
+  return { subject, description };
+}
+
+function truncateText(s: string, max: number): string {
+  const x = s.trim();
+  if (x.length <= max) return x;
+  return `${x.slice(0, max)}…`;
+}
+
 type WizardStep = 'instance' | 'name' | 'import';
+
+type CampaignGroupMeta = { jid: string; subject: string; description: string };
 
 const GroupFlow: React.FC = () => {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const messagesMode = searchParams.get('messages') === '1';
+  const campaignId = searchParams.get('campaign');
 
   const [instances, setInstances] = useState<Instance[]>([]);
   const [loadingInstances, setLoadingInstances] = useState(true);
@@ -54,8 +93,19 @@ const GroupFlow: React.FC = () => {
   const [importAllMode, setImportAllMode] = useState(false);
   const [loadingWizardGroups, setLoadingWizardGroups] = useState(false);
 
-  const [openCampaign, setOpenCampaign] = useState<{ campaign: GrupoCampaignRow; groupJids: string[] } | null>(null);
-  const [addJidsText, setAddJidsText] = useState('');
+  const [campaignDetail, setCampaignDetail] = useState<{ campaign: GrupoCampaignRow; groupJids: string[] } | null>(null);
+  const [loadingCampaignDetail, setLoadingCampaignDetail] = useState(false);
+  const [campaignDetailError, setCampaignDetailError] = useState<string | null>(null);
+  const [campaignGroupsMeta, setCampaignGroupsMeta] = useState<CampaignGroupMeta[]>([]);
+  const [refreshingGroupMeta, setRefreshingGroupMeta] = useState(false);
+  const [selectedCampaignJids, setSelectedCampaignJids] = useState<Set<string>>(() => new Set());
+  const [linkCopiedFlash, setLinkCopiedFlash] = useState(false);
+
+  const [addGroupsModalOpen, setAddGroupsModalOpen] = useState(false);
+  const [loadingAddGroupsModalList, setLoadingAddGroupsModalList] = useState(false);
+  const [addGroupsCandidateList, setAddGroupsCandidateList] = useState<unknown[]>([]);
+  const [addGroupsSelected, setAddGroupsSelected] = useState<Set<string>>(() => new Set());
+  const [addGroupsSubmitting, setAddGroupsSubmitting] = useState(false);
 
   const baileysInstances = useMemo(() => instances.filter(isBaileysInstance), [instances]);
   const connectedBaileys = useMemo(
@@ -109,8 +159,81 @@ const GroupFlow: React.FC = () => {
   }, [t]);
 
   useEffect(() => {
-    if (!messagesMode) loadCampaigns();
-  }, [messagesMode, loadCampaigns]);
+    if (!messagesMode && !campaignId) loadCampaigns();
+  }, [messagesMode, campaignId, loadCampaigns]);
+
+  const refreshCampaignDetail = useCallback(
+    async (id: string) => {
+      setLoadingCampaignDetail(true);
+      setCampaignDetailError(null);
+      try {
+        const res = await grupoCampaignAPI.get(id);
+        setCampaignDetail({ campaign: res.campaign as GrupoCampaignRow, groupJids: res.groupJids });
+      } catch (e: unknown) {
+        setCampaignDetail(null);
+        setCampaignDetailError(getErrorMessage(e, t('groupFlow.error')));
+      } finally {
+        setLoadingCampaignDetail(false);
+      }
+    },
+    [t]
+  );
+
+  useEffect(() => {
+    if (!campaignId) {
+      setCampaignDetail(null);
+      setCampaignGroupsMeta([]);
+      setSelectedCampaignJids(new Set());
+      setCampaignDetailError(null);
+      return;
+    }
+    void refreshCampaignDetail(campaignId);
+  }, [campaignId, refreshCampaignDetail]);
+
+  const loadGroupMetas = useCallback(
+    async (inst: string, jids: string[]) => {
+      if (!jids.length) {
+        setCampaignGroupsMeta([]);
+        return;
+      }
+      setRefreshingGroupMeta(true);
+      try {
+        const metas: CampaignGroupMeta[] = await Promise.all(
+          jids.map(async (jid) => {
+            try {
+              const r = await groupFlowAPI.getGroupInfo(inst, jid);
+              const { subject, description } = extractGroupInfoFromGetInfo(r.data);
+              const sub = subject.trim() || t('groupFlow.groupNameUnknown');
+              return { jid, subject: sub, description: description.trim() };
+            } catch {
+              return { jid, subject: t('groupFlow.groupNameUnknown'), description: '' };
+            }
+          })
+        );
+        setCampaignGroupsMeta(metas);
+      } finally {
+        setRefreshingGroupMeta(false);
+      }
+    },
+    [t]
+  );
+
+  useEffect(() => {
+    if (!campaignDetail) return;
+    void loadGroupMetas(campaignDetail.campaign.evolution_instance_name, campaignDetail.groupJids);
+  }, [campaignDetail, loadGroupMetas]);
+
+  useEffect(() => {
+    if (!campaignDetail?.groupJids) return;
+    const allowed = new Set(campaignDetail.groupJids);
+    setSelectedCampaignJids((prev) => {
+      const next = new Set<string>();
+      prev.forEach((j) => {
+        if (allowed.has(j)) next.add(j);
+      });
+      return next;
+    });
+  }, [campaignDetail?.groupJids]);
 
   const resetWizard = () => {
     setWizardStep('instance');
@@ -207,42 +330,145 @@ const GroupFlow: React.FC = () => {
     }
   };
 
-  const openCampaignById = async (id: string) => {
-    try {
-      setError(null);
-      const res = await grupoCampaignAPI.get(id);
-      setOpenCampaign({ campaign: res.campaign as GrupoCampaignRow, groupJids: res.groupJids });
-    } catch (e: unknown) {
-      setError(getErrorMessage(e, t('groupFlow.error')));
-    }
+  const openCampaignById = (id: string) => {
+    setError(null);
+    const p = new URLSearchParams(searchParams);
+    p.set('campaign', id);
+    p.delete('messages');
+    setSearchParams(p);
+  };
+
+  const closeCampaignDetail = () => {
+    const p = new URLSearchParams(searchParams);
+    p.delete('campaign');
+    setSearchParams(p);
+    void loadCampaigns();
   };
 
   const handleDeleteCampaign = async (id: string) => {
     if (!window.confirm(t('groupFlow.deleteCampaignConfirm'))) return;
     try {
+      setError(null);
       await grupoCampaignAPI.delete(id);
-      setOpenCampaign(null);
-      await loadCampaigns();
+      closeCampaignDetail();
     } catch (e: unknown) {
       setError(getErrorMessage(e, t('groupFlow.error')));
     }
   };
 
-  const handleAddJidsToCampaign = async () => {
-    if (!openCampaign) return;
-    const jids = addJidsText
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (!jids.length) return;
+  const handleCopyJoinLink = async (id: string) => {
+    const url = buildPublicJoinUrl(id);
     try {
-      await grupoCampaignAPI.addGroups(openCampaign.campaign.id, jids);
-      setAddJidsText('');
-      await openCampaignById(openCampaign.campaign.id);
+      await navigator.clipboard.writeText(url);
+      setLinkCopiedFlash(true);
+      window.setTimeout(() => setLinkCopiedFlash(false), 2000);
+    } catch {
+      setError(t('groupFlow.error'));
+    }
+  };
+
+  const toggleCampaignGroupSelect = (jid: string) => {
+    setSelectedCampaignJids((prev) => {
+      const next = new Set(prev);
+      if (next.has(jid)) next.delete(jid);
+      else next.add(jid);
+      return next;
+    });
+  };
+
+  const handleSelectAllCampaignGroups = () => {
+    if (!campaignDetail) return;
+    const all = campaignDetail.groupJids;
+    const allSelected = all.length > 0 && all.every((j) => selectedCampaignJids.has(j));
+    if (allSelected) setSelectedCampaignJids(new Set());
+    else setSelectedCampaignJids(new Set(all));
+  };
+
+  const handleRemoveGroupFromCampaign = async (jid: string) => {
+    if (!campaignDetail || !campaignId) return;
+    if (!window.confirm(t('groupFlow.deleteGroupConfirm'))) return;
+    try {
+      setError(null);
+      await grupoCampaignAPI.removeGroup(campaignId, jid);
+      await refreshCampaignDetail(campaignId);
     } catch (e: unknown) {
       setError(getErrorMessage(e, t('groupFlow.error')));
     }
   };
+
+  const handleDeleteAllGroupsFromCampaign = async () => {
+    if (!campaignDetail || !campaignId) return;
+    if (!window.confirm(t('groupFlow.deleteAllGroupsConfirm'))) return;
+    try {
+      setError(null);
+      for (const jid of campaignDetail.groupJids) {
+        await grupoCampaignAPI.removeGroup(campaignId, jid);
+      }
+      await refreshCampaignDetail(campaignId);
+      setSelectedCampaignJids(new Set());
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, t('groupFlow.error')));
+    }
+  };
+
+  const openAddGroupsModal = async () => {
+    if (!campaignDetail) return;
+    const inst = campaignDetail.campaign.evolution_instance_name;
+    setAddGroupsModalOpen(true);
+    setAddGroupsSelected(new Set());
+    setAddGroupsCandidateList([]);
+    try {
+      setLoadingAddGroupsModalList(true);
+      setError(null);
+      const res = await groupFlowAPI.listGroups(inst, false);
+      const list = res.data?.groups;
+      const arr = Array.isArray(list) ? list : [];
+      const inCampaign = new Set(campaignDetail.groupJids);
+      const filtered = arr.filter((g) => {
+        const { id } = extractGroupFields(g);
+        return id && id !== '-' && !inCampaign.has(id);
+      });
+      setAddGroupsCandidateList(filtered);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, t('groupFlow.error')));
+      setAddGroupsCandidateList([]);
+    } finally {
+      setLoadingAddGroupsModalList(false);
+    }
+  };
+
+  const toggleAddGroupCandidate = (jid: string) => {
+    setAddGroupsSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(jid)) next.delete(jid);
+      else next.add(jid);
+      return next;
+    });
+  };
+
+  const submitAddGroupsModal = async () => {
+    if (!campaignId || addGroupsSelected.size === 0) return;
+    try {
+      setAddGroupsSubmitting(true);
+      setError(null);
+      await grupoCampaignAPI.addGroups(campaignId, Array.from(addGroupsSelected));
+      setAddGroupsModalOpen(false);
+      setAddGroupsSelected(new Set());
+      await refreshCampaignDetail(campaignId);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, t('groupFlow.error')));
+    } finally {
+      setAddGroupsSubmitting(false);
+    }
+  };
+
+  const instanceDisplayName = useMemo(() => {
+    if (!campaignDetail) return '';
+    return (
+      instances.find((i) => i.instanceName === campaignDetail.campaign.evolution_instance_name)?.name ??
+      campaignDetail.campaign.evolution_instance_name
+    );
+  }, [campaignDetail, instances]);
 
   const goMessages = () => {
     const p = new URLSearchParams(searchParams);
@@ -315,6 +541,255 @@ const GroupFlow: React.FC = () => {
               </div>
             </div>
           </Card>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (campaignId) {
+    const ownerLabel = (user?.name && user.name.trim()) || user?.email || '—';
+    const inviteUrl = campaignDetail ? buildPublicJoinUrl(campaignDetail.campaign.id) : '';
+
+    return (
+      <AppLayout>
+        <div className="max-w-4xl mx-auto space-y-6 pb-10">
+          <button
+            type="button"
+            onClick={closeCampaignDetail}
+            className="text-sm font-medium text-clerky-backendButton hover:underline"
+          >
+            ← {t('groupFlow.backToCampaigns')}
+          </button>
+
+          {error && (
+            <div
+              className="rounded-lg border border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-800 dark:text-red-200"
+              role="alert"
+            >
+              <strong className="font-semibold">{t('groupFlow.error')}: </strong>
+              {error}
+            </div>
+          )}
+
+          {loadingCampaignDetail && !campaignDetail ? (
+            <p className="text-sm text-gray-500 py-12 text-center">{t('groupFlow.loadingCampaign')}</p>
+          ) : campaignDetailError && !campaignDetail ? (
+            <Card padding="lg" shadow="md">
+              <p className="text-sm text-red-700 dark:text-red-300">{campaignDetailError}</p>
+              <Button type="button" variant="outline" className="mt-4" onClick={closeCampaignDetail}>
+                {t('groupFlow.backToCampaigns')}
+              </Button>
+            </Card>
+          ) : campaignDetail ? (
+            <>
+              <Card padding="lg" shadow="md" className="bg-white dark:bg-gray-900/40">
+                <h1 className="text-2xl font-bold text-clerky-backendText dark:text-gray-100">{campaignDetail.campaign.name}</h1>
+                <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                  {t('groupFlow.campaignSubtitleLine', {
+                    owner: ownerLabel,
+                    contacts: String(campaignDetail.campaign.contacts_per_group_hint),
+                  })}
+                </p>
+                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{instanceDisplayName}</p>
+
+                <div className="mt-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40 p-4">
+                  <p className="text-sm font-semibold text-clerky-backendText dark:text-gray-100">{t('groupFlow.inviteLinkLabel')}</p>
+                  <p className="mt-1 text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                    {t('groupFlow.inviteLinkHelp', { n: String(campaignDetail.campaign.contacts_per_group_hint) })}
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                    <input
+                      readOnly
+                      className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-xs text-clerky-backendText dark:text-gray-100"
+                      value={inviteUrl}
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={() => handleCopyJoinLink(campaignDetail.campaign.id)}>
+                      {t('groupFlow.copyLink')}
+                    </Button>
+                  </div>
+                  {linkCopiedFlash && <p className="mt-2 text-xs text-green-600 dark:text-green-400">{t('groupFlow.linkCopied')}</p>}
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" disabled title={t('groupFlow.comingSoon')}>
+                    {t('groupFlow.editCampaign')}
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" disabled title={t('groupFlow.comingSoon')}>
+                    {t('groupFlow.createGroup')}
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => void openAddGroupsModal()}>
+                    {t('groupFlow.addGroup')}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={refreshingGroupMeta || !campaignDetail.groupJids.length}
+                    onClick={() =>
+                      void loadGroupMetas(
+                        campaignDetail.campaign.evolution_instance_name,
+                        campaignDetail.groupJids
+                      )
+                    }
+                  >
+                    {t('groupFlow.refreshGroups')}
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" disabled title={t('groupFlow.comingSoon')}>
+                    {t('groupFlow.configureGroups')}
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" disabled title={t('groupFlow.comingSoon')}>
+                    {t('groupFlow.mentionAllCampaign')}
+                  </Button>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={!campaignDetail.groupJids.length}
+                    onClick={() => void handleDeleteAllGroupsFromCampaign()}
+                    className="text-sm font-semibold rounded-lg border-2 border-red-600 text-red-600 px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {t('groupFlow.deleteAllGroups')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteCampaign(campaignDetail.campaign.id)}
+                    className="text-sm font-semibold rounded-lg border-2 border-red-600 text-red-600 px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/30"
+                  >
+                    {t('groupFlow.campaignDelete')}
+                  </button>
+                </div>
+              </Card>
+
+              <Card padding="lg" shadow="md" className="bg-white dark:bg-gray-900/40">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <h2 className="text-lg font-semibold text-clerky-backendText dark:text-gray-100">{t('groupFlow.campaignGroupsTitle')}</h2>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!campaignDetail.groupJids.length}
+                    onClick={handleSelectAllCampaignGroups}
+                  >
+                    {t('groupFlow.selectAll')}
+                  </Button>
+                </div>
+
+                {refreshingGroupMeta && campaignDetail.groupJids.length > 0 && campaignGroupsMeta.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-6 text-center">{t('groupFlow.loading')}</p>
+                ) : campaignDetail.groupJids.length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 py-8 text-center border border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
+                    {t('groupFlow.noGroupsInCampaign')}
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-gray-100 dark:divide-gray-800 rounded-xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+                    {campaignDetail.groupJids.map((jid) => {
+                      const row = campaignGroupsMeta.find((m) => m.jid === jid);
+                      const title = row?.subject ?? t('groupFlow.groupNameUnknown');
+                      const desc = truncateText(row?.description ?? '', 140);
+                      const checked = selectedCampaignJids.has(jid);
+                      return (
+                        <li key={jid} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between bg-white dark:bg-gray-900/20">
+                          <div className="flex gap-3 min-w-0 flex-1">
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4 flex-shrink-0 rounded border-gray-300"
+                              checked={checked}
+                              onChange={() => toggleCampaignGroupSelect(jid)}
+                              aria-label={title}
+                            />
+                            <div className="min-w-0">
+                              <p className="font-semibold text-clerky-backendText dark:text-gray-100">{title}</p>
+                              {desc ? (
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">{desc}</p>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2 sm:flex-shrink-0 sm:justify-end">
+                            <Button type="button" variant="outline" size="sm" disabled title={t('groupFlow.comingSoon')}>
+                              {t('groupFlow.configure')}
+                            </Button>
+                            <Button type="button" variant="outline" size="sm" disabled title={t('groupFlow.comingSoon')}>
+                              {t('groupFlow.mentionAll')}
+                            </Button>
+                            <button
+                              type="button"
+                              onClick={() => void handleRemoveGroupFromCampaign(jid)}
+                              className="text-sm font-semibold rounded-lg border-2 border-red-600 text-red-600 px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/30"
+                            >
+                              {t('groupFlow.deleteGroup')}
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </Card>
+
+              {addGroupsModalOpen && (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]"
+                  role="dialog"
+                  aria-modal
+                >
+                  <Card padding="lg" shadow="lg" className="max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-lg font-semibold text-clerky-backendText dark:text-gray-100">{t('groupFlow.addGroupsModalTitle')}</h3>
+                      <button
+                        type="button"
+                        onClick={() => setAddGroupsModalOpen(false)}
+                        className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                        aria-label={t('groupFlow.wizardClose')}
+                      >
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="overflow-y-auto flex-1 min-h-0">
+                      {loadingAddGroupsModalList ? (
+                        <p className="text-sm text-gray-500 py-6">{t('groupFlow.loadingGroupsList')}</p>
+                      ) : addGroupsCandidateList.length === 0 ? (
+                        <p className="text-sm text-gray-500 py-6">{t('groupFlow.addGroupsModalEmpty')}</p>
+                      ) : (
+                        <ul className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800">
+                          {addGroupsCandidateList.map((g, idx) => {
+                            const row = extractGroupFields(g);
+                            const sel = addGroupsSelected.has(row.id);
+                            return (
+                              <li key={`${row.id}-${idx}`} className="flex items-center gap-3 px-3 py-2">
+                                <input
+                                  type="checkbox"
+                                  checked={sel}
+                                  onChange={() => toggleAddGroupCandidate(row.id)}
+                                  disabled={row.id === '-'}
+                                />
+                                <span className="text-sm text-clerky-backendText dark:text-gray-100 truncate">{row.subject}</span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                    <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-gray-100 dark:border-gray-800 pt-4">
+                      <Button type="button" variant="outline" onClick={() => setAddGroupsModalOpen(false)}>
+                        {t('groupFlow.cancel')}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="primary"
+                        disabled={addGroupsSelected.size === 0 || addGroupsSubmitting}
+                        isLoading={addGroupsSubmitting}
+                        onClick={() => void submitAddGroupsModal()}
+                      >
+                        {t('groupFlow.addGroupsModalSubmit')}
+                      </Button>
+                    </div>
+                  </Card>
+                </div>
+              )}
+            </>
+          ) : null}
         </div>
       </AppLayout>
     );
@@ -628,43 +1103,6 @@ const GroupFlow: React.FC = () => {
                     {t('groupFlow.finish')}
                   </Button>
                 )}
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {openCampaign && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog">
-            <Card padding="lg" shadow="lg" className="max-w-lg w-full max-h-[90vh] overflow-y-auto rounded-2xl">
-              <h3 className="text-lg font-semibold mb-2 text-clerky-backendText dark:text-gray-100">{openCampaign.campaign.name}</h3>
-              <p className="text-xs text-gray-500 mb-4">
-                {openCampaign.campaign.evolution_instance_name} · {openCampaign.campaign.inclusion_rule}
-              </p>
-              <p className="text-sm font-medium mb-1">{t('groupFlow.campaignJids')}</p>
-              <ul className="text-xs font-mono max-h-32 overflow-y-auto mb-4 space-y-1 border rounded-lg p-2 border-gray-200 dark:border-gray-700">
-                {openCampaign.groupJids.length === 0 ? (
-                  <li className="text-gray-500">—</li>
-                ) : (
-                  openCampaign.groupJids.map((j) => <li key={j}>{j}</li>)
-                )}
-              </ul>
-              <label className="block text-sm font-medium mb-1">{t('groupFlow.addJids')}</label>
-              <textarea
-                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-mono min-h-[80px] mb-3"
-                placeholder={t('groupFlow.jidsPlaceholder')}
-                value={addJidsText}
-                onChange={(e) => setAddJidsText(e.target.value)}
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="primary" size="sm" onClick={handleAddJidsToCampaign}>
-                  {t('groupFlow.addJids')}
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => setOpenCampaign(null)}>
-                  {t('groupFlow.cancel')}
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => handleDeleteCampaign(openCampaign.campaign.id)}>
-                  {t('groupFlow.campaignDelete')}
-                </Button>
               </div>
             </Card>
           </div>
