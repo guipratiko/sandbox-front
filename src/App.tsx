@@ -10,6 +10,8 @@ import Login from './components/Login/Login';
 import SignUp from './components/SignUp/SignUp';
 import ForgotPassword from './components/ForgotPassword/ForgotPassword';
 import ActivateAccount from './pages/ActivateAccount';
+import AcceptTeamInvite from './pages/AcceptTeamInvite';
+import ModuleGate from './components/Auth/ModuleGate';
 import ResetPassword from './pages/ResetPassword';
 import Home from './pages/Home';
 import Instances from './pages/Instances';
@@ -41,6 +43,7 @@ function AppContent() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/ativar-conta" element={<ActivateAccount />} />
+      <Route path="/aceitar-equipe" element={<AcceptTeamInvite />} />
       <Route
         path="/inicio"
         element={
@@ -54,7 +57,9 @@ function AppContent() {
         element={
           <ProtectedRoute>
             <PremiumRoute>
+              <ModuleGate module="instances">
             <Instances />
+              </ModuleGate>
             </PremiumRoute>
           </ProtectedRoute>
         }
@@ -64,7 +69,9 @@ function AppContent() {
         element={
           <ProtectedRoute>
             <PremiumRoute>
+              <ModuleGate module="dispatches">
             <Dispatches />
+              </ModuleGate>
             </PremiumRoute>
           </ProtectedRoute>
         }
@@ -74,7 +81,9 @@ function AppContent() {
         element={
           <ProtectedRoute>
             <PremiumRoute>
+              <ModuleGate module="dispatchesOfficial">
               <DispatchesOfficial />
+              </ModuleGate>
             </PremiumRoute>
           </ProtectedRoute>
         }
@@ -85,7 +94,9 @@ function AppContent() {
           <ProtectedRoute>
             <PremiumRoute>
               <MobileRestrictedRoute>
+                <ModuleGate module="crm">
             <CRM />
+                </ModuleGate>
               </MobileRestrictedRoute>
             </PremiumRoute>
           </ProtectedRoute>
@@ -97,7 +108,9 @@ function AppContent() {
           <ProtectedRoute>
             <PremiumRoute>
               <MobileRestrictedRoute>
+                <ModuleGate module="crm">
                 <CrmContacts />
+                </ModuleGate>
               </MobileRestrictedRoute>
             </PremiumRoute>
           </ProtectedRoute>
@@ -109,7 +122,9 @@ function AppContent() {
           <ProtectedRoute>
             <PremiumRoute>
               <MobileRestrictedRoute>
+                <ModuleGate module="manyflow">
             <MindClerky />
+                </ModuleGate>
               </MobileRestrictedRoute>
             </PremiumRoute>
           </ProtectedRoute>
@@ -120,7 +135,9 @@ function AppContent() {
         element={
           <ProtectedRoute>
             <PremiumRoute>
+              <ModuleGate module="integration">
             <Integration />
+              </ModuleGate>
             </PremiumRoute>
           </ProtectedRoute>
         }
@@ -130,7 +147,9 @@ function AppContent() {
         element={
           <ProtectedRoute>
             <PremiumRoute disallowStart>
+              <ModuleGate module="aiAgent">
             <AIAgentPage />
+              </ModuleGate>
             </PremiumRoute>
           </ProtectedRoute>
         }
@@ -164,7 +183,9 @@ function AppContent() {
         element={
           <ProtectedRoute>
             <PremiumRoute>
+              <ModuleGate module="groupManager">
             <GroupManager />
+              </ModuleGate>
             </PremiumRoute>
           </ProtectedRoute>
         }
@@ -174,7 +195,9 @@ function AppContent() {
         element={
           <ProtectedRoute>
             <PremiumRoute>
+              <ModuleGate module="instagram">
             <GerenciadorInstagram />
+              </ModuleGate>
             </PremiumRoute>
           </ProtectedRoute>
         }
@@ -184,7 +207,9 @@ function AppContent() {
         element={
           <ProtectedRoute>
             <PremiumRoute>
+              <ModuleGate module="scraping">
             <ScrapingFlow />
+              </ModuleGate>
             </PremiumRoute>
           </ProtectedRoute>
         }

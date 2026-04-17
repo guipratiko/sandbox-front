@@ -39,6 +39,20 @@ export interface RegisterData {
   cpf: string;
 }
 
+export interface SubuserPermissions {
+  dashboard: boolean;
+  instances: boolean;
+  dispatches: boolean;
+  dispatchesOfficial: boolean;
+  crm: boolean;
+  manyflow: boolean;
+  integration: boolean;
+  aiAgent: boolean;
+  groupManager: boolean;
+  instagram: boolean;
+  scraping: boolean;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -55,6 +69,14 @@ export interface User {
   maxManyFlowWorkflows?: number;
   admin?: boolean;
   cpf?: string;
+  accountRole?: 'owner' | 'subuser';
+  /** Membro de equipe (conta vinculada a um titular Enterprise). */
+  isSubuser?: boolean;
+  /** Mongo id do titular quando `isSubuser`. */
+  effectiveUserId?: string;
+  permissions?: SubuserPermissions;
+  /** Instâncias WhatsApp liberadas no CRM (subusuário). */
+  allowedCrmInstanceIds?: string[];
 }
 
 export interface AuthResponse {
@@ -547,6 +569,84 @@ export const authAPI = {
     return request<{ status: string; message: string }>('/auth/account', {
       method: 'DELETE',
       body: JSON.stringify(data),
+    });
+  },
+};
+
+export interface TeamMemberRow {
+  id: string;
+  name: string;
+  email: string;
+  cpf: string;
+  isSubuserActive: boolean;
+  permissions: SubuserPermissions;
+  allowedCrmInstanceIds: string[];
+  crmAllowDeleteConversationCard: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TeamInvitationRow {
+  id: string;
+  email: string;
+  name: string;
+  cpf: string;
+  permissions: SubuserPermissions;
+  allowedCrmInstanceIds: string[];
+  crmAllowDeleteConversationCard: boolean;
+  expiresAt: string;
+  createdAt?: string;
+}
+
+export const teamAPI = {
+  listMembers: async (): Promise<{ status: string; members: TeamMemberRow[] }> => {
+    return request('/team/members');
+  },
+  listInvitations: async (): Promise<{ status: string; invitations: TeamInvitationRow[] }> => {
+    return request('/team/invitations');
+  },
+  createInvitation: async (body: {
+    email: string;
+    name: string;
+    cpf: string;
+    permissions: Partial<SubuserPermissions>;
+    allowedCrmInstanceIds: string[];
+    crmAllowDeleteConversationCard: boolean;
+  }): Promise<{ status: string; message?: string }> => {
+    return request('/team/invitations', { method: 'POST', body: JSON.stringify(body) });
+  },
+  deleteInvitation: async (id: string): Promise<{ status: string; message?: string }> => {
+    return request(`/team/invitations/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+  updateMember: async (
+    id: string,
+    body: {
+      permissions?: Partial<SubuserPermissions>;
+      allowedCrmInstanceIds?: string[];
+      crmAllowDeleteConversationCard?: boolean;
+      isSubuserActive?: boolean;
+    }
+  ): Promise<{ status: string; member?: TeamMemberRow }> => {
+    return request(`/team/members/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  },
+};
+
+export const publicTeamAPI = {
+  validateInvite: async (
+    token: string
+  ): Promise<{ status: string; invite: { name: string; email: string; ownerName: string; companyName: string } }> => {
+    return request(`/public/team-invite?token=${encodeURIComponent(token)}`);
+  },
+  acceptInvite: async (
+    token: string,
+    password: string
+  ): Promise<AuthResponse> => {
+    return request<AuthResponse>('/public/team-invite/accept', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
     });
   },
 };

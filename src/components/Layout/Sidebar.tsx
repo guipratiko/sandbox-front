@@ -6,6 +6,24 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { LanguageToggle, ThemeToggle } from '../UI';
 import { getUpgradePlanUrl } from '../../config/marketing';
+import type { SubuserPermissions } from '../../services/api';
+
+function pathToSubuserModule(path: string): keyof SubuserPermissions | null {
+  const m: Record<string, keyof SubuserPermissions> = {
+    '/inicio': 'dashboard',
+    '/gerenciador-conexoes': 'instances',
+    '/disparos': 'dispatches',
+    '/disparo-api': 'dispatchesOfficial',
+    '/crm': 'crm',
+    '/manyflow': 'manyflow',
+    '/integracao': 'integration',
+    '/agente-ia': 'aiAgent',
+    '/gerenciador-grupos': 'groupManager',
+    '/gerenciador-instagram': 'instagram',
+    '/scraping': 'scraping',
+  };
+  return m[path] ?? null;
+}
 
 interface SidebarProps {
   isOpen: boolean;
@@ -210,7 +228,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isCollapsed = false,
 
         {/* Menu Items */}
         <nav className={`flex-1 ${isCollapsed ? 'px-2' : 'px-4'} py-6 space-y-1.5 overflow-y-auto`}>
-          {menuItems.map((item) => {
+          {menuItems
+            .filter((item) => {
+              if (!user?.isSubuser || !user.permissions) return true;
+              const mod = pathToSubuserModule(item.path);
+              if (!mod) return true;
+              return !!user.permissions[mod];
+            })
+            .map((item) => {
             const isMobileRestricted = isMobile && item.isMobileRestricted;
             const isPremiumRestricted = item.isPremiumRestricted && (!user || !user.premiumPlan || user.premiumPlan === 'free');
             const isStartRestricted = item.isStartRestricted && user?.premiumPlan === 'start';

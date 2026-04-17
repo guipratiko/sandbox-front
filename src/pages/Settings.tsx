@@ -23,6 +23,7 @@ import {
   CRMInstanceOption,
   CrmSelectedInstance,
 } from '../components/crm/CrmInstancePicker';
+import TeamEnterpriseSection from '../components/Settings/TeamEnterpriseSection';
 import { validators } from '../utils/validators';
 import { normalizeName, formatPhone, normalizePhone } from '../utils/formatters';
 import {
@@ -169,7 +170,15 @@ const SortableKanbanColumnSettingsRow: React.FC<{
 const Settings: React.FC = () => {
   const { t } = useLanguage();
   const { user, updateUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'kanban' | 'labels'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'kanban' | 'labels' | 'team'>('profile');
+  const showTeamTab = user?.premiumPlan === 'enterprise' && !user?.isSubuser;
+  const showKanbanLabels = !user?.isSubuser;
+
+  useEffect(() => {
+    if (user?.isSubuser && (activeTab === 'kanban' || activeTab === 'labels' || activeTab === 'team')) {
+      setActiveTab('profile');
+    }
+  }, [user?.isSubuser, activeTab]);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Estados do formulário de perfil
@@ -249,10 +258,15 @@ const Settings: React.FC = () => {
 
   // Carregar assinatura premium
   useEffect(() => {
-    if (activeTab === 'profile' && user?.premiumPlan && user.premiumPlan !== 'free') {
+    if (
+      activeTab === 'profile' &&
+      user?.premiumPlan &&
+      user.premiumPlan !== 'free' &&
+      !user?.isSubuser
+    ) {
       loadSubscription();
     }
-  }, [activeTab, user?.premiumPlan]);
+  }, [activeTab, user?.premiumPlan, user?.isSubuser]);
 
   const loadSubscription = async () => {
     try {
@@ -817,26 +831,42 @@ const Settings: React.FC = () => {
           >
             {t('settings.password')}
           </button>
-          <button
-            onClick={() => setActiveTab('kanban')}
-            className={`px-3 md:px-4 py-2.5 md:py-2 font-medium transition-smooth whitespace-nowrap text-sm md:text-base touch-manipulation ${
-              activeTab === 'kanban'
-                ? 'text-clerky-backendButton border-b-2 border-clerky-backendButton'
-                : 'text-gray-500 dark:text-gray-400 hover:text-clerky-backendText dark:hover:text-gray-200'
-            }`}
-          >
-            {t('settings.kanbanTab')}
-          </button>
-          <button
-            onClick={() => setActiveTab('labels')}
-            className={`px-3 md:px-4 py-2.5 md:py-2 font-medium transition-smooth whitespace-nowrap text-sm md:text-base touch-manipulation ${
-              activeTab === 'labels'
-                ? 'text-clerky-backendButton border-b-2 border-clerky-backendButton'
-                : 'text-gray-500 dark:text-gray-400 hover:text-clerky-backendText dark:hover:text-gray-200'
-            }`}
-          >
-            Etiquetas
-          </button>
+          {showKanbanLabels && (
+            <button
+              onClick={() => setActiveTab('kanban')}
+              className={`px-3 md:px-4 py-2.5 md:py-2 font-medium transition-smooth whitespace-nowrap text-sm md:text-base touch-manipulation ${
+                activeTab === 'kanban'
+                  ? 'text-clerky-backendButton border-b-2 border-clerky-backendButton'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-clerky-backendText dark:hover:text-gray-200'
+              }`}
+            >
+              {t('settings.kanbanTab')}
+            </button>
+          )}
+          {showKanbanLabels && (
+            <button
+              onClick={() => setActiveTab('labels')}
+              className={`px-3 md:px-4 py-2.5 md:py-2 font-medium transition-smooth whitespace-nowrap text-sm md:text-base touch-manipulation ${
+                activeTab === 'labels'
+                  ? 'text-clerky-backendButton border-b-2 border-clerky-backendButton'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-clerky-backendText dark:hover:text-gray-200'
+              }`}
+            >
+              Etiquetas
+            </button>
+          )}
+          {showTeamTab && (
+            <button
+              onClick={() => setActiveTab('team')}
+              className={`px-3 md:px-4 py-2.5 md:py-2 font-medium transition-smooth whitespace-nowrap text-sm md:text-base touch-manipulation ${
+                activeTab === 'team'
+                  ? 'text-clerky-backendButton border-b-2 border-clerky-backendButton'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-clerky-backendText dark:hover:text-gray-200'
+              }`}
+            >
+              Equipe
+            </button>
+          )}
         </div>
 
         {/* Formulário de Perfil */}
@@ -1441,6 +1471,8 @@ const Settings: React.FC = () => {
             </div>
           </Card>
         )}
+
+        {activeTab === 'team' && showTeamTab && <TeamEnterpriseSection />}
       </div>
 
       <Modal

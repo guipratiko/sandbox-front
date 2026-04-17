@@ -568,9 +568,22 @@ const NewsAndPromotions: React.FC = () => {
   );
 };
 
+const EMPTY_DASHBOARD_STATS: DashboardStats = {
+  instances: { total: 0, connected: 0, disconnected: 0, connecting: 0, error: 0 },
+  contacts: { total: 0, byColumn: [] },
+  dispatches: { total: 0, pending: 0, running: 0, completed: 0, failed: 0, paused: 0 },
+  workflows: { total: 0 },
+  groups: { total: 0 },
+  aiAgents: { total: 0, active: 0 },
+};
+
+const EMPTY_RECENT: RecentActivity = { messages: [], contacts: [], dispatches: [] };
+
 const Home: React.FC = () => {
   const { user, token } = useAuth();
   const { t } = useLanguage();
+  const canUseDashboard =
+    !user?.isSubuser || user?.permissions?.dashboard === true;
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivity | null>(null);
   const [banners, setBanners] = useState<Banner[]>([]);
@@ -583,6 +596,14 @@ const Home: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
+      if (!canUseDashboard) {
+        setStats(EMPTY_DASHBOARD_STATS);
+        setRecentActivity(EMPTY_RECENT);
+        setBanners([]);
+        setInstagramStats({ total: 0, connected: 0 });
+        setRunningDispatches([]);
+        return;
+      }
       const premium = userHasPremiumPlan(user);
       const emptyIg = { status: 'success' as const, data: [] };
       const emptyDisp = { status: 'success' as const, dispatches: [] as Dispatch[] };
@@ -610,7 +631,7 @@ const Home: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [t, user]);
+  }, [t, user, canUseDashboard]);
 
   // WebSocket para atualizações em tempo real
   useSocket(
@@ -688,6 +709,7 @@ const Home: React.FC = () => {
         </Card>
 
         {/* Cards de Estatísticas */}
+        {canUseDashboard && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 md:gap-5">
           {[
             { title: t('dashboard.stats.instances'), value: stats.instances.total, subtitle: `${stats.instances.connected} ${t('dashboard.instances.connected')}`, color: '#0040FF' },
@@ -703,16 +725,18 @@ const Home: React.FC = () => {
             </div>
           ))}
         </div>
+        )}
 
         {/* Carrossel de Banners */}
-        {banners.length > 0 && (
+        {canUseDashboard && banners.length > 0 && (
           <div className="flex justify-center">
             <BannerCarousel banners={banners} />
           </div>
         )}
 
         {/* Atividades Recentes e Novidades */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6 items-stretch">
+        <div className={`grid gap-5 md:gap-6 items-stretch ${canUseDashboard ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+          {canUseDashboard && (
           <div className="min-h-0 transform transition-all duration-300 hover:scale-[1.01] flex flex-col">
             <RecentActivityList
               activities={recentActivity}
@@ -722,6 +746,7 @@ const Home: React.FC = () => {
               activityLimit={5}
             />
           </div>
+          )}
           <div className="min-h-0 transform transition-all duration-300 hover:scale-[1.01] flex flex-col">
             <NewsAndPromotions />
           </div>
