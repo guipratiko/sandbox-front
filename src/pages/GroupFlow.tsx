@@ -2015,6 +2015,24 @@ const GroupFlow: React.FC = () => {
             </>
           ) : null}
         </div>
+
+        {groupFlowCropOpen && groupFlowCropSrc && (
+          <Modal
+            isOpen={groupFlowCropOpen}
+            onClose={onGroupFlowCropCancel}
+            title={t('groupFlow.adjustPhotoTitle')}
+            size="xl"
+            zIndex={100}
+          >
+            <ImageCrop
+              imageSrc={groupFlowCropSrc}
+              onCrop={onGroupFlowCropComplete}
+              onCancel={onGroupFlowCropCancel}
+              aspectRatio={1}
+              circular={false}
+            />
+          </Modal>
+        )}
       </AppLayout>
     );
   }
@@ -2338,7 +2356,7 @@ const GroupFlow: React.FC = () => {
             onClose={onGroupFlowCropCancel}
             title={t('groupFlow.adjustPhotoTitle')}
             size="xl"
-            zIndex={72}
+            zIndex={100}
           >
             <ImageCrop
               imageSrc={groupFlowCropSrc}
