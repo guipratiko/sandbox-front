@@ -122,7 +122,7 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
     setTemplateModalOpen(true);
   };
 
-  const useCurrentLocation = () => {
+  const fillLocationFromBrowser = () => {
     if (!navigator.geolocation) {
       setError(t('groupFlow.msgGeolocationUnavailable'));
       return;
@@ -730,7 +730,7 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
             )}
             {tplType === 'location' && (
               <div className="space-y-3">
-                <button type="button" className={BTN} onClick={() => useCurrentLocation()}>
+                <button type="button" className={BTN} onClick={fillLocationFromBrowser}>
                   {t('groupFlow.msgLocUseCurrent')}
                 </button>
                 <div className="grid grid-cols-2 gap-2">
