@@ -74,11 +74,29 @@ function truncateText(s: string, max: number): string {
   return x;
 }
 
+/** Extrai números no formato que a Evolution espera em create/add (só dígitos, DDI+número, 10–15 dígitos). */
 function parseParticipantInput(raw: string): string[] {
-  return raw
+  const chunks = raw
     .split(/[\n,;]+/)
     .map((s) => s.trim())
     .filter(Boolean);
+  const phones = new Set<string>();
+  for (const chunk of chunks) {
+    const jid = chunk.match(/(\d{10,15}@s\.whatsapp\.net)/i);
+    if (jid) {
+      phones.add(jid[1].split('@')[0].replace(/\D/g, ''));
+      continue;
+    }
+    const withName = chunk.match(/(\+?\d[\d\s().-]{8,}\d)\s*$/);
+    if (withName) {
+      const d = withName[1].replace(/\D/g, '');
+      if (d.length >= 10 && d.length <= 15) phones.add(d);
+      continue;
+    }
+    const d = chunk.replace(/\D/g, '');
+    if (d.length >= 10 && d.length <= 15) phones.add(d);
+  }
+  return Array.from(phones);
 }
 
 function extractJidFromCreateGroupResponse(data: unknown): string | null {
@@ -713,6 +731,10 @@ const GroupFlow: React.FC = () => {
     const n = Math.min(100, Math.max(1, Math.floor(createGroupCount) || 1));
     const inst = campaignDetail.campaign.evolution_instance_name;
     const participants = parseParticipantInput(createGroupParticipantsRaw);
+    if (!participants.length) {
+      setError(t('groupFlow.createGroupsParticipantsRequired'));
+      return;
+    }
     const desc = createGroupDescription.trim() || undefined;
     const image = createGroupPhotoDataUrl || createGroupPhotoUrl.trim() || undefined;
     setCreateGroupsSubmitting(true);
@@ -1471,7 +1493,8 @@ const GroupFlow: React.FC = () => {
                         </label>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-clerky-backendText dark:text-gray-200 mb-1">{t('groupFlow.participantsOptional')}</p>
+                        <p className="text-sm font-medium text-clerky-backendText dark:text-gray-200 mb-1">{t('groupFlow.createGroupsParticipantsLabel')}</p>
+                        <p className="text-xs text-amber-700 dark:text-amber-300/90 mb-2">{t('groupFlow.createGroupsParticipantsHint')}</p>
                         <input ref={createParticipantsCsvRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => {
                           const f = e.target.files?.[0];
                           e.target.value = '';

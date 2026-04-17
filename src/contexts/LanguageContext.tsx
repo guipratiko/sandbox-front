@@ -323,6 +323,11 @@ const translations = {
     'groupFlow.selectGroupsForAction': 'Selecione pelo menos um grupo na lista (checkboxes) ou use "Selecionar todos".',
     'groupFlow.creatingGroups': 'Criando grupos…',
     'groupFlow.crmComingSoon': 'Integração CRM em breve',
+    'groupFlow.createGroupsParticipantsRequired':
+      'Informe pelo menos um número com DDI (ex.: 5511999999999), um por linha ou separados por vírgula. A API do WhatsApp exige participantes para criar o grupo.',
+    'groupFlow.createGroupsParticipantsHint':
+      'Obrigatório: pelo menos um número no formato internacional (DDI + número, só dígitos, ex.: 5511999999999). Pode colar CSV ou “Nome, número”.',
+    'groupFlow.createGroupsParticipantsLabel': 'Participantes (obrigatório para criar no WhatsApp)',
     // Scraping Flow
     'scraping.description': 'Busque lugares pela Google Places e exporte resultados (nome, telefone, endereço) em CSV. 1 crédito por resultado. O serviço retorna no máximo 60 resultados por consulta. Dados disponíveis por 30 dias.',
     'scraping.saldoAtual': 'Saldo atual',
@@ -1727,6 +1732,11 @@ const translations = {
     'groupFlow.selectGroupsForAction': 'Select at least one group in the list (checkboxes) or use "Select all".',
     'groupFlow.creatingGroups': 'Creating groups…',
     'groupFlow.crmComingSoon': 'CRM integration coming soon',
+    'groupFlow.createGroupsParticipantsRequired':
+      'Add at least one phone number with country code (e.g. 5511999999999), one per line or comma-separated. WhatsApp requires participants to create a group.',
+    'groupFlow.createGroupsParticipantsHint':
+      'Required: at least one number in international format (country code + number, digits only, e.g. 5511999999999). You can paste CSV or “Name, number”.',
+    'groupFlow.createGroupsParticipantsLabel': 'Participants (required to create on WhatsApp)',
     // Scraping Flow
     'scraping.description': 'Search for places via Google Places and export results (name, phone, address) to CSV. 1 credit per result. The service returns up to 60 results per query. Data available for 30 days.',
     'scraping.saldoAtual': 'Current balance',
