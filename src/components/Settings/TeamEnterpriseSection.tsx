@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Card, Button, Input } from '../UI';
+import { Card, Button, Input, Modal } from '../UI';
 import {
   teamAPI,
   instanceAPI,
@@ -70,6 +70,12 @@ const TeamEnterpriseSection: React.FC = () => {
   const [inviteCrmDelete, setInviteCrmDelete] = useState(false);
   const [sending, setSending] = useState(false);
 
+  const [editMember, setEditMember] = useState<TeamMemberRow | null>(null);
+  const [editPerms, setEditPerms] = useState<SubuserPermissions>(emptyPerms());
+  const [editInstances, setEditInstances] = useState<string[]>([]);
+  const [editCrmDelete, setEditCrmDelete] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const load = useCallback(async () => {
     try {
       setLoading(true);
@@ -95,6 +101,53 @@ const TeamEnterpriseSection: React.FC = () => {
 
   const toggleInstance = (id: string) => {
     setInviteInstances((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const openEditMember = (m: TeamMemberRow) => {
+    setError(null);
+    setSuccess(null);
+    setEditMember(m);
+    setEditPerms({ ...emptyPerms(), ...(m.permissions || {}) });
+    setEditInstances([...(m.allowedCrmInstanceIds || [])]);
+    setEditCrmDelete(!!m.crmAllowDeleteConversationCard);
+  };
+
+  const closeEditMember = () => {
+    setEditMember(null);
+    setSavingEdit(false);
+  };
+
+  const toggleEditInstance = (id: string) => {
+    setEditInstances((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const saveEditMember = async () => {
+    if (!editMember) return;
+    setSuccess(null);
+    setError(null);
+    if (!Object.values(editPerms).some(Boolean)) {
+      setError('Marque ao menos um módulo.');
+      return;
+    }
+    if (editPerms.crm && editInstances.length === 0) {
+      setError('Com CRM ativo, selecione ao menos uma instância WhatsApp.');
+      return;
+    }
+    try {
+      setSavingEdit(true);
+      await teamAPI.updateMember(editMember.id, {
+        permissions: editPerms,
+        allowedCrmInstanceIds: editInstances,
+        crmAllowDeleteConversationCard: editCrmDelete,
+      });
+      setSuccess('Permissões atualizadas.');
+      closeEditMember();
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erro ao salvar permissões');
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const sendInvite = async () => {
@@ -275,16 +328,83 @@ const TeamEnterpriseSection: React.FC = () => {
                   <div className="text-gray-500">{m.email}</div>
                   <div className="text-xs text-gray-400">{m.isSubuserActive ? 'Ativo' : 'Desativado'}</div>
                 </div>
-                {m.isSubuserActive && (
-                  <Button size="sm" variant="secondary" onClick={() => deactivateMember(m.id)}>
-                    Desativar
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => openEditMember(m)}>
+                    Editar permissões
                   </Button>
-                )}
+                  {m.isSubuserActive && (
+                    <Button size="sm" variant="secondary" onClick={() => deactivateMember(m.id)}>
+                      Desativar
+                    </Button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
         )}
       </Card>
+
+      <Modal isOpen={!!editMember} onClose={closeEditMember} title="Editar permissões do membro">
+        {editMember && (
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {editMember.name} — {editMember.email}
+            </p>
+            <div>
+              <p className="text-sm font-medium text-clerky-backendText dark:text-gray-200 mb-2">Módulos permitidos</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {MODULE_ORDER.map((key) => (
+                  <label key={key} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={editPerms[key]}
+                      onChange={(e) => setEditPerms((p) => ({ ...p, [key]: e.target.checked }))}
+                    />
+                    {MODULE_LABELS[key]}
+                  </label>
+                ))}
+              </div>
+            </div>
+            {editPerms.crm && (
+              <div>
+                <p className="text-sm font-medium mb-2">Instâncias WhatsApp no CRM</p>
+                <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded p-2 space-y-1">
+                  {instances.length === 0 ? (
+                    <p className="text-sm text-gray-500">Nenhuma instância encontrada.</p>
+                  ) : (
+                    instances.map((inst) => (
+                      <label key={inst.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={editInstances.includes(inst.id)}
+                          onChange={() => toggleEditInstance(inst.id)}
+                        />
+                        {inst.name || inst.instanceName || inst.id}
+                      </label>
+                    ))
+                  )}
+                </div>
+                <label className="flex items-center gap-2 mt-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={editCrmDelete}
+                    onChange={(e) => setEditCrmDelete(e.target.checked)}
+                  />
+                  Permitir excluir conversas no CRM
+                </label>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+              <Button type="button" variant="secondary" onClick={closeEditMember}>
+                Cancelar
+              </Button>
+              <Button type="button" variant="primary" onClick={saveEditMember} isLoading={savingEdit}>
+                Salvar
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

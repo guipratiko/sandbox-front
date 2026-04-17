@@ -1706,16 +1706,23 @@ const CRM: React.FC = () => {
     })
   );
 
-  const loadInstances = async () => {
+  const loadInstances = useCallback(async () => {
     try {
       setIsLoadingInstances(true);
       const premium = userHasPremiumPlan(user);
-      const [waResponse, igResponse] = await Promise.all([
-        instanceAPI.getAll(),
-        premium
-          ? instagramAPI.getInstances()
-          : Promise.resolve({ status: 'success' as const, data: [] as InstagramInstance[] }),
-      ]);
+      const waResponse = await instanceAPI.getAll();
+
+      let igData: InstagramInstance[] = [];
+      const mayFetchInstagram =
+        premium && (!user?.isSubuser || !!user?.permissions?.instagram);
+      if (mayFetchInstagram) {
+        try {
+          const igResponse = await instagramAPI.getInstances();
+          igData = igResponse.data || [];
+        } catch (e) {
+          console.warn('CRM: não foi possível listar instâncias Instagram (permissão ou serviço).', e);
+        }
+      }
 
       const whatsappInstances: CRMInstanceOption[] = (waResponse.instances || []).map((inst: Instance) => ({
         id: inst.id,
@@ -1723,7 +1730,7 @@ const CRM: React.FC = () => {
         status: inst.status,
         channel: 'whatsapp',
       }));
-      const instagramInstances: CRMInstanceOption[] = (igResponse.data || []).map((inst: InstagramInstance) => ({
+      const instagramInstances: CRMInstanceOption[] = igData.map((inst: InstagramInstance) => ({
         id: inst.id,
         name: inst.name || inst.username || inst.instanceName,
         status: inst.status,
@@ -1740,7 +1747,7 @@ const CRM: React.FC = () => {
     } finally {
       setIsLoadingInstances(false);
     }
-  };
+  }, [user]);
 
   /** Só colunas (ex.: nenhuma instância selecionada no filtro do CRM). */
   const loadColumnsOnly = useCallback(async () => {
@@ -2050,7 +2057,7 @@ const CRM: React.FC = () => {
 
   useEffect(() => {
     loadInstances();
-  }, [user?.id, user?.premiumPlan]);
+  }, [loadInstances]);
 
   /** Colunas do quadro antes de `crmSelectionReady` (evita Kanban vazio só de cabeçalhos). */
   useEffect(() => {
