@@ -1,5 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { Button, Card, ImageCrop, Modal } from '../UI';
+import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
   grupoCampaignAPI,
@@ -116,6 +118,11 @@ function useCampaignGroupRows(campaignId: string, enabled: boolean, t: (key: str
 
 const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadingCampaigns, onReloadCampaigns, onBack }) => {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const scheduleUserIana = useMemo(() => {
+    const z = user?.timezone?.trim();
+    return z && z.length > 1 ? z : 'America/Sao_Paulo';
+  }, [user?.timezone]);
   const [error, setError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<GrupoFlowMessageTemplate[]>([]);
   const [schedules, setSchedules] = useState<GrupoFlowScheduleRow[]>([]);
@@ -379,8 +386,17 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
       setError(t('groupFlow.error'));
       return;
     }
-    const when = new Date(schAt);
-    if (Number.isNaN(when.getTime())) return;
+    let when: Date;
+    try {
+      when = fromZonedTime(schAt, scheduleUserIana);
+    } catch {
+      setError(t('groupFlow.msgScheduleTimezoneInvalid'));
+      return;
+    }
+    if (Number.isNaN(when.getTime())) {
+      setError(t('groupFlow.error'));
+      return;
+    }
     const groupJids = schScope === 'selected' ? Array.from(schSelectedJids) : undefined;
     if (schScope === 'selected' && (!groupJids || !groupJids.length)) {
       setError(t('groupFlow.msgSelectGroupsRequired'));
@@ -621,6 +637,7 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
                   value={schAt}
                   onChange={(e) => setSchAt(e.target.value)}
                 />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('groupFlow.msgScheduleAtTimezoneHint', { tz: scheduleUserIana })}</p>
               </div>
               {!templates.length ? <p className="text-xs text-amber-700 dark:text-amber-300">{t('groupFlow.msgNoTemplateHint')}</p> : null}
               <Button type="button" variant="primary" disabled={saving || !templates.length} isLoading={saving} onClick={() => void submitSchedule()}>
@@ -637,7 +654,8 @@ const GroupMessagesPage: React.FC<GroupMessagesPageProps> = ({ campaigns, loadin
                   <div>
                     <p className="font-medium">{s.template_name ?? '—'}</p>
                     <p className="text-xs text-gray-500">
-                      {s.campaign_name ?? '—'} · {new Date(s.scheduled_at).toLocaleString()} ·{' '}
+                      {s.campaign_name ?? '—'} ·{' '}
+                      {formatInTimeZone(new Date(s.scheduled_at), scheduleUserIana, 'dd/MM/yyyy, HH:mm:ss')} ·{' '}
                       {s.status === 'pending'
                         ? t('groupFlow.msgStatusPending')
                         : s.status === 'sent'
