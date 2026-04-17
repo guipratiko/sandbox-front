@@ -175,10 +175,19 @@ const translations = {
     'menu.scraping': 'Scraping Flow',
     'menu.groupFlow': 'Grupo Flow',
     'groupFlow.title': 'Grupo Flow',
-    'groupFlow.placeholder':
-      'Estamos reconectando o microserviço de grupos do WhatsApp. Em breve você poderá gerenciar grupos e campanhas por aqui.',
-    'groupFlow.devNote':
-      'O Grupo-Flow está sendo reintegrado ao painel; as ações aparecerão nesta tela quando a API do backend estiver disponível.',
+    'groupFlow.helpIntro':
+      'Selecione uma instância WhatsApp e consulte o microserviço Grupo-Flow através do backend OnlyFlow (proxy autenticado). A resposta abaixo vem direto do serviço configurado em GRUPO_FLOW_SERVICE_URL.',
+    'groupFlow.selectInstance': 'Instância',
+    'groupFlow.queryButton': 'Consultar grupos',
+    'groupFlow.loading': 'Consultando...',
+    'groupFlow.loadingInstances': 'Carregando instâncias...',
+    'groupFlow.noInstances': 'Nenhuma instância cadastrada. Crie uma em Instâncias.',
+    'groupFlow.selectHint':
+      'É usado o nome interno da Evolution (instanceName), não só o nome de exibição.',
+    'groupFlow.apiResult': 'Resposta da API',
+    'groupFlow.error': 'Erro',
+    'groupFlow.onlyConnected': 'Mostrar só conectadas',
+    'groupFlow.noneConnected': 'Nenhuma instância conectada. Desmarque o filtro ou conecte uma instância em Instâncias.',
     // Scraping Flow
     'scraping.description': 'Busque lugares pela Google Places e exporte resultados (nome, telefone, endereço) em CSV. 1 crédito por resultado. O serviço retorna no máximo 60 resultados por consulta. Dados disponíveis por 30 dias.',
     'scraping.saldoAtual': 'Saldo atual',
@@ -1438,10 +1447,18 @@ const translations = {
     'menu.scraping': 'Scraping Flow',
     'menu.groupFlow': 'Group Flow',
     'groupFlow.title': 'Group Flow',
-    'groupFlow.placeholder':
-      'We are reconnecting the WhatsApp groups microservice. Soon you will manage groups and campaigns from this area.',
-    'groupFlow.devNote':
-      'The Grupo-Flow microservice is being reintegrated; group actions will appear here when the API is available.',
+    'groupFlow.helpIntro':
+      'Pick a WhatsApp instance and query the Grupo-Flow microservice through the OnlyFlow backend (authenticated proxy). The response below comes from the service set in GRUPO_FLOW_SERVICE_URL.',
+    'groupFlow.selectInstance': 'Instance',
+    'groupFlow.queryButton': 'Fetch groups',
+    'groupFlow.loading': 'Loading...',
+    'groupFlow.loadingInstances': 'Loading instances...',
+    'groupFlow.noInstances': 'No instances yet. Create one under Instances.',
+    'groupFlow.selectHint': 'Uses the Evolution internal name (instanceName), not only the display name.',
+    'groupFlow.apiResult': 'API response',
+    'groupFlow.error': 'Error',
+    'groupFlow.onlyConnected': 'Connected only',
+    'groupFlow.noneConnected': 'No connected instances. Clear the filter or connect an instance under Instances.',
     // Scraping Flow
     'scraping.description': 'Search for places via Google Places and export results (name, phone, address) to CSV. 1 credit per result. The service returns up to 60 results per query. Data available for 30 days.',
     'scraping.saldoAtual': 'Current balance',
