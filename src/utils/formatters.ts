@@ -31,6 +31,36 @@ export const cleanPhone = (phone: string): string => {
  * Formata parcialmente enquanto o usuário digita
  * Remove DDI 55 se presente (formato internacional brasileiro)
  */
+/**
+ * Normaliza só dígitos para E.164-like: 10–11 dígitos sem DDI recebem 55 (Brasil), como no disparo em massa.
+ */
+export const normalizePhoneWithDefaultCountry = (digits: string, defaultDdi = '55'): string | null => {
+  const d = cleanPhone(digits);
+  if (!d) return null;
+  if (d.length >= 12 && d.length <= 15) return d;
+  if (d.length === 10 || d.length === 11) return `${defaultDdi}${d}`;
+  return null;
+};
+
+/**
+ * Formata identificador de usuário WhatsApp (parte antes de @) para exibição: BR com formatação nacional; demais +digits.
+ */
+export const formatWhatsAppUserForDisplay = (userPartOrJid: string): string => {
+  const raw = userPartOrJid.includes('@') ? userPartOrJid.split('@')[0]! : userPartOrJid;
+  const digits = cleanPhone(raw);
+  if (!digits) return userPartOrJid;
+  if (digits.startsWith('55') && digits.length >= 12 && digits.length <= 13) {
+    return formatPhone(digits);
+  }
+  if (digits.length === 10 || digits.length === 11) {
+    return formatPhone(`55${digits}`);
+  }
+  if (digits.length >= 10 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+  return digits;
+};
+
 export const formatPhone = (phone: string): string => {
   let cleaned = cleanPhone(phone);
   

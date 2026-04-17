@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AppLayout } from '../components/Layout';
-import { Card, Button } from '../components/UI';
+import { Card, Button, Modal, ImageCrop } from '../components/UI';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import {
@@ -14,6 +14,12 @@ import {
 } from '../services/api';
 import { getErrorMessage } from '../utils/errorHandler';
 import { prepareGroupFlowImageDataUrl, resolveGroupPictureForEvolution } from '../utils/groupFlowImage';
+import {
+  compressImage,
+  cleanPhone,
+  formatWhatsAppUserForDisplay,
+  normalizePhoneWithDefaultCountry,
+} from '../utils/formatters';
 
 function isBaileysInstance(i: Instance): boolean {
   return i.integration !== 'WHATSAPP-CLOUD';
@@ -75,29 +81,41 @@ function truncateText(s: string, max: number): string {
   return x;
 }
 
-/** Extrai números no formato que a Evolution espera em create/add (só dígitos, DDI+número, 10–15 dígitos). */
+/** Extrai números no formato Evolution (DDI+número). 10–11 dígitos sem DDI → 55, como disparo em massa. */
 function parseParticipantInput(raw: string): string[] {
   const chunks = raw
-    .split(/[\n,;]+/)
+    .split(/[\n,;\t|]+/)
     .map((s) => s.trim())
     .filter(Boolean);
   const phones = new Set<string>();
   for (const chunk of chunks) {
-    const jid = chunk.match(/(\d{10,15}@s\.whatsapp\.net)/i);
+    const jid = chunk.match(/(\d{8,15}@s\.whatsapp\.net)/i);
     if (jid) {
-      phones.add(jid[1].split('@')[0].replace(/\D/g, ''));
+      const n = normalizePhoneWithDefaultCountry(jid[1].split('@')[0]);
+      if (n) phones.add(n);
       continue;
     }
-    const withName = chunk.match(/(\+?\d[\d\s().-]{8,}\d)\s*$/);
+    const withName = chunk.match(/(\+?\d[\d\s().-]{6,}\d)\s*$/);
     if (withName) {
-      const d = withName[1].replace(/\D/g, '');
-      if (d.length >= 10 && d.length <= 15) phones.add(d);
+      const n = normalizePhoneWithDefaultCountry(withName[1]);
+      if (n) phones.add(n);
       continue;
     }
-    const d = chunk.replace(/\D/g, '');
-    if (d.length >= 10 && d.length <= 15) phones.add(d);
+    const n = normalizePhoneWithDefaultCountry(chunk);
+    if (n) phones.add(n);
   }
   return Array.from(phones);
+}
+
+function buildGroupFlowParticipantLine(id: string, label: string): string {
+  const userDigits = cleanPhone(id.split('@')[0] || '');
+  const formatted = formatWhatsAppUserForDisplay(userDigits);
+  const nameTrim = label.trim();
+  const rawUser = id.split('@')[0] || '';
+  const looksLikeName = /[a-zA-ZÀ-ÿ]/.test(nameTrim);
+  const sameAsJidUser = nameTrim === rawUser || cleanPhone(nameTrim) === userDigits;
+  if (looksLikeName && !sameAsJidUser) return `${nameTrim} · ${formatted}`;
+  return formatted;
 }
 
 function extractJidFromCreateGroupResponse(data: unknown): string | null {
@@ -117,8 +135,8 @@ function extractJidFromCreateGroupResponse(data: unknown): string | null {
   return null;
 }
 
-function normalizeParticipantsList(data: unknown): Array<{ id: string; label: string; admin?: boolean }> {
-  const out: Array<{ id: string; label: string; admin?: boolean }> = [];
+function normalizeParticipantsList(data: unknown): Array<{ id: string; label: string; admin?: boolean; displayLine: string }> {
+  const out: Array<{ id: string; label: string; admin?: boolean; displayLine: string }> = [];
   let list: unknown[] = [];
   if (Array.isArray(data)) list = data;
   else if (data && typeof data === 'object') {
@@ -130,7 +148,8 @@ function normalizeParticipantsList(data: unknown): Array<{ id: string; label: st
   }
   for (const item of list) {
     if (typeof item === 'string' && item.includes('@')) {
-      out.push({ id: item, label: item.split('@')[0] || item });
+      const label = item.split('@')[0] || item;
+      out.push({ id: item, label, displayLine: buildGroupFlowParticipantLine(item, label) });
       continue;
     }
     if (!item || typeof item !== 'object') continue;
@@ -139,7 +158,7 @@ function normalizeParticipantsList(data: unknown): Array<{ id: string; label: st
     if (!id.includes('@')) continue;
     const admin = Boolean(p.admin ?? p.isAdmin);
     const label = String(p.notify ?? p.name ?? id.split('@')[0] ?? id);
-    out.push({ id, label, admin });
+    out.push({ id, label, admin, displayLine: buildGroupFlowParticipantLine(id, label) });
   }
   return out;
 }
@@ -256,13 +275,54 @@ const GroupFlow: React.FC = () => {
   const [singleAnnounce, setSingleAnnounce] = useState(false);
   const [singleLock, setSingleLock] = useState(false);
   const [singleParticipantsList, setSingleParticipantsList] = useState<
-    Array<{ id: string; label: string; admin?: boolean }>
+    Array<{ id: string; label: string; admin?: boolean; displayLine: string }>
   >([]);
   const [singleRemoveIds, setSingleRemoveIds] = useState<Set<string>>(() => new Set());
   const [singleSaving, setSingleSaving] = useState(false);
   const [singleLoadingParticipants, setSingleLoadingParticipants] = useState(false);
   const singlePhotoFileRef = useRef<HTMLInputElement>(null);
   const singleParticipantsCsvRef = useRef<HTMLInputElement>(null);
+
+  type GroupFlowImageCropTarget = 'editCampaign' | 'createGroup' | 'bulk' | 'single';
+  const [groupFlowCropOpen, setGroupFlowCropOpen] = useState(false);
+  const [groupFlowCropSrc, setGroupFlowCropSrc] = useState<string | null>(null);
+  const [groupFlowCropTarget, setGroupFlowCropTarget] = useState<GroupFlowImageCropTarget | null>(null);
+
+  const clearGroupFlowCropFileInputs = () => {
+    if (editCampaignFileInputRef.current) editCampaignFileInputRef.current.value = '';
+    if (createGroupPhotoFileRef.current) createGroupPhotoFileRef.current.value = '';
+    if (bulkPhotoFileRef.current) bulkPhotoFileRef.current.value = '';
+    if (singlePhotoFileRef.current) singlePhotoFileRef.current.value = '';
+  };
+
+  const closeGroupFlowImageCrop = () => {
+    setGroupFlowCropOpen(false);
+    setGroupFlowCropSrc(null);
+    setGroupFlowCropTarget(null);
+  };
+
+  const openGroupFlowImageCrop = (target: GroupFlowImageCropTarget, dataUrl: string) => {
+    setGroupFlowCropTarget(target);
+    setGroupFlowCropSrc(dataUrl);
+    setGroupFlowCropOpen(true);
+  };
+
+  const onGroupFlowCropComplete = (croppedBase64: string) => {
+    const tgt = groupFlowCropTarget;
+    if (tgt === 'editCampaign') {
+      setEditCampaignNewPhotoDataUrl(croppedBase64);
+      setEditCampaignPhotoPreview(croppedBase64);
+      setEditCampaignClearPhoto(false);
+    } else if (tgt === 'createGroup') setCreateGroupPhotoDataUrl(croppedBase64);
+    else if (tgt === 'bulk') setBulkPhotoDataUrl(croppedBase64);
+    else if (tgt === 'single') setSinglePhotoDataUrl(croppedBase64);
+    closeGroupFlowImageCrop();
+  };
+
+  const onGroupFlowCropCancel = () => {
+    closeGroupFlowImageCrop();
+    clearGroupFlowCropFileInputs();
+  };
 
   const baileysInstances = useMemo(() => instances.filter(isBaileysInstance), [instances]);
   const connectedBaileys = useMemo(
@@ -632,7 +692,7 @@ const GroupFlow: React.FC = () => {
     setEditCampaignModalOpen(false);
   };
 
-  const onEditCampaignPhotoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onEditCampaignPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
@@ -644,14 +704,12 @@ const GroupFlow: React.FC = () => {
       setError(t('groupFlow.photoFileTooLarge'));
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const url = String(reader.result || '');
-      setEditCampaignNewPhotoDataUrl(url);
-      setEditCampaignPhotoPreview(url);
-      setEditCampaignClearPhoto(false);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file, 1600, 1600, 0.88);
+      openGroupFlowImageCrop('editCampaign', compressed);
+    } catch {
+      setError(t('groupFlow.error'));
+    }
   };
 
   const removeEditCampaignPhoto = () => {
@@ -713,7 +771,7 @@ const GroupFlow: React.FC = () => {
     setCreateGroupsModalOpen(true);
   };
 
-  const onCreateGroupPhotoPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onCreateGroupPhotoPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file?.type.startsWith('image/')) return;
@@ -721,9 +779,12 @@ const GroupFlow: React.FC = () => {
       setError(t('groupFlow.photoFileTooLarge'));
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setCreateGroupPhotoDataUrl(String(reader.result || ''));
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file, 1600, 1600, 0.88);
+      openGroupFlowImageCrop('createGroup', compressed);
+    } catch {
+      setError(t('groupFlow.error'));
+    }
   };
 
   const submitCreateGroups = async () => {
@@ -783,7 +844,7 @@ const GroupFlow: React.FC = () => {
     setBulkConfigureModalOpen(true);
   };
 
-  const onBulkPhotoPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onBulkPhotoPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file?.type.startsWith('image/')) return;
@@ -791,9 +852,12 @@ const GroupFlow: React.FC = () => {
       setError(t('groupFlow.photoFileTooLarge'));
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setBulkPhotoDataUrl(String(reader.result || ''));
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file, 1600, 1600, 0.88);
+      openGroupFlowImageCrop('bulk', compressed);
+    } catch {
+      setError(t('groupFlow.error'));
+    }
   };
 
   const onBulkCsvPick = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -961,7 +1025,20 @@ const GroupFlow: React.FC = () => {
     }
   };
 
-  const onSinglePhotoPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const demoteParticipantNow = async (pid: string) => {
+    if (!campaignDetail || !configureSingleJid) return;
+    const inst = campaignDetail.campaign.evolution_instance_name;
+    try {
+      setError(null);
+      await groupFlowAPI.updateGroupParticipants(inst, configureSingleJid, { action: 'demote', participants: [pid] });
+      const partRes = await groupFlowAPI.getParticipants(inst, configureSingleJid);
+      setSingleParticipantsList(normalizeParticipantsList(partRes.data));
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, t('groupFlow.error')));
+    }
+  };
+
+  const onSinglePhotoPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file?.type.startsWith('image/')) return;
@@ -969,9 +1046,12 @@ const GroupFlow: React.FC = () => {
       setError(t('groupFlow.photoFileTooLarge'));
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setSinglePhotoDataUrl(String(reader.result || ''));
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file, 1600, 1600, 0.88);
+      openGroupFlowImageCrop('single', compressed);
+    } catch {
+      setError(t('groupFlow.error'));
+    }
   };
 
   const onSingleCsvPick = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1796,7 +1876,7 @@ const GroupFlow: React.FC = () => {
                             <ul className="max-h-36 overflow-y-auto rounded-xl border divide-y">
                               {singleParticipantsList.map((p, idx) => (
                                 <li key={p.id} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
-                                  <span className="font-medium tabular-nums">{p.label}</span>
+                                  <span className="font-medium">{p.displayLine}</span>
                                   {idx === 0 && (
                                     <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-violet-100 text-violet-800">{t('groupFlow.creatorBadge')}</span>
                                   )}
@@ -1804,11 +1884,15 @@ const GroupFlow: React.FC = () => {
                                     <input type="checkbox" checked={singleRemoveIds.has(p.id)} onChange={() => toggleSingleRemoveParticipant(p.id)} />
                                     {t('groupFlow.deleteOnSave')}
                                   </label>
-                                  {!p.admin && (
+                                  {!p.admin ? (
                                     <button type="button" className="text-xs font-semibold text-teal-600 hover:underline" onClick={() => void promoteParticipantNow(p.id)}>
                                       {t('groupFlow.makeAdmin')}
                                     </button>
-                                  )}
+                                  ) : idx > 0 ? (
+                                    <button type="button" className="text-xs font-semibold text-amber-700 dark:text-amber-400 hover:underline" onClick={() => void demoteParticipantNow(p.id)}>
+                                      {t('groupFlow.removeAdmin')}
+                                    </button>
+                                  ) : null}
                                 </li>
                               ))}
                             </ul>
@@ -2246,6 +2330,24 @@ const GroupFlow: React.FC = () => {
               </div>
             </Card>
           </div>
+        )}
+
+        {groupFlowCropOpen && groupFlowCropSrc && (
+          <Modal
+            isOpen={groupFlowCropOpen}
+            onClose={onGroupFlowCropCancel}
+            title={t('groupFlow.adjustPhotoTitle')}
+            size="xl"
+            zIndex={72}
+          >
+            <ImageCrop
+              imageSrc={groupFlowCropSrc}
+              onCrop={onGroupFlowCropComplete}
+              onCancel={onGroupFlowCropCancel}
+              aspectRatio={1}
+              circular={false}
+            />
+          </Modal>
         )}
       </div>
     </AppLayout>

@@ -288,7 +288,7 @@ const translations = {
     'groupFlow.onlyAdminsEditInfo': 'Apenas admins podem editar informações do grupo',
     'groupFlow.participantsOptional': 'Participantes (opcional)',
     'groupFlow.participantsPlaceholder':
-      'Número ou número e nome (um por linha ou separados por vírgula)',
+      'Ex.: 62998448536, (62) 9 9844-8536, João 62998448536 — sem DDI usa 55. Um por linha ou vírgula.',
     'groupFlow.uploadCsv': 'Upload CSV',
     'groupFlow.fromCrm': 'Do CRM',
     'groupFlow.bulkConfigureTitle': 'Configurar grupos em massa',
@@ -316,17 +316,19 @@ const translations = {
     'groupFlow.addHashToNameHelp': "O nome do grupo será exibido como '#1' seguido do texto digitado.",
     'groupFlow.participantsSection': 'Participantes',
     'groupFlow.participantsListHelp':
-      "Marque 'Excluir do grupo' para remover ao salvar. Promover administrador aplica na hora no WhatsApp.",
+      "Marque 'Excluir do grupo' para remover ao salvar. Promover ou remover administrador aplica na hora no WhatsApp.",
     'groupFlow.deleteOnSave': 'Excluir ao salvar',
     'groupFlow.makeAdmin': 'Tornar administrador',
+    'groupFlow.removeAdmin': 'Remover administrador',
+    'groupFlow.adjustPhotoTitle': 'Ajustar imagem (recorte e zoom)',
     'groupFlow.creatorBadge': 'CRIADOR',
     'groupFlow.selectGroupsForAction': 'Selecione pelo menos um grupo na lista (checkboxes) ou use "Selecionar todos".',
     'groupFlow.creatingGroups': 'Criando grupos…',
     'groupFlow.crmComingSoon': 'Integração CRM em breve',
     'groupFlow.createGroupsParticipantsRequired':
-      'Informe pelo menos um número com DDI (ex.: 5511999999999), um por linha ou separados por vírgula. A API do WhatsApp exige participantes para criar o grupo.',
+      'Informe pelo menos um número (com ou sem DDI; sem DDI usa 55), um por linha ou separados por vírgula. A API do WhatsApp exige participantes para criar o grupo.',
     'groupFlow.createGroupsParticipantsHint':
-      'Obrigatório: pelo menos um número no formato internacional (DDI + número, só dígitos, ex.: 5511999999999). Pode colar CSV ou “Nome, número”.',
+      'Obrigatório: pelo menos um número. Pode colar (62) 9 9844-8536 ou 62998448536 — sem DDI o sistema usa 55. CSV ou “Nome, número”.',
     'groupFlow.createGroupsParticipantsLabel': 'Participantes (obrigatório para criar no WhatsApp)',
     // Scraping Flow
     'scraping.description': 'Busque lugares pela Google Places e exporte resultados (nome, telefone, endereço) em CSV. 1 crédito por resultado. O serviço retorna no máximo 60 resultados por consulta. Dados disponíveis por 30 dias.',
@@ -1698,7 +1700,8 @@ const translations = {
     'groupFlow.onlyAdminsSend': 'Only admins can send messages',
     'groupFlow.onlyAdminsEditInfo': 'Only admins can edit group information',
     'groupFlow.participantsOptional': 'Participants (optional)',
-    'groupFlow.participantsPlaceholder': 'Number or number and name (one per line or separated by comma)',
+    'groupFlow.participantsPlaceholder':
+      'E.g. 62998448536, (62) 9 9844-8536, John 62998448536 — without country code, 55 is used. One per line or comma.',
     'groupFlow.uploadCsv': 'Upload CSV',
     'groupFlow.fromCrm': 'From CRM',
     'groupFlow.bulkConfigureTitle': 'Bulk configure groups',
@@ -1725,17 +1728,19 @@ const translations = {
     'groupFlow.addHashToNameHelp': "The group name will show as '#1' followed by what you type.",
     'groupFlow.participantsSection': 'Participants',
     'groupFlow.participantsListHelp':
-      "Check 'Remove from group' to remove on save. Promote to admin applies immediately on WhatsApp.",
+      "Check 'Remove from group' to remove on save. Promote or remove admin applies immediately on WhatsApp.",
     'groupFlow.deleteOnSave': 'Remove on save',
     'groupFlow.makeAdmin': 'Make administrator',
+    'groupFlow.removeAdmin': 'Remove administrator',
+    'groupFlow.adjustPhotoTitle': 'Adjust image (crop and zoom)',
     'groupFlow.creatorBadge': 'CREATOR',
     'groupFlow.selectGroupsForAction': 'Select at least one group in the list (checkboxes) or use "Select all".',
     'groupFlow.creatingGroups': 'Creating groups…',
     'groupFlow.crmComingSoon': 'CRM integration coming soon',
     'groupFlow.createGroupsParticipantsRequired':
-      'Add at least one phone number with country code (e.g. 5511999999999), one per line or comma-separated. WhatsApp requires participants to create a group.',
+      'Add at least one phone number (with or without country code; without it, 55 is used), one per line or comma-separated. WhatsApp requires participants to create a group.',
     'groupFlow.createGroupsParticipantsHint':
-      'Required: at least one number in international format (country code + number, digits only, e.g. 5511999999999). You can paste CSV or “Name, number”.',
+      'Required: at least one number. You can paste (62) 9 9844-8536 or 62998448536 — without country code, 55 is used. CSV or “Name, number”.',
     'groupFlow.createGroupsParticipantsLabel': 'Participants (required to create on WhatsApp)',
     // Scraping Flow
     'scraping.description': 'Search for places via Google Places and export results (name, phone, address) to CSV. 1 credit per result. The service returns up to 60 results per query. Data available for 30 days.',
