@@ -18,6 +18,7 @@ import { prepareGroupFlowImageDataUrl, resolveGroupPictureForEvolution } from '.
 import {
   compressImage,
   cleanPhone,
+  formatBrazilWhatsappDigitsForDisplay,
   formatWhatsAppUserForDisplay,
   normalizePhoneWithDefaultCountry,
 } from '../utils/formatters';
@@ -108,13 +109,16 @@ function parseParticipantInput(raw: string): string[] {
   return Array.from(phones);
 }
 
-function buildGroupFlowParticipantLine(id: string, label: string): string {
-  const userDigits = cleanPhone(id.split('@')[0] || '');
-  const formatted = formatWhatsAppUserForDisplay(userDigits);
+function buildGroupFlowParticipantLine(jidForDigits: string, label: string): string {
+  const userPart = jidForDigits.split('@')[0] || '';
+  const userDigits = cleanPhone(userPart);
+  const formatted =
+    userDigits.startsWith('55') && userDigits.length >= 12 && userDigits.length <= 13
+      ? formatBrazilWhatsappDigitsForDisplay(userDigits)
+      : formatWhatsAppUserForDisplay(jidForDigits);
   const nameTrim = label.trim();
-  const rawUser = id.split('@')[0] || '';
   const looksLikeName = /[a-zA-ZÀ-ÿ]/.test(nameTrim);
-  const sameAsJidUser = nameTrim === rawUser || cleanPhone(nameTrim) === userDigits;
+  const sameAsJidUser = nameTrim === userPart || cleanPhone(nameTrim) === userDigits;
   if (looksLikeName && !sameAsJidUser) return `${nameTrim} · ${formatted}`;
   return formatted;
 }
@@ -155,11 +159,21 @@ function normalizeParticipantsList(data: unknown): Array<{ id: string; label: st
     }
     if (!item || typeof item !== 'object') continue;
     const p = item as Record<string, unknown>;
-    const id = String(p.id ?? p.jid ?? '');
-    if (!id.includes('@')) continue;
+    const rawId = String(p.id ?? p.jid ?? '').trim();
+    const phoneJid = String(p.phoneNumber ?? '').trim();
+    /** Evolution: `id` pode ser `@lid`; promoção/remoção e exibição usam `phoneNumber` quando existir. */
+    const participantJid =
+      phoneJid && /@s\.whatsapp\.net$/i.test(phoneJid) ? phoneJid : rawId;
+    if (!participantJid.includes('@')) continue;
     const admin = Boolean(p.admin ?? p.isAdmin);
-    const label = String(p.notify ?? p.name ?? id.split('@')[0] ?? id);
-    out.push({ id, label, admin, displayLine: buildGroupFlowParticipantLine(id, label) });
+    const label = String(p.notify ?? p.name ?? p.pushName ?? participantJid.split('@')[0] ?? participantJid);
+    const displayJid = phoneJid && /@s\.whatsapp\.net$/i.test(phoneJid) ? phoneJid : participantJid;
+    out.push({
+      id: participantJid,
+      label,
+      admin,
+      displayLine: buildGroupFlowParticipantLine(displayJid, label),
+    });
   }
   return out;
 }

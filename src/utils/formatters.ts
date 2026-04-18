@@ -43,6 +43,21 @@ export const normalizePhoneWithDefaultCountry = (digits: string, defaultDdi = '5
 };
 
 /**
+ * Celular BR com DDI 55: insere o 9 após o DDD quando vier só 10 dígitos nacionais (legado), depois formata (ex.: 556298448536 → (62) 9 9844-8536).
+ */
+export const formatBrazilWhatsappDigitsForDisplay = (digitsWith55: string): string => {
+  const full = cleanPhone(digitsWith55);
+  if (!full.startsWith('55')) {
+    return formatPhone(full.length === 10 || full.length === 11 ? `55${full}` : full);
+  }
+  let national = full.slice(2);
+  if (national.length === 10) {
+    national = `${national.slice(0, 2)}9${national.slice(2)}`;
+  }
+  return formatPhone(`55${national}`);
+};
+
+/**
  * Formata identificador de usuário WhatsApp (parte antes de @) para exibição: BR com formatação nacional; demais +digits.
  */
 export const formatWhatsAppUserForDisplay = (userPartOrJid: string): string => {
@@ -50,7 +65,7 @@ export const formatWhatsAppUserForDisplay = (userPartOrJid: string): string => {
   const digits = cleanPhone(raw);
   if (!digits) return userPartOrJid;
   if (digits.startsWith('55') && digits.length >= 12 && digits.length <= 13) {
-    return formatPhone(digits);
+    return formatBrazilWhatsappDigitsForDisplay(digits);
   }
   if (digits.length === 10 || digits.length === 11) {
     return formatPhone(`55${digits}`);
