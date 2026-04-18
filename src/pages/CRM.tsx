@@ -182,6 +182,35 @@ function parseInstagramContactDisplay(name: string): { title: string; handle: st
   return { title: trimmed, handle: null };
 }
 
+const CRM_FREE_COMPOSE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function crmRequiresSessionMessagingWindow(contact: Contact): boolean {
+  if (contact.channel === 'instagram') return true;
+  return contact.instanceIntegration === 'WHATSAPP-CLOUD';
+}
+
+function getLastCustomerMessageTimeMs(contact: Contact, messages: Message[]): number | null {
+  let max: number | null = null;
+  for (const m of messages) {
+    if (m.fromMe) continue;
+    const t = new Date(m.timestamp).getTime();
+    if (Number.isFinite(t) && (max == null || t > max)) max = t;
+  }
+  if (contact.lastCustomerMessageAt) {
+    const fb = new Date(contact.lastCustomerMessageAt).getTime();
+    if (Number.isFinite(fb) && (max == null || fb > max)) max = fb;
+  }
+  return max;
+}
+
+/** Envio livre (texto/mídia/áudio) permitido: fora API Oficial/IG, ou dentro de 24h após última msg do contato. */
+function canSendFreeformCrmMessage(contact: Contact, messages: Message[]): boolean {
+  if (!crmRequiresSessionMessagingWindow(contact)) return true;
+  const last = getLastCustomerMessageTimeMs(contact, messages);
+  if (last == null) return false;
+  return Date.now() - last <= CRM_FREE_COMPOSE_WINDOW_MS;
+}
+
 /** Prévia da última mensagem: remove cercas markdown, aspas iniciais e espaços extras. */
 function formatCrmCardPreview(text: string): string {
   let s = String(text).trim();
@@ -725,7 +754,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
   zIndex = 50,
 }) => {
   const { token, user } = useAuth();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -754,6 +783,10 @@ const ChatModal: React.FC<ChatModalProps> = ({
   const chatTimeZone = useMemo(
     () => resolveUserDisplayTimeZone(user?.timezone),
     [user?.timezone]
+  );
+  const composeAllowed = useMemo(
+    () => (contact ? canSendFreeformCrmMessage(contact, messages) : true),
+    [contact, messages]
   );
   const messageGroups = useMemo(
     () => groupCrmChatMessagesByUserCalendarDay(messages, chatTimeZone),
@@ -941,10 +974,10 @@ const ChatModal: React.FC<ChatModalProps> = ({
 
   /** Ao abrir o chat ou fechar o fluxo de legenda, foco no campo de texto. */
   useEffect(() => {
-    if (!isOpen || !contact || showCaptionInput || isRecording) return;
+    if (!isOpen || !contact || showCaptionInput || isRecording || !composeAllowed) return;
     const id = window.setTimeout(focusMessageInput, 80);
     return () => window.clearTimeout(id);
-  }, [isOpen, contact?.id, showCaptionInput, isRecording, focusMessageInput]);
+  }, [isOpen, contact?.id, showCaptionInput, isRecording, composeAllowed, focusMessageInput]);
 
   // Ao abrir o chat / trocar de contato: após carregar a thread, ir até a última mensagem (reforços pós-layout do modal).
   useLayoutEffect(() => {
@@ -982,6 +1015,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
   const handleSendMessage = async () => {
     if (!contact || !newMessage.trim()) return;
     if (isSending) return;
+    if (!composeAllowed) return;
 
     const messageText = newMessage.trim();
     setNewMessage('');
@@ -1035,6 +1069,10 @@ const ChatModal: React.FC<ChatModalProps> = ({
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    if (!composeAllowed) {
+      e.target.value = '';
+      return;
+    }
     if (!file) return;
 
     // Validar tamanho (50MB)
@@ -1077,6 +1115,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
   const handleSendMedia = async (file?: File) => {
     if (!contact) return;
     if (isSending) return;
+    if (!composeAllowed) return;
 
     const fileToSend = file || selectedFile;
     if (!fileToSend) return;
@@ -1138,6 +1177,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
 
   // Função para iniciar gravação de áudio
   const startRecording = async () => {
+    if (!composeAllowed) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
@@ -1447,6 +1487,15 @@ const ChatModal: React.FC<ChatModalProps> = ({
 
         {/* Input de mensagem */}
         <div className="space-y-2">
+          {!composeAllowed && crmRequiresSessionMessagingWindow(contact) && (
+            <div
+              className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100"
+              role="status"
+            >
+              <p className="font-semibold">{t('crm.sessionMessagingClosedTitle')}</p>
+              <p className="mt-1 text-xs leading-relaxed opacity-95">{t('crm.sessionMessagingClosedHint')}</p>
+            </div>
+          )}
           {showCaptionInput && selectedFile && (
             <div className="flex items-center gap-2 p-2 sm:p-3 bg-gray-100 dark:bg-gray-700/80 rounded-xl">
               <span className="text-sm text-gray-600 dark:text-gray-400 truncate flex-1">
@@ -1492,7 +1541,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
               />
               <button
                 onClick={handleAttachClick}
-                disabled={isRecording}
+                disabled={isRecording || !composeAllowed}
                 className="p-2.5 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                 type="button"
                 title="Anexar arquivo"
@@ -1519,12 +1568,12 @@ const ChatModal: React.FC<ChatModalProps> = ({
                 onKeyDown={handleKeyPress}
                 placeholder={isRecording ? `Gravando... ${Math.floor(recordingTime / 60)}:${String(recordingTime % 60).padStart(2, '0')}` : "Digite sua mensagem..."}
                 className="flex-1 px-3 sm:px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-clerky-backendButton/50 focus:border-clerky-backendButton bg-white dark:bg-gray-700/90 text-clerky-backendText dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 disabled:opacity-50 transition-colors duration-200"
-                disabled={isRecording}
+                disabled={isRecording || !composeAllowed}
                 autoComplete="off"
               />
               <button
                 onClick={isRecording ? stopRecording : startRecording}
-                disabled={isSending}
+                disabled={isSending || !composeAllowed}
                 className={`p-2.5 rounded-xl border transition-all duration-200 ${
                   isRecording
                     ? 'bg-red-500 border-red-500 text-white hover:bg-red-600 animate-pulse shadow-sm'
@@ -1555,7 +1604,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
                 type="button"
                 variant="primary"
                 onClick={handleSendMessage}
-                disabled={!newMessage.trim() || isSending || isRecording}
+                disabled={!newMessage.trim() || isSending || isRecording || !composeAllowed}
                 isLoading={isSending}
               >
                 Enviar
@@ -1574,7 +1623,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
               <Button
                 variant="primary"
                 onClick={() => handleSendMedia()}
-                disabled={isSending}
+                disabled={isSending || !composeAllowed}
                 isLoading={isSending}
                 className="w-full"
               >

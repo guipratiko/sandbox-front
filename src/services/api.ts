@@ -868,6 +868,12 @@ export interface Contact {
   unreadCount: number;
   lastMessage: string | null;
   lastMessageAt: string | null;
+  /** Última mensagem recebida do contato (ISO). */
+  lastCustomerMessageAt?: string | null;
+  /** Ex.: WHATSAPP-CLOUD — vem do Mongo na listagem do CRM. */
+  instanceIntegration?: string | null;
+  /** Indicador do backend (24h); o chat também recalcula com as mensagens carregadas. */
+  sessionMessagingInactive?: boolean;
   createdAt: string;
   labels?: Label[];
 }

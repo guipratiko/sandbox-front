@@ -609,6 +609,9 @@ const translations = {
       'Abra o seletor acima e marque uma ou mais instâncias (WhatsApp ou Instagram) para carregar os contatos.',
     'crm.instancesNoneHint':
       'Conecte uma instância em Gerenciador de conexões para usar o CRM.',
+    'crm.sessionMessagingClosedTitle': 'Conversa inativa para envio',
+    'crm.sessionMessagingClosedHint':
+      'Na API Oficial do WhatsApp e no Instagram só é possível iniciar ou continuar o envio livre dentro de 24 horas após a última mensagem do contato. Aguarde uma nova mensagem dele para responder.',
     'crmContacts.title': 'Contatos do CRM',
     'crmContacts.subtitle':
       'Adicione contatos manualmente ou importe um arquivo .vcf (vCard). Válido para instâncias WhatsApp.',
@@ -2095,6 +2098,9 @@ const translations = {
     'crm.noInstancesSelectedHint':
       'Open the selector above and check one or more instances (WhatsApp or Instagram) to load contacts.',
     'crm.instancesNoneHint': 'Connect an instance in Connection manager to use the CRM.',
+    'crm.sessionMessagingClosedTitle': 'Conversation inactive for sending',
+    'crm.sessionMessagingClosedHint':
+      'On WhatsApp Official API and Instagram, free-form messaging is only allowed within 24 hours after the contact’s last message. Wait until they message again to reply.',
     'crmContacts.title': 'CRM contacts',
     'crmContacts.subtitle':
       'Add contacts manually or import a .vcf (vCard) file. For WhatsApp instances only.',
